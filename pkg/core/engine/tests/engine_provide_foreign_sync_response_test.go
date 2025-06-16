@@ -7,18 +7,18 @@ import (
 
 	"github.com/4chain-ag/go-overlay-services/pkg/core/engine"
 	"github.com/4chain-ag/go-overlay-services/pkg/core/gasp/core"
-	"github.com/bsv-blockchain/go-sdk/overlay"
+	"github.com/bsv-blockchain/go-sdk/transaction"
 	"github.com/stretchr/testify/require"
 )
 
 func TestEngine_ProvideForeignSyncResponse_ShouldReturnUTXOList(t *testing.T) {
 	// given
-	expectedOutpoint := &overlay.Outpoint{
-		Txid:        fakeTxID(t),
-		OutputIndex: 1,
+	expectedOutpoint := &transaction.Outpoint{
+		Txid:  fakeTxID(t),
+		Index: 1,
 	}
 	expectedResponse := &core.GASPInitialResponse{
-		UTXOList: []*overlay.Outpoint{expectedOutpoint},
+		UTXOList: []*transaction.Outpoint{expectedOutpoint},
 	}
 
 	sut := &engine.Engine{

@@ -7,26 +7,26 @@ import (
 
 	"github.com/4chain-ag/go-overlay-services/pkg/core/engine"
 	"github.com/4chain-ag/go-overlay-services/pkg/core/gasp/core"
-	"github.com/bsv-blockchain/go-sdk/overlay"
+	"github.com/bsv-blockchain/go-sdk/transaction"
 	"github.com/stretchr/testify/require"
 )
 
 func TestEngine_ProvideForeignGASPNode_Success(t *testing.T) {
 	// given:
 	ctx := context.Background()
-	graphID := &overlay.Outpoint{}
-	outpoint := &overlay.Outpoint{OutputIndex: 1}
+	graphID := &transaction.Outpoint{}
+	outpoint := &transaction.Outpoint{Index: 1}
 	BEEF := createDummyBEEF(t)
 
 	expectedNode := &core.GASPNode{
 		GraphID:     graphID,
 		RawTx:       parseBEEFToTx(t, BEEF).Hex(),
-		OutputIndex: outpoint.OutputIndex,
+		OutputIndex: outpoint.Index,
 	}
 
 	sut := &engine.Engine{
 		Storage: fakeStorage{
-			findOutputFunc: func(ctx context.Context, outpoint *overlay.Outpoint, topic *string, spent *bool, includeBEEF bool) (*engine.Output, error) {
+			findOutputFunc: func(ctx context.Context, outpoint *transaction.Outpoint, topic *string, spent *bool, includeBEEF bool) (*engine.Output, error) {
 				return &engine.Output{Beef: BEEF}, nil
 			},
 		},
@@ -43,12 +43,12 @@ func TestEngine_ProvideForeignGASPNode_Success(t *testing.T) {
 func TestEngine_ProvideForeignGASPNode_MissingBeef_ShouldReturnError(t *testing.T) {
 	// given:
 	ctx := context.Background()
-	graphID := &overlay.Outpoint{}
-	outpoint := &overlay.Outpoint{}
+	graphID := &transaction.Outpoint{}
+	outpoint := &transaction.Outpoint{}
 
 	sut := &engine.Engine{
 		Storage: fakeStorage{
-			findOutputFunc: func(ctx context.Context, outpoint *overlay.Outpoint, topic *string, spent *bool, includeBEEF bool) (*engine.Output, error) {
+			findOutputFunc: func(ctx context.Context, outpoint *transaction.Outpoint, topic *string, spent *bool, includeBEEF bool) (*engine.Output, error) {
 				return &engine.Output{}, nil // Missing Beef
 			},
 		},
@@ -65,13 +65,13 @@ func TestEngine_ProvideForeignGASPNode_MissingBeef_ShouldReturnError(t *testing.
 func TestEngine_ProvideForeignGASPNode_CannotFindOutput_ShouldReturnError(t *testing.T) {
 	// given:
 	ctx := context.Background()
-	graphID := &overlay.Outpoint{}
-	outpoint := &overlay.Outpoint{}
+	graphID := &transaction.Outpoint{}
+	outpoint := &transaction.Outpoint{}
 	expectedErr := errors.New("forced error")
 
 	sut := &engine.Engine{
 		Storage: fakeStorage{
-			findOutputFunc: func(ctx context.Context, outpoint *overlay.Outpoint, topic *string, spent *bool, includeBEEF bool) (*engine.Output, error) {
+			findOutputFunc: func(ctx context.Context, outpoint *transaction.Outpoint, topic *string, spent *bool, includeBEEF bool) (*engine.Output, error) {
 				return nil, expectedErr
 			},
 		},
@@ -88,12 +88,12 @@ func TestEngine_ProvideForeignGASPNode_CannotFindOutput_ShouldReturnError(t *tes
 func TestEngine_ProvideForeignGASPNode_TransactionNotFound_ShouldReturnError(t *testing.T) {
 	// given:
 	ctx := context.Background()
-	graphID := &overlay.Outpoint{}
-	outpoint := &overlay.Outpoint{}
+	graphID := &transaction.Outpoint{}
+	outpoint := &transaction.Outpoint{}
 
 	sut := &engine.Engine{
 		Storage: fakeStorage{
-			findOutputFunc: func(ctx context.Context, outpoint *overlay.Outpoint, topic *string, spent *bool, includeBEEF bool) (*engine.Output, error) {
+			findOutputFunc: func(ctx context.Context, outpoint *transaction.Outpoint, topic *string, spent *bool, includeBEEF bool) (*engine.Output, error) {
 				return &engine.Output{Beef: []byte{0x00}}, nil
 			},
 		},

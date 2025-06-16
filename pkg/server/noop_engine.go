@@ -44,7 +44,7 @@ func (*NoopEngineProvider) Lookup(ctx context.Context, question *lookup.LookupQu
 		},
 		Formulas: []lookup.LookupFormula{
 			{
-				Outpoint: &overlay.Outpoint{},
+				Outpoint: &transaction.Outpoint{},
 			},
 		},
 		Result: nil,
@@ -62,7 +62,7 @@ func (*NoopEngineProvider) StartGASPSync(ctx context.Context) error { return nil
 // ProvideForeignSyncResponse is a no-op call that always returns an empty initial GASP response with nil error.
 func (*NoopEngineProvider) ProvideForeignSyncResponse(ctx context.Context, initialRequest *core.GASPInitialRequest, topic string) (*core.GASPInitialResponse, error) {
 	return &core.GASPInitialResponse{
-		UTXOList: []*overlay.Outpoint{
+		UTXOList: []*transaction.Outpoint{
 			{},
 			{},
 		},
@@ -71,7 +71,7 @@ func (*NoopEngineProvider) ProvideForeignSyncResponse(ctx context.Context, initi
 }
 
 // ProvideForeignGASPNode is a no-op call that always returns an empty GASP node with nil error.
-func (*NoopEngineProvider) ProvideForeignGASPNode(ctx context.Context, graphId, outpoint *overlay.Outpoint, topic string) (*core.GASPNode, error) {
+func (*NoopEngineProvider) ProvideForeignGASPNode(ctx context.Context, graphId, outpoint *transaction.Outpoint, topic string) (*core.GASPNode, error) {
 	return &core.GASPNode{}, nil
 }
 

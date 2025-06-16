@@ -8,12 +8,12 @@ import (
 	"github.com/4chain-ag/go-overlay-services/pkg/core/gasp/core"
 	"github.com/4chain-ag/go-overlay-services/pkg/server/internal/app/jsonutil"
 	"github.com/bsv-blockchain/go-sdk/chainhash"
-	"github.com/bsv-blockchain/go-sdk/overlay"
+	"github.com/bsv-blockchain/go-sdk/transaction"
 )
 
 // RequestForeignGASPNodeProvider defines the contract that must be fulfilled to send a requestForeignGASPNode to the overlay engine.
 type RequestForeignGASPNodeProvider interface {
-	ProvideForeignGASPNode(ctx context.Context, graphID, outpoint *overlay.Outpoint, topic string) (*core.GASPNode, error)
+	ProvideForeignGASPNode(ctx context.Context, graphID, outpoint *transaction.Outpoint, topic string) (*core.GASPNode, error)
 }
 
 // RequestForeignGASPNodeHandler orchestrates the requestForeignGASPNode flow.
@@ -47,8 +47,8 @@ func (h *RequestForeignGASPNodeHandler) Handle(w http.ResponseWriter, r *http.Re
 		return
 	}
 
-	outpoint := &overlay.Outpoint{
-		OutputIndex: payload.OutputIndex,
+	outpoint := &transaction.Outpoint{
+		Index: payload.OutputIndex,
 	}
 	txid, err := chainhash.NewHashFromHex(payload.TxID)
 	if err != nil {
@@ -57,7 +57,7 @@ func (h *RequestForeignGASPNodeHandler) Handle(w http.ResponseWriter, r *http.Re
 	} else {
 		outpoint.Txid = *txid
 	}
-	graphId, err := overlay.NewOutpointFromString(payload.GraphID)
+	graphId, err := transaction.OutpointFromString(payload.GraphID)
 	if err != nil {
 		http.Error(w, "invalid graphID", http.StatusBadRequest)
 		return

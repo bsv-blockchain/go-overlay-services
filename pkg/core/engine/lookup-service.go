@@ -7,18 +7,19 @@ import (
 	"github.com/bsv-blockchain/go-sdk/overlay"
 	"github.com/bsv-blockchain/go-sdk/overlay/lookup"
 	"github.com/bsv-blockchain/go-sdk/script"
+	"github.com/bsv-blockchain/go-sdk/transaction"
 )
 
 type OutputAdmittedByTopic struct {
 	Topic         string
-	Outpoint      *overlay.Outpoint
+	Outpoint      *transaction.Outpoint
 	Satoshis      uint64
 	LockingScript *script.Script
 	AtomicBEEF    []byte
 }
 
 type OutputSpent struct {
-	Outpoint           *overlay.Outpoint
+	Outpoint           *transaction.Outpoint
 	Topic              string
 	SpendingTxid       *chainhash.Hash
 	InputIndex         uint32
@@ -44,7 +45,7 @@ type LookupService interface {
 	 * Called when a Topic Manager decides that **historical retention** of the
 	 * specified UTXO is no longer required.
 	 */
-	OutputNoLongerRetainedInHistory(ctx context.Context, outpoint *overlay.Outpoint, topic string) error
+	OutputNoLongerRetainedInHistory(ctx context.Context, outpoint *transaction.Outpoint, topic string) error
 
 	/**
 	 * LEGAL EVICTION:
@@ -52,7 +53,7 @@ type LookupService interface {
 	 * Lookup Service.  After eviction the service MUST NOT reference the output
 	 * in any future lookup answer.
 	 */
-	OutputEvicted(ctx context.Context, outpoint *overlay.Outpoint) error
+	OutputEvicted(ctx context.Context, outpoint *transaction.Outpoint) error
 	OutputBlockHeightUpdated(ctx context.Context, txid *chainhash.Hash, blockHeight uint32, blockIndex uint64) error
 	Lookup(ctx context.Context, question *lookup.LookupQuestion) (*lookup.LookupAnswer, error)
 	GetDocumentation() string

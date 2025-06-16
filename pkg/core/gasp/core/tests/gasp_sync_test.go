@@ -9,7 +9,6 @@ import (
 
 	"github.com/4chain-ag/go-overlay-services/pkg/core/gasp/core"
 	"github.com/bsv-blockchain/go-sdk/chainhash"
-	"github.com/bsv-blockchain/go-sdk/overlay"
 	"github.com/bsv-blockchain/go-sdk/script"
 	"github.com/bsv-blockchain/go-sdk/transaction"
 	"github.com/stretchr/testify/require"
@@ -17,7 +16,7 @@ import (
 
 // Mock types for testing
 type mockUTXO struct {
-	GraphID     *overlay.Outpoint
+	GraphID     *transaction.Outpoint
 	RawTx       string
 	OutputIndex uint32
 	Time        uint32
@@ -32,12 +31,12 @@ type mockGASPStorage struct {
 	updateCallback func()
 
 	// Configurable behavior functions
-	findKnownUTXOsFunc      func(ctx context.Context, sinceWhen uint32) ([]*overlay.Outpoint, error)
-	hydrateGASPNodeFunc     func(ctx context.Context, graphID *overlay.Outpoint, outpoint *overlay.Outpoint, metadata bool) (*core.GASPNode, error)
-	appendToGraphFunc       func(ctx context.Context, tx *core.GASPNode, spentBy *overlay.Outpoint) error
-	validateGraphAnchorFunc func(ctx context.Context, graphID *overlay.Outpoint) error
-	discardGraphFunc        func(ctx context.Context, graphID *overlay.Outpoint) error
-	finalizeGraphFunc       func(ctx context.Context, graphID *overlay.Outpoint) error
+	findKnownUTXOsFunc      func(ctx context.Context, sinceWhen uint32) ([]*transaction.Outpoint, error)
+	hydrateGASPNodeFunc     func(ctx context.Context, graphID *transaction.Outpoint, outpoint *transaction.Outpoint, metadata bool) (*core.GASPNode, error)
+	appendToGraphFunc       func(ctx context.Context, tx *core.GASPNode, spentBy *transaction.Outpoint) error
+	validateGraphAnchorFunc func(ctx context.Context, graphID *transaction.Outpoint) error
+	discardGraphFunc        func(ctx context.Context, graphID *transaction.Outpoint) error
+	finalizeGraphFunc       func(ctx context.Context, graphID *transaction.Outpoint) error
 	findNeededInputsFunc    func(ctx context.Context, tx *core.GASPNode) (*core.GASPNodeResponse, error)
 }
 
@@ -53,7 +52,7 @@ func (m *mockGASPStorage) SetUpdateCallback(f func()) {
 	m.updateCallback = f
 }
 
-func (m *mockGASPStorage) FindKnownUTXOs(ctx context.Context, sinceWhen uint32) ([]*overlay.Outpoint, error) {
+func (m *mockGASPStorage) FindKnownUTXOs(ctx context.Context, sinceWhen uint32) ([]*transaction.Outpoint, error) {
 	if m.findKnownUTXOsFunc != nil {
 		return m.findKnownUTXOsFunc(ctx, sinceWhen)
 	}
@@ -61,7 +60,7 @@ func (m *mockGASPStorage) FindKnownUTXOs(ctx context.Context, sinceWhen uint32) 
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
-	var result []*overlay.Outpoint
+	var result []*transaction.Outpoint
 	for _, utxo := range m.knownStore {
 		if utxo.Time >= sinceWhen {
 			result = append(result, utxo.GraphID)
@@ -70,7 +69,7 @@ func (m *mockGASPStorage) FindKnownUTXOs(ctx context.Context, sinceWhen uint32) 
 	return result, nil
 }
 
-func (m *mockGASPStorage) HydrateGASPNode(ctx context.Context, graphID *overlay.Outpoint, outpoint *overlay.Outpoint, metadata bool) (*core.GASPNode, error) {
+func (m *mockGASPStorage) HydrateGASPNode(ctx context.Context, graphID *transaction.Outpoint, outpoint *transaction.Outpoint, metadata bool) (*core.GASPNode, error) {
 	if m.hydrateGASPNodeFunc != nil {
 		return m.hydrateGASPNodeFunc(ctx, graphID, outpoint, metadata)
 	}
@@ -123,7 +122,7 @@ func (m *mockGASPStorage) FindNeededInputs(ctx context.Context, tx *core.GASPNod
 	}, nil
 }
 
-func (m *mockGASPStorage) AppendToGraph(ctx context.Context, tx *core.GASPNode, spentBy *overlay.Outpoint) error {
+func (m *mockGASPStorage) AppendToGraph(ctx context.Context, tx *core.GASPNode, spentBy *transaction.Outpoint) error {
 	if m.appendToGraphFunc != nil {
 		return m.appendToGraphFunc(ctx, tx, spentBy)
 	}
@@ -148,7 +147,7 @@ func (m *mockGASPStorage) AppendToGraph(ctx context.Context, tx *core.GASPNode, 
 	return nil
 }
 
-func (m *mockGASPStorage) ValidateGraphAnchor(ctx context.Context, graphID *overlay.Outpoint) error {
+func (m *mockGASPStorage) ValidateGraphAnchor(ctx context.Context, graphID *transaction.Outpoint) error {
 	if m.validateGraphAnchorFunc != nil {
 		return m.validateGraphAnchorFunc(ctx, graphID)
 	}
@@ -157,7 +156,7 @@ func (m *mockGASPStorage) ValidateGraphAnchor(ctx context.Context, graphID *over
 	return nil
 }
 
-func (m *mockGASPStorage) DiscardGraph(ctx context.Context, graphID *overlay.Outpoint) error {
+func (m *mockGASPStorage) DiscardGraph(ctx context.Context, graphID *transaction.Outpoint) error {
 	if m.discardGraphFunc != nil {
 		return m.discardGraphFunc(ctx, graphID)
 	}
@@ -169,7 +168,7 @@ func (m *mockGASPStorage) DiscardGraph(ctx context.Context, graphID *overlay.Out
 	return nil
 }
 
-func (m *mockGASPStorage) FinalizeGraph(ctx context.Context, graphID *overlay.Outpoint) error {
+func (m *mockGASPStorage) FinalizeGraph(ctx context.Context, graphID *transaction.Outpoint) error {
 	if m.finalizeGraphFunc != nil {
 		return m.finalizeGraphFunc(ctx, graphID)
 	}
@@ -188,7 +187,7 @@ func (m *mockGASPStorage) FinalizeGraph(ctx context.Context, graphID *overlay.Ou
 type mockGASPRemote struct {
 	targetGASP          *core.GASP
 	initialResponseFunc func(ctx context.Context, request *core.GASPInitialRequest) (*core.GASPInitialResponse, error)
-	requestNodeFunc     func(ctx context.Context, graphID, outpoint *overlay.Outpoint, metadata bool) (*core.GASPNode, error)
+	requestNodeFunc     func(ctx context.Context, graphID, outpoint *transaction.Outpoint, metadata bool) (*core.GASPNode, error)
 }
 
 func (m *mockGASPRemote) GetInitialResponse(ctx context.Context, request *core.GASPInitialRequest) (*core.GASPInitialResponse, error) {
@@ -210,11 +209,11 @@ func (m *mockGASPRemote) GetInitialReply(ctx context.Context, response *core.GAS
 
 	// Default implementation
 	return &core.GASPInitialReply{
-		UTXOList: []*overlay.Outpoint{},
+		UTXOList: []*transaction.Outpoint{},
 	}, nil
 }
 
-func (m *mockGASPRemote) RequestNode(ctx context.Context, graphID, outpoint *overlay.Outpoint, metadata bool) (*core.GASPNode, error) {
+func (m *mockGASPRemote) RequestNode(ctx context.Context, graphID, outpoint *transaction.Outpoint, metadata bool) (*core.GASPNode, error) {
 	if m.requestNodeFunc != nil {
 		return m.requestNodeFunc(ctx, graphID, outpoint, metadata)
 	}
@@ -250,9 +249,9 @@ func createMockUTXO(txHex string, outputIndex uint32, time uint32) *mockUTXO {
 	realTxHex := hex.EncodeToString(tx.Bytes())
 
 	return &mockUTXO{
-		GraphID: &overlay.Outpoint{
-			Txid:        *tx.TxID(),
-			OutputIndex: outputIndex,
+		GraphID: &transaction.Outpoint{
+			Txid:  *tx.TxID(),
+			Index: outputIndex,
 		},
 		RawTx:       realTxHex,
 		OutputIndex: outputIndex,
@@ -348,10 +347,10 @@ func TestGASP_SyncBasicScenarios(t *testing.T) {
 		storage2 := newMockGASPStorage([]*mockUTXO{})
 
 		discardGraphCalled := false
-		storage2.validateGraphAnchorFunc = func(ctx context.Context, graphID *overlay.Outpoint) error {
+		storage2.validateGraphAnchorFunc = func(ctx context.Context, graphID *transaction.Outpoint) error {
 			return errors.New("invalid graph anchor")
 		}
-		storage2.discardGraphFunc = func(ctx context.Context, graphID *overlay.Outpoint) error {
+		storage2.discardGraphFunc = func(ctx context.Context, graphID *transaction.Outpoint) error {
 			discardGraphCalled = true
 			require.Equal(t, utxo1.GraphID.String(), graphID.String())
 			return nil
@@ -433,7 +432,7 @@ func TestGASP_SyncBasicScenarios(t *testing.T) {
 		require.Len(t, utxos2, 1) // Only new UTXO should be synchronized
 
 		// Verify it's the new UTXO
-		require.Equal(t, newUTXO.GraphID.OutputIndex, utxos2[0].OutputIndex)
+		require.Equal(t, newUTXO.GraphID.Index, utxos2[0].Index)
 	})
 
 	t.Run("should not sync unnecessary graphs", func(t *testing.T) {
@@ -447,11 +446,11 @@ func TestGASP_SyncBasicScenarios(t *testing.T) {
 		finalizeGraphCalled1 := false
 		finalizeGraphCalled2 := false
 
-		storage1.finalizeGraphFunc = func(ctx context.Context, graphID *overlay.Outpoint) error {
+		storage1.finalizeGraphFunc = func(ctx context.Context, graphID *transaction.Outpoint) error {
 			finalizeGraphCalled1 = true
 			return nil
 		}
-		storage2.finalizeGraphFunc = func(ctx context.Context, graphID *overlay.Outpoint) error {
+		storage2.finalizeGraphFunc = func(ctx context.Context, graphID *transaction.Outpoint) error {
 			finalizeGraphCalled2 = true
 			return nil
 		}

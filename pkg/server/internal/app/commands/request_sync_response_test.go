@@ -10,7 +10,7 @@ import (
 	"github.com/4chain-ag/go-overlay-services/pkg/core/gasp/core"
 	"github.com/4chain-ag/go-overlay-services/pkg/server/internal/app/commands"
 	"github.com/4chain-ag/go-overlay-services/pkg/server/internal/app/commands/testutil"
-	"github.com/bsv-blockchain/go-sdk/overlay"
+	"github.com/bsv-blockchain/go-sdk/transaction"
 	"github.com/stretchr/testify/require"
 )
 
@@ -30,7 +30,7 @@ type foreignSyncProviderAlwaysSuccess struct{}
 
 func (foreignSyncProviderAlwaysSuccess) ProvideForeignSyncResponse(ctx context.Context, initialRequest *core.GASPInitialRequest, topic string) (*core.GASPInitialResponse, error) {
 	return &core.GASPInitialResponse{
-		UTXOList: []*overlay.Outpoint{},
+		UTXOList: []*transaction.Outpoint{},
 		Since:    initialRequest.Since,
 	}, nil
 }

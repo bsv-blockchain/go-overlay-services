@@ -28,19 +28,19 @@ func TestEngine_Submit_Success(t *testing.T) {
 			},
 		},
 		Storage: fakeStorage{
-			deleteOutputFunc: func(ctx context.Context, outpoint *overlay.Outpoint, topic string) error {
+			deleteOutputFunc: func(ctx context.Context, outpoint *transaction.Outpoint, topic string) error {
 				return nil
 			},
-			findOutputFunc: func(ctx context.Context, outpoint *overlay.Outpoint, topic *string, spent *bool, includeBEEF bool) (*engine.Output, error) {
+			findOutputFunc: func(ctx context.Context, outpoint *transaction.Outpoint, topic *string, spent *bool, includeBEEF bool) (*engine.Output, error) {
 				return &engine.Output{}, nil
 			},
-			findOutputsFunc: func(ctx context.Context, outpoints []*overlay.Outpoint, topic string, spent *bool, includeBEEF bool) ([]*engine.Output, error) {
+			findOutputsFunc: func(ctx context.Context, outpoints []*transaction.Outpoint, topic string, spent *bool, includeBEEF bool) ([]*engine.Output, error) {
 				return []*engine.Output{{}}, nil
 			},
 			doesAppliedTransactionExistFunc: func(ctx context.Context, tx *overlay.AppliedTransaction) (bool, error) {
 				return false, nil
 			},
-			markUTXOsAsSpentFunc: func(ctx context.Context, outpoints []*overlay.Outpoint, topic string, spendTxid *chainhash.Hash) error {
+			markUTXOsAsSpentFunc: func(ctx context.Context, outpoints []*transaction.Outpoint, topic string, spendTxid *chainhash.Hash) error {
 				return nil
 			},
 			insertOutputFunc: func(ctx context.Context, output *engine.Output) error {
@@ -122,14 +122,14 @@ func TestEngine_Submit_SPVFail_ShouldReturnError(t *testing.T) {
 			},
 		},
 		Storage: fakeStorage{
-			findOutputFunc: func(ctx context.Context, outpoint *overlay.Outpoint, topic *string, spent *bool, includeBEEF bool) (*engine.Output, error) {
+			findOutputFunc: func(ctx context.Context, outpoint *transaction.Outpoint, topic *string, spent *bool, includeBEEF bool) (*engine.Output, error) {
 				return &engine.Output{
 					Outpoint: *outpoint,
 					Satoshis: 1000,
 					Script:   &script.Script{script.OpTRUE},
 				}, nil
 			},
-			findOutputsFunc: func(ctx context.Context, outpoints []*overlay.Outpoint, topic string, spent *bool, includeBEEF bool) ([]*engine.Output, error) {
+			findOutputsFunc: func(ctx context.Context, outpoints []*transaction.Outpoint, topic string, spent *bool, includeBEEF bool) ([]*engine.Output, error) {
 				return []*engine.Output{
 					{
 						Outpoint: *outpoints[0],
@@ -228,16 +228,16 @@ func TestEngine_Submit_BroadcastFails_ShouldReturnError(t *testing.T) {
 			},
 		},
 		Storage: fakeStorage{
-			findOutputFunc: func(ctx context.Context, outpoint *overlay.Outpoint, topic *string, spent *bool, includeBEEF bool) (*engine.Output, error) {
+			findOutputFunc: func(ctx context.Context, outpoint *transaction.Outpoint, topic *string, spent *bool, includeBEEF bool) (*engine.Output, error) {
 				return &engine.Output{}, nil
 			},
-			findOutputsFunc: func(ctx context.Context, outpoints []*overlay.Outpoint, topic string, spent *bool, includeBEEF bool) ([]*engine.Output, error) {
+			findOutputsFunc: func(ctx context.Context, outpoints []*transaction.Outpoint, topic string, spent *bool, includeBEEF bool) ([]*engine.Output, error) {
 				return []*engine.Output{{}}, nil
 			},
 			doesAppliedTransactionExistFunc: func(ctx context.Context, tx *overlay.AppliedTransaction) (bool, error) {
 				return false, nil
 			},
-			markUTXOsAsSpentFunc: func(ctx context.Context, outpoints []*overlay.Outpoint, topic string, spendTxid *chainhash.Hash) error {
+			markUTXOsAsSpentFunc: func(ctx context.Context, outpoints []*transaction.Outpoint, topic string, spendTxid *chainhash.Hash) error {
 				return nil
 			},
 		},
@@ -290,23 +290,23 @@ func TestEngine_Submit_OutputInsertFails_ShouldReturnError(t *testing.T) {
 			},
 		},
 		Storage: fakeStorage{
-			findOutputFunc: func(ctx context.Context, outpoint *overlay.Outpoint, topic *string, spent *bool, includeBEEF bool) (*engine.Output, error) {
+			findOutputFunc: func(ctx context.Context, outpoint *transaction.Outpoint, topic *string, spent *bool, includeBEEF bool) (*engine.Output, error) {
 				return &engine.Output{
-					Outpoint: overlay.Outpoint{
-						Txid:        *prevTxID,
-						OutputIndex: 0,
+					Outpoint: transaction.Outpoint{
+						Txid:  *prevTxID,
+						Index: 0,
 					},
 					Satoshis: 1000,
 					Script:   &script.Script{script.OpTRUE},
 					Topic:    "test-topic",
 				}, nil
 			},
-			findOutputsFunc: func(ctx context.Context, outpoints []*overlay.Outpoint, topic string, spent *bool, includeBEEF bool) ([]*engine.Output, error) {
+			findOutputsFunc: func(ctx context.Context, outpoints []*transaction.Outpoint, topic string, spent *bool, includeBEEF bool) ([]*engine.Output, error) {
 				return []*engine.Output{
 					{
-						Outpoint: overlay.Outpoint{
-							Txid:        *prevTxID,
-							OutputIndex: 0,
+						Outpoint: transaction.Outpoint{
+							Txid:  *prevTxID,
+							Index: 0,
 						},
 						Satoshis: 1000,
 						Script:   &script.Script{script.OpTRUE},
@@ -317,13 +317,13 @@ func TestEngine_Submit_OutputInsertFails_ShouldReturnError(t *testing.T) {
 			doesAppliedTransactionExistFunc: func(ctx context.Context, tx *overlay.AppliedTransaction) (bool, error) {
 				return false, nil
 			},
-			markUTXOsAsSpentFunc: func(ctx context.Context, outpoints []*overlay.Outpoint, topic string, spendTxid *chainhash.Hash) error {
+			markUTXOsAsSpentFunc: func(ctx context.Context, outpoints []*transaction.Outpoint, topic string, spendTxid *chainhash.Hash) error {
 				return nil
 			},
 			insertOutputFunc: func(ctx context.Context, output *engine.Output) error {
 				return expectedErr
 			},
-			deleteOutputFunc: func(ctx context.Context, outpoint *overlay.Outpoint, topic string) error {
+			deleteOutputFunc: func(ctx context.Context, outpoint *transaction.Outpoint, topic string) error {
 				return nil
 			},
 		},

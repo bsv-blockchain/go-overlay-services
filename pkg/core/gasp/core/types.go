@@ -3,7 +3,7 @@ package core
 import (
 	"fmt"
 
-	"github.com/bsv-blockchain/go-sdk/overlay"
+	"github.com/bsv-blockchain/go-sdk/transaction"
 )
 
 type GASPInitialRequest struct {
@@ -12,12 +12,12 @@ type GASPInitialRequest struct {
 }
 
 type GASPInitialResponse struct {
-	UTXOList []*overlay.Outpoint `json:"utxo_list"`
-	Since    uint32              `json:"since"`
+	UTXOList []*transaction.Outpoint `json:"utxo_list"`
+	Since    uint32                  `json:"since"`
 }
 
 type GASPInitialReply struct {
-	UTXOList []*overlay.Outpoint `json:"utxo_list"`
+	UTXOList []*transaction.Outpoint `json:"utxo_list"`
 }
 
 type GASPInput struct {
@@ -25,7 +25,7 @@ type GASPInput struct {
 }
 
 type GASPNode struct {
-	GraphID        *overlay.Outpoint     `json:"graphID"`
+	GraphID        *transaction.Outpoint `json:"graphID"`
 	RawTx          string                `json:"rawTx"`
 	OutputIndex    uint32                `json:"outputIndex"`
 	Proof          *string               `json:"proof"`

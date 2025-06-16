@@ -30,9 +30,9 @@ func TestOverlayGASPStorage_AppendToGraph(t *testing.T) {
 			LockingScript: &script.Script{},
 		})
 
-		graphID := &overlay.Outpoint{
-			Txid:        *tx.TxID(),
-			OutputIndex: 0,
+		graphID := &transaction.Outpoint{
+			Txid:  *tx.TxID(),
+			Index: 0,
 		}
 
 		gaspNode := &core.GASPNode{
@@ -60,9 +60,9 @@ func TestOverlayGASPStorage_AppendToGraph(t *testing.T) {
 		}
 
 		// The parent outpoint that the child is spending
-		parentOutpoint := &overlay.Outpoint{
-			Txid:        *tx.TxID(),
-			OutputIndex: 0,
+		parentOutpoint := &transaction.Outpoint{
+			Txid:  *tx.TxID(),
+			Index: 0,
 		}
 		err = storage.AppendToGraph(ctx, childNode, parentOutpoint)
 		require.NoError(t, err)
@@ -85,9 +85,9 @@ func TestOverlayGASPStorage_AppendToGraph(t *testing.T) {
 				LockingScript: &script.Script{},
 			})
 
-			graphID := &overlay.Outpoint{
-				Txid:        *tx.TxID(),
-				OutputIndex: uint32(i),
+			graphID := &transaction.Outpoint{
+				Txid:  *tx.TxID(),
+				Index: uint32(i),
 			}
 
 			gaspNode := &core.GASPNode{
@@ -107,9 +107,9 @@ func TestOverlayGASPStorage_AppendToGraph(t *testing.T) {
 			LockingScript: &script.Script{},
 		})
 
-		graphID := &overlay.Outpoint{
-			Txid:        *tx.TxID(),
-			OutputIndex: 99,
+		graphID := &transaction.Outpoint{
+			Txid:  *tx.TxID(),
+			Index: 99,
 		}
 
 		gaspNode := &core.GASPNode{
@@ -137,9 +137,9 @@ func TestOverlayGASPStorage_AppendToGraph(t *testing.T) {
 		gaspNode := &core.GASPNode{
 			RawTx:       "invalid-hex",
 			OutputIndex: 0,
-			GraphID: &overlay.Outpoint{
-				Txid:        chainhash.Hash{},
-				OutputIndex: 0,
+			GraphID: &transaction.Outpoint{
+				Txid:  chainhash.Hash{},
+				Index: 0,
 			},
 		}
 
@@ -158,15 +158,15 @@ func TestOverlayGASPStorage_FindKnownUTXOs(t *testing.T) {
 		since := uint32(1234567890)
 		expectedUTXOs := []*engine.Output{
 			{
-				Outpoint: overlay.Outpoint{
-					Txid:        chainhash.Hash{1},
-					OutputIndex: 0,
+				Outpoint: transaction.Outpoint{
+					Txid:  chainhash.Hash{1},
+					Index: 0,
 				},
 			},
 			{
-				Outpoint: overlay.Outpoint{
-					Txid:        chainhash.Hash{2},
-					OutputIndex: 1,
+				Outpoint: transaction.Outpoint{
+					Txid:  chainhash.Hash{2},
+					Index: 1,
 				},
 			},
 		}
@@ -234,9 +234,9 @@ func TestOverlayGASPStorage_DiscardGraph(t *testing.T) {
 			LockingScript: &script.Script{},
 		})
 
-		graphID := &overlay.Outpoint{
-			Txid:        *rootTx.TxID(),
-			OutputIndex: 0,
+		graphID := &transaction.Outpoint{
+			Txid:  *rootTx.TxID(),
+			Index: 0,
 		}
 
 		rootNode := &core.GASPNode{
@@ -263,9 +263,9 @@ func TestOverlayGASPStorage_DiscardGraph(t *testing.T) {
 		}
 
 		// The parent outpoint that the child is spending
-		rootOutpoint := &overlay.Outpoint{
-			Txid:        *rootTx.TxID(),
-			OutputIndex: 0,
+		rootOutpoint := &transaction.Outpoint{
+			Txid:  *rootTx.TxID(),
+			Index: 0,
 		}
 		err = storage.AppendToGraph(ctx, childNode, rootOutpoint)
 		require.NoError(t, err)
@@ -284,9 +284,9 @@ func TestOverlayGASPStorage_DiscardGraph(t *testing.T) {
 		}
 
 		// This should fail because the parent node was discarded
-		rootOutpoint2 := &overlay.Outpoint{
-			Txid:        *rootTx.TxID(),
-			OutputIndex: 0,
+		rootOutpoint2 := &transaction.Outpoint{
+			Txid:  *rootTx.TxID(),
+			Index: 0,
 		}
 		err = storage.AppendToGraph(ctx, newNode, rootOutpoint2)
 		require.Error(t, err)
@@ -300,9 +300,9 @@ func TestOverlayGASPStorage_DiscardGraph(t *testing.T) {
 		}
 		storage := engine.NewOverlayGASPStorage("test-topic", mockEngine, nil)
 
-		nonExistentGraphID := &overlay.Outpoint{
-			Txid:        chainhash.Hash{99, 99, 99},
-			OutputIndex: 0,
+		nonExistentGraphID := &transaction.Outpoint{
+			Txid:  chainhash.Hash{99, 99, 99},
+			Index: 0,
 		}
 
 		// when
@@ -318,7 +318,7 @@ func TestOverlayGASPStorage_HydrateGASPNode(t *testing.T) {
 		// given
 		ctx := context.Background()
 		mockStorage := &mockStorage{
-			findOutputFunc: func(ctx context.Context, outpoint *overlay.Outpoint, topic *string, spent *bool, historical bool) (*engine.Output, error) {
+			findOutputFunc: func(ctx context.Context, outpoint *transaction.Outpoint, topic *string, spent *bool, historical bool) (*engine.Output, error) {
 				return nil, nil // No output found
 			},
 		}
@@ -328,13 +328,13 @@ func TestOverlayGASPStorage_HydrateGASPNode(t *testing.T) {
 		}
 		storage := engine.NewOverlayGASPStorage("test-topic", mockEngine, nil)
 
-		graphID := &overlay.Outpoint{
-			Txid:        chainhash.Hash{1},
-			OutputIndex: 0,
+		graphID := &transaction.Outpoint{
+			Txid:  chainhash.Hash{1},
+			Index: 0,
 		}
-		outpoint := &overlay.Outpoint{
-			Txid:        chainhash.Hash{2},
-			OutputIndex: 0,
+		outpoint := &transaction.Outpoint{
+			Txid:  chainhash.Hash{2},
+			Index: 0,
 		}
 
 		// when
@@ -369,7 +369,7 @@ func TestOverlayGASPStorage_HydrateGASPNode(t *testing.T) {
 		require.NoError(t, err)
 
 		mockStorage := &mockStorage{
-			findOutputFunc: func(ctx context.Context, outpoint *overlay.Outpoint, topic *string, spent *bool, historical bool) (*engine.Output, error) {
+			findOutputFunc: func(ctx context.Context, outpoint *transaction.Outpoint, topic *string, spent *bool, historical bool) (*engine.Output, error) {
 				return &engine.Output{
 					Outpoint: *outpoint,
 					Beef:     beefBytes,
@@ -382,13 +382,13 @@ func TestOverlayGASPStorage_HydrateGASPNode(t *testing.T) {
 		}
 		storage := engine.NewOverlayGASPStorage("test-topic", mockEngine, nil)
 
-		graphID := &overlay.Outpoint{
-			Txid:        chainhash.Hash{1},
-			OutputIndex: 0,
+		graphID := &transaction.Outpoint{
+			Txid:  chainhash.Hash{1},
+			Index: 0,
 		}
-		outpoint := &overlay.Outpoint{
-			Txid:        *tx.TxID(),
-			OutputIndex: 0,
+		outpoint := &transaction.Outpoint{
+			Txid:  *tx.TxID(),
+			Index: 0,
 		}
 
 		// when
@@ -407,8 +407,8 @@ func TestOverlayGASPStorage_HydrateGASPNode(t *testing.T) {
 // Mock storage implementation
 type mockStorage struct {
 	findUTXOsForTopicFunc func(ctx context.Context, topic string, since uint32, historical bool) ([]*engine.Output, error)
-	findOutputFunc        func(ctx context.Context, outpoint *overlay.Outpoint, topic *string, spent *bool, historical bool) (*engine.Output, error)
-	findOutputsFunc       func(ctx context.Context, outpoints []*overlay.Outpoint, topic string, spent *bool, historical bool) ([]*engine.Output, error)
+	findOutputFunc        func(ctx context.Context, outpoint *transaction.Outpoint, topic *string, spent *bool, historical bool) (*engine.Output, error)
+	findOutputsFunc       func(ctx context.Context, outpoints []*transaction.Outpoint, topic string, spent *bool, historical bool) ([]*engine.Output, error)
 }
 
 func (m *mockStorage) FindUTXOsForTopic(ctx context.Context, topic string, since uint32, historical bool) ([]*engine.Output, error) {
@@ -418,14 +418,14 @@ func (m *mockStorage) FindUTXOsForTopic(ctx context.Context, topic string, since
 	return nil, nil
 }
 
-func (m *mockStorage) FindOutput(ctx context.Context, outpoint *overlay.Outpoint, topic *string, spent *bool, historical bool) (*engine.Output, error) {
+func (m *mockStorage) FindOutput(ctx context.Context, outpoint *transaction.Outpoint, topic *string, spent *bool, historical bool) (*engine.Output, error) {
 	if m.findOutputFunc != nil {
 		return m.findOutputFunc(ctx, outpoint, topic, spent, historical)
 	}
 	return nil, nil
 }
 
-func (m *mockStorage) FindOutputs(ctx context.Context, outpoints []*overlay.Outpoint, topic string, spent *bool, historical bool) ([]*engine.Output, error) {
+func (m *mockStorage) FindOutputs(ctx context.Context, outpoints []*transaction.Outpoint, topic string, spent *bool, historical bool) ([]*engine.Output, error) {
 	if m.findOutputsFunc != nil {
 		return m.findOutputsFunc(ctx, outpoints, topic, spent, historical)
 	}
@@ -439,10 +439,10 @@ func (m *mockStorage) SetIncoming(ctx context.Context, txs []*transaction.Transa
 func (m *mockStorage) SetOutgoing(ctx context.Context, tx *transaction.Transaction, steak *overlay.Steak) error {
 	return nil
 }
-func (m *mockStorage) UpdateConsumedBy(ctx context.Context, outpoint *overlay.Outpoint, consumedBy string, inputs []*overlay.Outpoint) error {
+func (m *mockStorage) UpdateConsumedBy(ctx context.Context, outpoint *transaction.Outpoint, consumedBy string, inputs []*transaction.Outpoint) error {
 	return nil
 }
-func (m *mockStorage) DeleteOutput(ctx context.Context, outpoint *overlay.Outpoint, topic string) error {
+func (m *mockStorage) DeleteOutput(ctx context.Context, outpoint *transaction.Outpoint, topic string) error {
 	return nil
 }
 func (m *mockStorage) FindTransaction(ctx context.Context, txid chainhash.Hash, requireProof bool) (*transaction.Transaction, error) {
@@ -464,7 +464,7 @@ func (m *mockStorage) UpdateTransactionBEEF(ctx context.Context, txid *chainhash
 	return nil
 }
 
-func (m *mockStorage) MarkUTXOsAsSpent(ctx context.Context, utxos []*overlay.Outpoint, spentBy string, blockHash *chainhash.Hash) error {
+func (m *mockStorage) MarkUTXOsAsSpent(ctx context.Context, utxos []*transaction.Outpoint, spentBy string, blockHash *chainhash.Hash) error {
 	return nil
 }
 
@@ -476,6 +476,6 @@ func (m *mockStorage) FindOutputsForTransaction(ctx context.Context, txid *chain
 	return nil, nil
 }
 
-func (m *mockStorage) UpdateOutputBlockHeight(ctx context.Context, outpoint *overlay.Outpoint, topic string, blockHeight uint32, blockIndex uint64, ancillaryBeef []byte) error {
+func (m *mockStorage) UpdateOutputBlockHeight(ctx context.Context, outpoint *transaction.Outpoint, topic string, blockHeight uint32, blockIndex uint64, ancillaryBeef []byte) error {
 	return nil
 }

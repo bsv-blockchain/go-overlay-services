@@ -110,7 +110,7 @@ func TestEngine_Lookup_ShouldHydrateOutputs_WhenFormulasProvided(t *testing.T) {
 	// given
 	ctx := context.Background()
 	expectedBeef := []byte("hydrated beef")
-	outpoint := &overlay.Outpoint{Txid: fakeTxID(t), OutputIndex: 0}
+	outpoint := &transaction.Outpoint{Txid: fakeTxID(t), OutputIndex: 0}
 
 	sut := &engine.Engine{
 		LookupServices: map[string]engine.LookupService{
@@ -119,14 +119,14 @@ func TestEngine_Lookup_ShouldHydrateOutputs_WhenFormulasProvided(t *testing.T) {
 					return &lookup.LookupAnswer{
 						Type: lookup.AnswerTypeFormula,
 						Formulas: []lookup.LookupFormula{
-							{Outpoint: &overlay.Outpoint{Txid: fakeTxID(t), OutputIndex: 0}},
+							{Outpoint: &transaction.Outpoint{Txid: fakeTxID(t), OutputIndex: 0}},
 						},
 					}, nil
 				},
 			},
 		},
 		Storage: fakeStorage{
-			findOutputFunc: func(ctx context.Context, outpoint *overlay.Outpoint, topic *string, spent *bool, includeBEEF bool) (*engine.Output, error) {
+			findOutputFunc: func(ctx context.Context, outpoint *transaction.Outpoint, topic *string, spent *bool, includeBEEF bool) (*engine.Output, error) {
 				return &engine.Output{
 					Outpoint: *outpoint,
 					Beef:     expectedBeef,
@@ -159,16 +159,16 @@ func TestEngine_Lookup_MultipleFormulasWithHistory(t *testing.T) {
 	
 	// Create mock outputs with history
 	parentOutput := &engine.Output{
-		Outpoint: overlay.Outpoint{Txid: fakeTxID(t), OutputIndex: 0},
+		Outpoint: transaction.Outpoint{Txid: fakeTxID(t), OutputIndex: 0},
 		Beef:     []byte("parent beef"),
 		Topic:    "test",
 	}
 	
 	childOutput := &engine.Output{
-		Outpoint:        overlay.Outpoint{Txid: fakeTxID(t), OutputIndex: 1},
+		Outpoint:        transaction.Outpoint{Txid: fakeTxID(t), OutputIndex: 1},
 		Beef:            []byte("child beef"),
 		Topic:           "test",
-		OutputsConsumed: []*overlay.Outpoint{&parentOutput.Outpoint},
+		OutputsConsumed: []*transaction.Outpoint{&parentOutput.Outpoint},
 	}
 	
 	sut := &engine.Engine{
@@ -192,7 +192,7 @@ func TestEngine_Lookup_MultipleFormulasWithHistory(t *testing.T) {
 			},
 		},
 		Storage: fakeStorage{
-			findOutputFunc: func(ctx context.Context, outpoint *overlay.Outpoint, topic *string, spent *bool, includeBEEF bool) (*engine.Output, error) {
+			findOutputFunc: func(ctx context.Context, outpoint *transaction.Outpoint, topic *string, spent *bool, includeBEEF bool) (*engine.Output, error) {
 				if outpoint.Txid.String() == childOutput.Outpoint.Txid.String() {
 					return childOutput, nil
 				}
@@ -232,7 +232,7 @@ func TestEngine_Lookup_HistorySelectorReturnsFalse(t *testing.T) {
 	ctx := context.Background()
 	
 	mockOutput := &engine.Output{
-		Outpoint: overlay.Outpoint{Txid: fakeTxID(t), OutputIndex: 0},
+		Outpoint: transaction.Outpoint{Txid: fakeTxID(t), OutputIndex: 0},
 		Beef:     []byte("test beef"),
 		Topic:    "test",
 	}
@@ -260,7 +260,7 @@ func TestEngine_Lookup_HistorySelectorReturnsFalse(t *testing.T) {
 			},
 		},
 		Storage: fakeStorage{
-			findOutputFunc: func(ctx context.Context, outpoint *overlay.Outpoint, topic *string, spent *bool, includeBEEF bool) (*engine.Output, error) {
+			findOutputFunc: func(ctx context.Context, outpoint *transaction.Outpoint, topic *string, spent *bool, includeBEEF bool) (*engine.Output, error) {
 				return mockOutput, nil
 			},
 		},
@@ -283,30 +283,30 @@ func TestEngine_Lookup_ComplexHistoryGraph(t *testing.T) {
 	
 	// Create a complex graph: grandparent -> parent1 & parent2 -> child
 	grandparentOutput := &engine.Output{
-		Outpoint: overlay.Outpoint{Txid: fakeTxID(t), OutputIndex: 0},
+		Outpoint: transaction.Outpoint{Txid: fakeTxID(t), OutputIndex: 0},
 		Beef:     []byte("grandparent beef"),
 		Topic:    "test",
 	}
 	
 	parent1Output := &engine.Output{
-		Outpoint:        overlay.Outpoint{Txid: fakeTxID(t), OutputIndex: 1},
+		Outpoint:        transaction.Outpoint{Txid: fakeTxID(t), OutputIndex: 1},
 		Beef:            []byte("parent1 beef"),
 		Topic:           "test",
-		OutputsConsumed: []*overlay.Outpoint{&grandparentOutput.Outpoint},
+		OutputsConsumed: []*transaction.Outpoint{&grandparentOutput.Outpoint},
 	}
 	
 	parent2Output := &engine.Output{
-		Outpoint:        overlay.Outpoint{Txid: fakeTxID(t), OutputIndex: 2},
+		Outpoint:        transaction.Outpoint{Txid: fakeTxID(t), OutputIndex: 2},
 		Beef:            []byte("parent2 beef"),
 		Topic:           "test",
-		OutputsConsumed: []*overlay.Outpoint{&grandparentOutput.Outpoint},
+		OutputsConsumed: []*transaction.Outpoint{&grandparentOutput.Outpoint},
 	}
 	
 	childOutput := &engine.Output{
-		Outpoint: overlay.Outpoint{Txid: fakeTxID(t), OutputIndex: 3},
+		Outpoint: transaction.Outpoint{Txid: fakeTxID(t), OutputIndex: 3},
 		Beef:     []byte("child beef"),
 		Topic:    "test",
-		OutputsConsumed: []*overlay.Outpoint{
+		OutputsConsumed: []*transaction.Outpoint{
 			&parent1Output.Outpoint,
 			&parent2Output.Outpoint,
 		},
@@ -329,7 +329,7 @@ func TestEngine_Lookup_ComplexHistoryGraph(t *testing.T) {
 			},
 		},
 		Storage: fakeStorage{
-			findOutputFunc: func(ctx context.Context, outpoint *overlay.Outpoint, topic *string, spent *bool, includeBEEF bool) (*engine.Output, error) {
+			findOutputFunc: func(ctx context.Context, outpoint *transaction.Outpoint, topic *string, spent *bool, includeBEEF bool) (*engine.Output, error) {
 				switch outpoint.Txid.String() {
 				case childOutput.Outpoint.Txid.String():
 					return childOutput, nil
