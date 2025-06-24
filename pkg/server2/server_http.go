@@ -7,10 +7,7 @@ import (
 
 	"github.com/4chain-ag/go-overlay-services/pkg/core/engine"
 	"github.com/4chain-ag/go-overlay-services/pkg/server2/internal/adapters"
-	"github.com/4chain-ag/go-overlay-services/pkg/server2/internal/ports"
-	"github.com/4chain-ag/go-overlay-services/pkg/server2/internal/ports/decorators"
 	"github.com/4chain-ag/go-overlay-services/pkg/server2/internal/ports/middleware"
-	"github.com/4chain-ag/go-overlay-services/pkg/server2/internal/ports/openapi"
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/monitor"
 	"github.com/google/uuid"
@@ -126,22 +123,19 @@ func WithOctetStreamLimit(limit int64) ServerOption {
 }
 
 // WithConfig sets the configuration for the HTTP server using the provided Config.
-// It initializes a new Fiber application with the specified server settings.
-// Returns a ServerOption to apply during server setup.
 func WithConfig(cfg Config) ServerOption {
 	return func(s *ServerHTTP) {
 		s.cfg = cfg
-		s.app = newFiberApp(cfg)
 	}
 }
 
 // ServerHTTP represents the HTTP server instance, including configuration,
 // Fiber app instance, middleware stack, and registered request handlers.
 type ServerHTTP struct {
-	cfg        Config          // cfg holds the server configuration settings.
-	app        *fiber.App      // app is the Fiber application instance serving HTTP requests.
-	middleware []fiber.Handler // middleware is a list of Fiber middleware functions to be applied globally.
-	engine     engine.OverlayEngineProvider
+	cfg        Config                       // cfg holds the server configuration settings.
+	app        *fiber.App                   // app is the Fiber application instance serving HTTP requests.
+	middleware []fiber.Handler              // middleware is a list of Fiber middleware functions to be applied globally.
+	engine     engine.OverlayEngineProvider // engine is a custom implementation of the overlay engine that serves as the main processor for incoming HTTP requests.
 }
 
 // SocketAddr builds the address string for binding.
@@ -174,7 +168,6 @@ func (s *ServerHTTP) RegisterRoute(method, path string, handlers ...fiber.Handle
 func New(opts ...ServerOption) *ServerHTTP {
 	srv := &ServerHTTP{
 		cfg:    DefaultConfig,
-		app:    newFiberApp(DefaultConfig),
 		engine: adapters.NewNoopEngineProvider(),
 	}
 
@@ -182,39 +175,24 @@ func New(opts ...ServerOption) *ServerHTTP {
 		o(srv)
 	}
 
-	registry := ports.NewHandlerRegistryService(srv.engine, &decorators.ARCAuthorizationDecoratorConfig{
-		APIKey:        srv.cfg.ARCAPIKey,
-		CallbackToken: srv.cfg.ARCCallbackToken,
-		Scheme:        "Bearer ",
-	})
-
-	openapi.RegisterHandlersWithOptions(srv.app, registry, openapi.FiberServerOptions{
-		HandlerMiddleware: []fiber.Handler{
-			middleware.BearerTokenAuthorizationMiddleware(srv.cfg.AdminBearerToken),
-		},
-		GlobalMiddleware: middleware.BasicMiddlewareGroup(middleware.BasicMiddlewareGroupConfig{
-			EnableStackTrace: true,
-			OctetStreamLimit: srv.cfg.OctetStreamLimit,
+	srv.app = RegisterRoutesWithErrorHandler(
+		fiber.New(fiber.Config{
+			CaseSensitive: true,
+			StrictRouting: true,
+			ServerHeader:  srv.cfg.ServerHeader,
+			AppName:       srv.cfg.AppName,
+			ReadTimeout:   srv.cfg.ConnectionReadTimeout,
 		}),
-	})
+		&RegisterRoutesConfig{
+			ARCAPIKey:        srv.cfg.ARCAPIKey,
+			ARCCallbackToken: srv.cfg.ARCCallbackToken,
+			AdminBearerToken: srv.cfg.AdminBearerToken,
+			Engine:           srv.engine,
+			OctetStreamLimit: srv.cfg.OctetStreamLimit,
+		},
+	)
 
 	srv.app.Get("/metrics", monitor.New(monitor.Config{Title: "Overlay-services API"}))
 
 	return srv
-}
-
-// newFiberApp creates and returns a new instance of a fiber.App with the provided configuration and middleware.
-// The app is configured with case-sensitive routing, strict routing, custom server headers, and read timeout settings.
-// Additionally, any provided middleware handlers are applied to the app.
-func newFiberApp(cfg Config) *fiber.App {
-	app := fiber.New(fiber.Config{
-		CaseSensitive: true,
-		StrictRouting: true,
-		ServerHeader:  cfg.ServerHeader,
-		AppName:       cfg.AppName,
-		ReadTimeout:   cfg.ConnectionReadTimeout,
-		ErrorHandler:  ports.ErrorHandler(),
-	})
-
-	return app
 }
