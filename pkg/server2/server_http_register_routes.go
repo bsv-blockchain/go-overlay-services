@@ -36,7 +36,7 @@ type RegisterRoutesConfig struct {
 	Engine engine.OverlayEngineProvider
 
 	// OctetStreamLimit defines the maximum size (in bytes) for reading applicaction/octet-stream
-	// request bodies. By default, it iset to 1GB to protect against excessively large payloads.
+	// request bodies. By default, it is set to 1GB to protect against excessively large payloads.
 	OctetStreamLimit int64
 }
 
