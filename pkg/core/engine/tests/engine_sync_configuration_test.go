@@ -327,7 +327,7 @@ func (m *mockTopicManager) ProcessOutput(ctx context.Context, output []byte, pro
 	return nil
 }
 
-func (m *mockTopicManager) IdentifyNeededInputs(ctx context.Context, beef []byte) ([]*overlay.Outpoint, error) {
+func (m *mockTopicManager) IdentifyNeededInputs(ctx context.Context, beef []byte) ([]*transaction.Outpoint, error) {
 	return nil, nil
 }
 

@@ -6,7 +6,7 @@ import (
 
 	"github.com/4chain-ag/go-overlay-services/pkg/core/gasp/core"
 	"github.com/4chain-ag/go-overlay-services/pkg/server2/internal/ports/openapi"
-	"github.com/bsv-blockchain/go-sdk/overlay"
+	"github.com/bsv-blockchain/go-sdk/transaction"
 	"github.com/stretchr/testify/require"
 )
 
@@ -45,10 +45,10 @@ func NewDefaultGASPInitialResponseTestHelper(t *testing.T) *core.GASPInitialResp
 	t.Helper()
 
 	return &core.GASPInitialResponse{
-		UTXOList: []*overlay.Outpoint{
+		UTXOList: []*transaction.Outpoint{
 			{
-				Txid:        *DummyTxHash(t, "03895fb984362a4196bc9931629318fcbb2aeba7c6293638119ea653fa31d119"),
-				OutputIndex: 0,
+				Txid:  *DummyTxHash(t, "03895fb984362a4196bc9931629318fcbb2aeba7c6293638119ea653fa31d119"),
+				Index: 0,
 			},
 		},
 		Since: 1000000,

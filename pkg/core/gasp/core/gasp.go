@@ -8,17 +8,16 @@ import (
 	"sync"
 
 	"github.com/bsv-blockchain/go-sdk/chainhash"
-	"github.com/bsv-blockchain/go-sdk/overlay"
 	"github.com/bsv-blockchain/go-sdk/transaction"
 )
 
 const MAX_CONCURRENCY = 16
 
 type GASPNodeRequest struct {
-	GraphID     *overlay.Outpoint `json:"graphID"`
-	Txid        *chainhash.Hash   `json:"txid"`
-	OutputIndex uint32            `json:"outputIndex"`
-	Metadata    bool              `json:"metadata"`
+	GraphID     *transaction.Outpoint `json:"graphID"`
+	Txid        *chainhash.Hash       `json:"txid"`
+	OutputIndex uint32                `json:"outputIndex"`
+	Metadata    bool                  `json:"metadata"`
 }
 
 type GASPParams struct {
@@ -85,14 +84,14 @@ func (g *GASP) Sync(ctx context.Context) error {
 		} else {
 			var wg sync.WaitGroup
 			for _, outpoint := range initialResponse.UTXOList {
-				if slices.ContainsFunc(foreignUTXOs, func(foreign *overlay.Outpoint) bool {
+				if slices.ContainsFunc(foreignUTXOs, func(foreign *transaction.Outpoint) bool {
 					return outpoint.Equal(foreign)
 				}) {
 					continue
 				}
 				wg.Add(1)
 				g.limiter <- struct{}{}
-				go func(outpoint *overlay.Outpoint) {
+				go func(outpoint *transaction.Outpoint) {
 					defer func() {
 						<-g.limiter
 						wg.Done()
@@ -123,7 +122,7 @@ func (g *GASP) Sync(ctx context.Context) error {
 			for _, outpoint := range initialReply.UTXOList {
 				wg.Add(1)
 				g.limiter <- struct{}{}
-				go func(outpoint *overlay.Outpoint) {
+				go func(outpoint *transaction.Outpoint) {
 					defer func() {
 						<-g.limiter
 						wg.Done()
@@ -175,11 +174,11 @@ func (g *GASP) GetInitialReply(ctx context.Context, response *GASPInitialRespons
 	} else {
 		slog.Info(fmt.Sprintf("%sFound %d known UTXOs since %d", g.LogPrefix, len(knownUtxos), response.Since))
 		resp = &GASPInitialReply{
-			UTXOList: make([]*overlay.Outpoint, 0),
+			UTXOList: make([]*transaction.Outpoint, 0),
 		}
 		// Return UTXOs we have that are NOT in the response list
 		for _, knownUtxo := range knownUtxos {
-			if !slices.ContainsFunc(response.UTXOList, func(responseUtxo *overlay.Outpoint) bool {
+			if !slices.ContainsFunc(response.UTXOList, func(responseUtxo *transaction.Outpoint) bool {
 				return responseUtxo.Equal(knownUtxo)
 			}) {
 				resp.UTXOList = append(resp.UTXOList, knownUtxo)
@@ -190,8 +189,8 @@ func (g *GASP) GetInitialReply(ctx context.Context, response *GASPInitialRespons
 	}
 }
 
-func (g *GASP) RequestNode(ctx context.Context, graphID *overlay.Outpoint, outpoint *overlay.Outpoint, metadata bool) (node *GASPNode, err error) {
-	slog.Info(fmt.Sprintf("%sRemote is requesting node with graphID: %s, txid: %s, outputIndex: %d, metadata: %v", g.LogPrefix, graphID.String(), outpoint.Txid.String(), outpoint.OutputIndex, metadata))
+func (g *GASP) RequestNode(ctx context.Context, graphID *transaction.Outpoint, outpoint *transaction.Outpoint, metadata bool) (node *GASPNode, err error) {
+	slog.Info(fmt.Sprintf("%sRemote is requesting node with graphID: %s, txid: %s, outputIndex: %d, metadata: %v", g.LogPrefix, graphID.String(), outpoint.Txid.String(), outpoint.Index, metadata))
 	if node, err = g.Storage.HydrateGASPNode(ctx, graphID, outpoint, metadata); err != nil {
 		return nil, err
 	}
@@ -214,7 +213,7 @@ func (g *GASP) SubmitNode(ctx context.Context, node *GASPNode) (requestedInputs 
 	return requestedInputs, nil
 }
 
-func (g *GASP) CompleteGraph(ctx context.Context, graphID *overlay.Outpoint) (err error) {
+func (g *GASP) CompleteGraph(ctx context.Context, graphID *transaction.Outpoint) (err error) {
 	slog.Info(fmt.Sprintf("%sCompleting newly-synced graph: %s", g.LogPrefix, graphID.String()))
 	if err = g.Storage.ValidateGraphAnchor(ctx, graphID); err == nil {
 		slog.Debug(fmt.Sprintf("%sGraph validated for node: %s", g.LogPrefix, graphID.String()))
@@ -227,13 +226,13 @@ func (g *GASP) CompleteGraph(ctx context.Context, graphID *overlay.Outpoint) (er
 	return g.Storage.DiscardGraph(ctx, graphID)
 }
 
-func (g *GASP) processIncomingNode(ctx context.Context, node *GASPNode, spentBy *overlay.Outpoint, seenNodes *sync.Map) error {
+func (g *GASP) processIncomingNode(ctx context.Context, node *GASPNode, spentBy *transaction.Outpoint, seenNodes *sync.Map) error {
 	if txid, err := g.computeTxID(node.RawTx); err != nil {
 		return err
 	} else {
-		nodeId := (&overlay.Outpoint{
-			Txid:        *txid,
-			OutputIndex: node.OutputIndex,
+		nodeId := (&transaction.Outpoint{
+			Txid:  *txid,
+			Index: node.OutputIndex,
 		}).String()
 		slog.Debug(fmt.Sprintf("%sProcessing incoming node: %v, spentBy: %v", g.LogPrefix, node, spentBy))
 		if _, ok := seenNodes.Load(nodeId); ok {
@@ -258,16 +257,16 @@ func (g *GASP) processIncomingNode(ctx context.Context, node *GASPNode, spentBy 
 						wg.Done()
 					}()
 					slog.Info(fmt.Sprintf("%sRequesting new node for outpoint: %s, metadata: %v", g.LogPrefix, outpointStr, data.Metadata))
-					if outpoint, err := overlay.NewOutpointFromString(outpointStr); err != nil {
+					if outpoint, err := transaction.OutpointFromString(outpointStr); err != nil {
 						errors <- err
 					} else if newNode, err := g.Remote.RequestNode(ctx, node.GraphID, outpoint, data.Metadata); err != nil {
 						errors <- err
 					} else {
 						slog.Debug(fmt.Sprintf("%sReceived new node: %v", g.LogPrefix, newNode))
 						// Create outpoint for the current node that is spending this input
-						spendingOutpoint := &overlay.Outpoint{
-							Txid:        *txid,
-							OutputIndex: node.OutputIndex,
+						spendingOutpoint := &transaction.Outpoint{
+							Txid:  *txid,
+							Index: node.OutputIndex,
 						}
 						if err := g.processIncomingNode(ctx, newNode, spendingOutpoint, seenNodes); err != nil {
 							errors <- err
@@ -300,9 +299,9 @@ func (g *GASP) processOutgoingNode(ctx context.Context, node *GASPNode, seenNode
 	if txid, err := g.computeTxID(node.RawTx); err != nil {
 		return err
 	} else {
-		nodeId := (&overlay.Outpoint{
-			Txid:        *txid,
-			OutputIndex: node.OutputIndex,
+		nodeId := (&transaction.Outpoint{
+			Txid:  *txid,
+			Index: node.OutputIndex,
 		}).String()
 		slog.Debug(fmt.Sprintf("%sProcessing outgoing node: %v", g.LogPrefix, node))
 		if _, ok := seenNodes.Load(nodeId); ok {
@@ -322,9 +321,9 @@ func (g *GASP) processOutgoingNode(ctx context.Context, node *GASPNode, seenNode
 						<-g.limiter
 						wg.Done()
 					}()
-					var outpoint *overlay.Outpoint
+					var outpoint *transaction.Outpoint
 					var err error
-					if outpoint, err = overlay.NewOutpointFromString(outpointStr); err == nil {
+					if outpoint, err = transaction.OutpointFromString(outpointStr); err == nil {
 						var hydratedNode *GASPNode
 						slog.Info(fmt.Sprintf("%sHydrating node for outpoint: %s, metadata: %v", g.LogPrefix, outpoint, data.Metadata))
 						if hydratedNode, err = g.Storage.HydrateGASPNode(ctx, node.GraphID, outpoint, data.Metadata); err == nil {

@@ -9,7 +9,7 @@ import (
 
 type TopicManager interface {
 	IdentifyAdmissibleOutputs(ctx context.Context, beef []byte, previousCoins map[uint32]*transaction.TransactionOutput) (overlay.AdmittanceInstructions, error)
-	IdentifyNeededInputs(ctx context.Context, beef []byte) ([]*overlay.Outpoint, error)
+	IdentifyNeededInputs(ctx context.Context, beef []byte) ([]*transaction.Outpoint, error)
 	GetDocumentation() string
 	GetMetaData() *overlay.MetaData
 }

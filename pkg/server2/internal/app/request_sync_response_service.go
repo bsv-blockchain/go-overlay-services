@@ -94,7 +94,7 @@ func NewRequestSyncResponseDTO(response *core.GASPInitialResponse) *RequestSyncR
 	for _, utxo := range response.UTXOList {
 		outpoints = append(outpoints, OutpointDTO{
 			TxID:        utxo.Txid.String(),
-			OutputIndex: utxo.OutputIndex,
+			OutputIndex: utxo.Index,
 		})
 	}
 

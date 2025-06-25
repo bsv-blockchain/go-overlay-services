@@ -20,7 +20,7 @@ type OverlayEngineProvider interface {
 	SyncAdvertisements(ctx context.Context) error
 	StartGASPSync(ctx context.Context) error
 	ProvideForeignSyncResponse(ctx context.Context, initialRequest *core.GASPInitialRequest, topic string) (*core.GASPInitialResponse, error)
-	ProvideForeignGASPNode(ctx context.Context, graphId, outpoint *overlay.Outpoint, topic string) (*core.GASPNode, error)
+	ProvideForeignGASPNode(ctx context.Context, graphId, outpoint *transaction.Outpoint, topic string) (*core.GASPNode, error)
 	ListTopicManagers() map[string]*overlay.MetaData
 	ListLookupServiceProviders() map[string]*overlay.MetaData
 	GetDocumentationForLookupServiceProvider(provider string) (string, error)
