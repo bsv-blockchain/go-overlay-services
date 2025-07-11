@@ -7,7 +7,7 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/4chain-ag/go-overlay-services/pkg/core/gasp"
+	"github.com/bsv-blockchain/go-overlay-services/pkg/core/gasp"
 	"github.com/bsv-blockchain/go-sdk/chainhash"
 	"github.com/bsv-blockchain/go-sdk/script"
 	"github.com/bsv-blockchain/go-sdk/transaction"

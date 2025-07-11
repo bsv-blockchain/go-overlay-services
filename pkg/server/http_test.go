@@ -10,8 +10,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/4chain-ag/go-overlay-services/pkg/server"
-	"github.com/4chain-ag/go-overlay-services/pkg/server/config"
+	"github.com/bsv-blockchain/go-overlay-services/pkg/server"
+	"github.com/bsv-blockchain/go-overlay-services/pkg/server/config"
 	"github.com/stretchr/testify/require"
 )
 

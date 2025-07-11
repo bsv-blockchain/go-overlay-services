@@ -5,7 +5,7 @@ import (
 	"os"
 	"testing"
 
-	"github.com/4chain-ag/go-overlay-services/pkg/server2/config/loaders"
+	"github.com/bsv-blockchain/go-overlay-services/pkg/server2/config/loaders"
 	"github.com/stretchr/testify/require"
 )
 

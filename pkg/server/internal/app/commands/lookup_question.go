@@ -7,7 +7,7 @@ import (
 	"fmt"
 	"net/http"
 
-	"github.com/4chain-ag/go-overlay-services/pkg/server/internal/app/jsonutil"
+	"github.com/bsv-blockchain/go-overlay-services/pkg/server/internal/app/jsonutil"
 	"github.com/bsv-blockchain/go-sdk/overlay/lookup"
 )
 

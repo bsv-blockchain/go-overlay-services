@@ -6,8 +6,8 @@ import (
 	"fmt"
 	"net/http"
 
-	"github.com/4chain-ag/go-overlay-services/pkg/core/gasp"
-	"github.com/4chain-ag/go-overlay-services/pkg/server/internal/app/jsonutil"
+	"github.com/bsv-blockchain/go-overlay-services/pkg/core/gasp"
+	"github.com/bsv-blockchain/go-overlay-services/pkg/server/internal/app/jsonutil"
 )
 
 // XBSVTopicHeader is the HTTP header name for BSV topic

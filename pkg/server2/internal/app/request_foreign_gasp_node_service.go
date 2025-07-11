@@ -3,7 +3,7 @@ package app
 import (
 	"context"
 
-	"github.com/4chain-ag/go-overlay-services/pkg/core/gasp"
+	"github.com/bsv-blockchain/go-overlay-services/pkg/core/gasp"
 	"github.com/bsv-blockchain/go-sdk/chainhash"
 	"github.com/bsv-blockchain/go-sdk/transaction"
 )

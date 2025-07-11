@@ -5,8 +5,8 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/4chain-ag/go-overlay-services/pkg/server/internal/app/jsonutil"
-	"github.com/4chain-ag/go-overlay-services/pkg/server/internal/app/queries"
+	"github.com/bsv-blockchain/go-overlay-services/pkg/server/internal/app/jsonutil"
+	"github.com/bsv-blockchain/go-overlay-services/pkg/server/internal/app/queries"
 	"github.com/bsv-blockchain/go-sdk/overlay"
 	"github.com/stretchr/testify/require"
 	"k8s.io/utils/ptr"

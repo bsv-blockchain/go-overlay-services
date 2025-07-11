@@ -1,4 +1,4 @@
-module github.com/4chain-ag/go-overlay-services
+module github.com/bsv-blockchain/go-overlay-services
 
 go 1.24.3
 

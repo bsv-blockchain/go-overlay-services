@@ -3,7 +3,7 @@ package engine_test
 import (
 	"testing"
 
-	"github.com/4chain-ag/go-overlay-services/pkg/core/engine"
+	"github.com/bsv-blockchain/go-overlay-services/pkg/core/engine"
 	"github.com/stretchr/testify/require"
 )
 

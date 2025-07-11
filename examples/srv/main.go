@@ -11,9 +11,9 @@ import (
 	"os/signal"
 	"time"
 
-	"github.com/4chain-ag/go-overlay-services/pkg/server2"
-	"github.com/4chain-ag/go-overlay-services/pkg/server2/config"
-	"github.com/4chain-ag/go-overlay-services/pkg/server2/config/loaders"
+	"github.com/bsv-blockchain/go-overlay-services/pkg/server2"
+	"github.com/bsv-blockchain/go-overlay-services/pkg/server2/config"
+	"github.com/bsv-blockchain/go-overlay-services/pkg/server2/config/loaders"
 )
 
 func main() {

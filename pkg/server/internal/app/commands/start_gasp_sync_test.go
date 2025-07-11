@@ -8,7 +8,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/4chain-ag/go-overlay-services/pkg/server/internal/app/commands"
+	"github.com/bsv-blockchain/go-overlay-services/pkg/server/internal/app/commands"
 	"github.com/stretchr/testify/require"
 )
 

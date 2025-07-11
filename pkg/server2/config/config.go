@@ -5,9 +5,9 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/4chain-ag/go-overlay-services/pkg/server2"
-	"github.com/4chain-ag/go-overlay-services/pkg/server2/config/exporters"
-	"github.com/4chain-ag/go-overlay-services/pkg/server2/config/loaders"
+	"github.com/bsv-blockchain/go-overlay-services/pkg/server2"
+	"github.com/bsv-blockchain/go-overlay-services/pkg/server2/config/exporters"
+	"github.com/bsv-blockchain/go-overlay-services/pkg/server2/config/loaders"
 )
 
 // Config contains configuration settings for the overlay-engine API and its dependencies.

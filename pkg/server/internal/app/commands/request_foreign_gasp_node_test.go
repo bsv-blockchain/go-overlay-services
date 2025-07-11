@@ -8,9 +8,9 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/4chain-ag/go-overlay-services/pkg/core/gasp"
-	"github.com/4chain-ag/go-overlay-services/pkg/server/internal/app/commands"
-	"github.com/4chain-ag/go-overlay-services/pkg/server/internal/app/jsonutil"
+	"github.com/bsv-blockchain/go-overlay-services/pkg/core/gasp"
+	"github.com/bsv-blockchain/go-overlay-services/pkg/server/internal/app/commands"
+	"github.com/bsv-blockchain/go-overlay-services/pkg/server/internal/app/jsonutil"
 	"github.com/bsv-blockchain/go-sdk/transaction"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"

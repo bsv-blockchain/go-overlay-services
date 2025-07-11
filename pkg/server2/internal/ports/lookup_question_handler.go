@@ -1,8 +1,8 @@
 package ports
 
 import (
-	"github.com/4chain-ag/go-overlay-services/pkg/server2/internal/app"
-	"github.com/4chain-ag/go-overlay-services/pkg/server2/internal/ports/openapi"
+	"github.com/bsv-blockchain/go-overlay-services/pkg/server2/internal/app"
+	"github.com/bsv-blockchain/go-overlay-services/pkg/server2/internal/ports/openapi"
 	"github.com/gofiber/fiber/v2"
 )
 

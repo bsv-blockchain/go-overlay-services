@@ -4,8 +4,8 @@ import (
 	"context"
 	"testing"
 
-	"github.com/4chain-ag/go-overlay-services/pkg/core/gasp"
-	"github.com/4chain-ag/go-overlay-services/pkg/server2/internal/app"
+	"github.com/bsv-blockchain/go-overlay-services/pkg/core/gasp"
+	"github.com/bsv-blockchain/go-overlay-services/pkg/server2/internal/app"
 	"github.com/bsv-blockchain/go-sdk/transaction"
 	"github.com/stretchr/testify/require"
 )

@@ -4,11 +4,11 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/4chain-ag/go-overlay-services/pkg/server2"
-	"github.com/4chain-ag/go-overlay-services/pkg/server2/internal/ports"
-	"github.com/4chain-ag/go-overlay-services/pkg/server2/internal/ports/middleware"
-	"github.com/4chain-ag/go-overlay-services/pkg/server2/internal/ports/openapi"
-	"github.com/4chain-ag/go-overlay-services/pkg/server2/internal/testabilities"
+	"github.com/bsv-blockchain/go-overlay-services/pkg/server2"
+	"github.com/bsv-blockchain/go-overlay-services/pkg/server2/internal/ports"
+	"github.com/bsv-blockchain/go-overlay-services/pkg/server2/internal/ports/middleware"
+	"github.com/bsv-blockchain/go-overlay-services/pkg/server2/internal/ports/openapi"
+	"github.com/bsv-blockchain/go-overlay-services/pkg/server2/internal/testabilities"
 	"github.com/gofiber/fiber/v2"
 	"github.com/stretchr/testify/require"
 )

@@ -3,8 +3,8 @@ package main
 import (
 	"log"
 
-	"github.com/4chain-ag/go-overlay-services/pkg/core/engine"
-	"github.com/4chain-ag/go-overlay-services/pkg/server2"
+	"github.com/bsv-blockchain/go-overlay-services/pkg/core/engine"
+	"github.com/bsv-blockchain/go-overlay-services/pkg/server2"
 	"github.com/gofiber/fiber/v2"
 )
 
