@@ -102,7 +102,7 @@ func WithEngine(provider engine.OverlayEngineProvider) Option {
 
 // WithAdminBearerToken sets the admin bearer token used for authenticating
 // admin routes on the HTTP server.
-// It returns a ServerOption that applies this configuration to HTTP.
+// It returns an Option that applies this configuration to HTTP.
 func WithAdminBearerToken(token string) Option {
 	return func(s *HTTP) {
 		s.cfg.AdminBearerToken = token
