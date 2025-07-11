@@ -77,7 +77,7 @@ func WithARCAPIKey(APIKey string) Option {
 
 // WithARCCallbackToken sets the ARC callback token used for authenticating
 // ARC callback requests on the HTTP server.
-// It returns a ServerOption that applies this configuration to HTTP.
+// It returns an Option that applies this configuration to HTTP.
 func WithARCCallbackToken(token string) Option {
 	return func(s *HTTP) {
 		s.cfg.ARCCallbackToken = token
