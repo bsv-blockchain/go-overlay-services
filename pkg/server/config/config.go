@@ -5,8 +5,9 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/4chain-ag/go-overlay-services/pkg/server"
-	"github.com/4chain-ag/go-overlay-services/pkg/server/config/exporters"
+	"github.com/bsv-blockchain/go-overlay-services/pkg/server"
+	"github.com/bsv-blockchain/go-overlay-services/pkg/server/config/exporters"
+	"github.com/bsv-blockchain/go-overlay-services/pkg/server/config/loaders"
 )
 
 // Config contains configuration settings for the overlay-engine API and its dependencies.
@@ -42,4 +43,27 @@ func NewDefault() Config {
 	return Config{
 		Server: server.DefaultConfig,
 	}
+}
+
+// LoadFromPath loads the server configuration from the specified file path.
+// It initializes a new loader using the default config provider and the environment prefix.
+// The function attempts to read and decode the config file, pretty-prints the configuration as JSON,
+// and returns the extracted server configuration on success. An error is returned if any step fails.
+func LoadFromPath(path, env string) (server.Config, error) {
+	loader := loaders.NewLoader(NewDefault, env)
+	err := loader.SetConfigFilePath(path)
+	if err != nil {
+		return server.Config{}, fmt.Errorf("invalid config file path: %w", err)
+	}
+
+	cfg, err := loader.Load()
+	if err != nil {
+		return server.Config{}, fmt.Errorf("config loader load operation failed: %w", err)
+	}
+
+	err = PrettyPrintAs(cfg, "json")
+	if err != nil {
+		return server.Config{}, fmt.Errorf("config pretty print operation failed: %w", err)
+	}
+	return cfg.Server, nil
 }

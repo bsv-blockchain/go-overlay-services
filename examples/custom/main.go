@@ -3,14 +3,14 @@ package main
 import (
 	"log"
 
-	"github.com/4chain-ag/go-overlay-services/pkg/core/engine"
-	"github.com/4chain-ag/go-overlay-services/pkg/server2"
+	"github.com/bsv-blockchain/go-overlay-services/pkg/core/engine"
+	"github.com/bsv-blockchain/go-overlay-services/pkg/server"
 	"github.com/gofiber/fiber/v2"
 )
 
 func main() {
 	const MB = 1024 * 1024
-	app := server2.RegisterRoutesWithErrorHandler(fiber.New(), &server2.RegisterRoutesConfig{
+	app := server.RegisterRoutesWithErrorHandler(fiber.New(), &server.RegisterRoutesConfig{
 		ARCAPIKey:        "YOUR_ARC_API_KEY",
 		ARCCallbackToken: "YOUR_CALLBACK_TOKEN",
 		AdminBearerToken: "YOUR_TOKEN",

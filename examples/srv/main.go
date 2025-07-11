@@ -11,9 +11,9 @@ import (
 	"os/signal"
 	"time"
 
-	"github.com/4chain-ag/go-overlay-services/pkg/server2"
-	"github.com/4chain-ag/go-overlay-services/pkg/server2/config"
-	"github.com/4chain-ag/go-overlay-services/pkg/server2/config/loaders"
+	"github.com/bsv-blockchain/go-overlay-services/pkg/server"
+	"github.com/bsv-blockchain/go-overlay-services/pkg/server/config"
+	"github.com/bsv-blockchain/go-overlay-services/pkg/server/config/loaders"
 )
 
 func main() {
@@ -32,7 +32,7 @@ func execute() error {
 	}
 
 	ctx := context.Background()
-	srv := server2.New(server2.WithConfig(cfg))
+	srv := server.New(server.WithConfig(cfg))
 	done := make(chan struct{})
 
 	go func() {
