@@ -3,7 +3,7 @@ package decorators
 import (
 	"strings"
 
-	"github.com/4chain-ag/go-overlay-services/pkg/server/internal/app"
+	"github.com/bsv-blockchain/go-overlay-services/pkg/server/internal/app"
 	"github.com/gofiber/fiber/v2"
 )
 

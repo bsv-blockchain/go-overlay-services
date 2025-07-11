@@ -3,10 +3,10 @@ package middleware_test
 import (
 	"testing"
 
-	"github.com/4chain-ag/go-overlay-services/pkg/server"
-	"github.com/4chain-ag/go-overlay-services/pkg/server/internal/ports/middleware"
-	"github.com/4chain-ag/go-overlay-services/pkg/server/internal/ports/openapi"
-	"github.com/4chain-ag/go-overlay-services/pkg/server/internal/testabilities"
+	"github.com/bsv-blockchain/go-overlay-services/pkg/server"
+	"github.com/bsv-blockchain/go-overlay-services/pkg/server/internal/ports/middleware"
+	"github.com/bsv-blockchain/go-overlay-services/pkg/server/internal/ports/openapi"
+	"github.com/bsv-blockchain/go-overlay-services/pkg/server/internal/testabilities"
 	"github.com/gofiber/fiber/v2"
 	"github.com/stretchr/testify/require"
 )

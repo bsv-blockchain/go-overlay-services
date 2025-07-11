@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"log"
 
-	"github.com/4chain-ag/go-overlay-services/pkg/server/config"
+	"github.com/bsv-blockchain/go-overlay-services/pkg/server/config"
 	"github.com/google/uuid"
 )
 

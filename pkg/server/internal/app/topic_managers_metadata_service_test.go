@@ -3,8 +3,8 @@ package app_test
 import (
 	"testing"
 
-	"github.com/4chain-ag/go-overlay-services/pkg/server/internal/app"
-	"github.com/4chain-ag/go-overlay-services/pkg/server/internal/testabilities"
+	"github.com/bsv-blockchain/go-overlay-services/pkg/server/internal/app"
+	"github.com/bsv-blockchain/go-overlay-services/pkg/server/internal/testabilities"
 	"github.com/bsv-blockchain/go-sdk/overlay"
 	"github.com/stretchr/testify/require"
 )

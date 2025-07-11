@@ -5,8 +5,8 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/4chain-ag/go-overlay-services/pkg/server/internal/app"
-	"github.com/4chain-ag/go-overlay-services/pkg/server/internal/testabilities"
+	"github.com/bsv-blockchain/go-overlay-services/pkg/server/internal/app"
+	"github.com/bsv-blockchain/go-overlay-services/pkg/server/internal/testabilities"
 	"github.com/stretchr/testify/require"
 )
 
