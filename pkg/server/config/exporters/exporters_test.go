@@ -93,7 +93,7 @@ func TestToYAMLFile(t *testing.T) {
 
 	require.Contains(t, string(yamlFile), "a: default_hello")
 	require.Contains(t, string(yamlFile), "b_with_long_name: 1")
-	require.Contains(t, string(yamlFile), "d: default_world")
+	require.Contains(t, string(yamlFile), "d_nested_field: default_world")
 }
 
 func TestExportToYAML_ShouldWriteFile_WhenConfigIsValid(t *testing.T) {

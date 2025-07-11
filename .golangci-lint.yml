@@ -107,7 +107,7 @@ issues:
       linters:
         - wrapcheck
 
-    - path: /server2/
+    - path: /server/
       linters:
         - wrapcheck
 

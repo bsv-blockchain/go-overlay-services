@@ -1,6 +1,6 @@
 # yaml-language-server: $schema=https://raw.githubusercontent.com/oapi-codegen/oapi-codegen/HEAD/configuration-schema.json
 package: openapi
-output: ../../pkg/server2/internal/ports/openapi/openapi_admin_response_types.gen.go
+output: ../../pkg/server/internal/ports/openapi/openapi_admin_response_types.gen.go
 generate:
   models: true
 output-options:
