@@ -3,8 +3,8 @@ module github.com/bsv-blockchain/go-overlay-services
 go 1.24.3
 
 require (
-	github.com/bsv-blockchain/go-sdk v1.2.1
-	github.com/bsv-blockchain/universal-test-vectors v0.5.0
+	github.com/bsv-blockchain/go-sdk v1.2.4
+	github.com/bsv-blockchain/universal-test-vectors v0.6.1
 	github.com/go-resty/resty/v2 v2.16.5
 	github.com/go-viper/mapstructure/v2 v2.3.0
 	github.com/gofiber/fiber/v2 v2.52.8
@@ -55,7 +55,7 @@ require (
 	go.uber.org/multierr v1.9.0 // indirect
 	golang.org/x/crypto v0.39.0 // indirect
 	golang.org/x/mod v0.25.0 // indirect
-	golang.org/x/net v0.40.0 // indirect
+	golang.org/x/net v0.41.0 // indirect
 	golang.org/x/sync v0.15.0 // indirect
 	golang.org/x/sys v0.33.0 // indirect
 	golang.org/x/text v0.26.0 // indirect
