@@ -123,19 +123,19 @@ func (s *OverlayGASPStorage) FindNeededInputs(ctx context.Context, gaspTx *gasp.
 	}
 	// Commented out: This was requesting ALL inputs for unmined transactions
 	// but should use IdentifyNeededInputs to get only relevant inputs
-	// if gaspTx.Proof == nil || *gaspTx.Proof == "" {
-	// 	for _, input := range tx.Inputs {
-	// 		outpoint := &transaction.Outpoint{
-	// 			Txid:  *input.SourceTXID,
-	// 			Index: input.SourceTxOutIndex,
-	// 		}
-	// 		response.RequestedInputs[*outpoint] = &gasp.NodeResponseData{
-	// 			Metadata: false,
-	// 		}
-	// 	}
+	if gaspTx.Proof == nil || *gaspTx.Proof == "" {
+		for _, input := range tx.Inputs {
+			outpoint := &transaction.Outpoint{
+				Txid:  *input.SourceTXID,
+				Index: input.SourceTxOutIndex,
+			}
+			response.RequestedInputs[*outpoint] = &gasp.NodeResponseData{
+				Metadata: false,
+			}
+		}
 
-	// 	return s.stripAlreadyKnowInputs(ctx, response)
-	// }
+		return s.stripAlreadyKnowInputs(ctx, response)
+	}
 
 	// Process merkle proof if present
 	if gaspTx.Proof != nil && *gaspTx.Proof != "" {
@@ -159,10 +159,10 @@ func (s *OverlayGASPStorage) FindNeededInputs(ctx context.Context, gaspTx *gasp.
 		if beef, err = transaction.NewBeefFromTransaction(tx); err != nil {
 			return nil, err
 		}
-	} else {
+	} /* else {
 		// Unmined transaction without ancillary BEEF is an error
 		return nil, fmt.Errorf("unmined transaction without ancillary BEEF")
-	}
+	}*/
 
 	if beef != nil {
 		inpoints := make([]*transaction.Outpoint, len(tx.Inputs))

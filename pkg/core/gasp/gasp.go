@@ -144,8 +144,9 @@ func (g *GASP) Sync(ctx context.Context, host string, limit uint32) error {
 				<-g.limiter
 			}()
 
-			if err := g.processUTXOToCompletion(processingCtx, outpoint, seenNodes); err != nil {
-				return fmt.Errorf("error processing UTXO %s: %w", outpoint, err)
+			if err := g.processUTXOToCompletion(processingCtx, outpoint, nil, seenNodes); err != nil {
+				slog.Error("error processing UTXO", "outpoint", outpoint, "error", err)
+				return nil
 			}
 			sharedOutpoints.Store(*outpoint, struct{}{})
 			return nil
@@ -314,7 +315,7 @@ func (g *GASP) processIncomingNode(ctx context.Context, node *Node, spentBy *tra
 			slog.Debug(fmt.Sprintf("%s Needed inputs for node %s: %v", g.LogPrefix, nodeId, neededInputs))
 			for outpoint, data := range neededInputs.RequestedInputs {
 				slog.Info(fmt.Sprintf("%s Processing dependency for outpoint: %s, metadata: %v", g.LogPrefix, outpoint.String(), data.Metadata))
-				if err := g.processUTXOToCompletion(ctx, &outpoint, seenNodes); err != nil {
+				if err := g.processUTXOToCompletion(ctx, &outpoint, nodeOutpoint, seenNodes); err != nil {
 					return err
 				}
 			}
@@ -373,7 +374,7 @@ func (g *GASP) processOutgoingNode(ctx context.Context, node *Node, seenNodes *s
 }
 
 // processUTXOToCompletion handles the complete UTXO processing pipeline with result sharing deduplication
-func (g *GASP) processUTXOToCompletion(ctx context.Context, outpoint *transaction.Outpoint, seenNodes *sync.Map) error {
+func (g *GASP) processUTXOToCompletion(ctx context.Context, outpoint *transaction.Outpoint, spentBy *transaction.Outpoint, seenNodes *sync.Map) error {
 	// Pre-initialize the processing state to avoid race conditions
 	newState := &utxoProcessingState{}
 	newState.wg.Add(1)
@@ -390,14 +391,13 @@ func (g *GASP) processUTXOToCompletion(ctx context.Context, outpoint *transactio
 		// We're the first to process this outpoint, do the complete processing
 
 		// Request node from remote
-		resolvedNode, err := g.Remote.RequestNode(ctx, outpoint, outpoint, true)
+		resolvedNode, err := g.Remote.RequestNode(ctx, spentBy, outpoint, true)
 		if err != nil {
 			state.err = fmt.Errorf("error with incoming UTXO %s: %w", outpoint, err)
 			return state.err
 		}
-
 		// Process dependencies
-		if err = g.processIncomingNode(ctx, resolvedNode, nil, seenNodes); err != nil {
+		if err = g.processIncomingNode(ctx, resolvedNode, spentBy, seenNodes); err != nil {
 			state.err = fmt.Errorf("error processing incoming node %s: %w", outpoint, err)
 			return state.err
 		}

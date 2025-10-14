@@ -631,12 +631,12 @@ func (e *Engine) StartGASPSync(ctx context.Context) error {
 			if lookupAnswer.Type == lookup.AnswerTypeOutputList {
 				endpointSet := make(map[string]struct{}, len(lookupAnswer.Outputs))
 				for _, output := range lookupAnswer.Outputs {
-					beef, err := transaction.NewBeefFromBytes(output.Beef)
+					beef, _, txId, err := transaction.ParseBeef(output.Beef)
 					if err != nil {
 						slog.Error("failed to parse advertisement output BEEF", "topic", topic, "error", err)
 						continue
 					}
-					slog.Info(fmt.Sprintf("[GASP SYNC] Successfully parsed BEEF for topic \"%s\", transaction count: %d", topic, len(beef.Transactions)))
+					slog.Info(fmt.Sprintf("[GASP SYNC] Successfully parsed BEEF for topic \"%s\", transaction count: %d, txId: %s\n", topic, len(beef.Transactions), txId.String()))
 
 					// Find the transaction that contains the output at the specified index
 					var tx *transaction.Transaction
