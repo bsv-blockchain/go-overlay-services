@@ -21,7 +21,7 @@ func TestStartGASPSyncHandler_InvalidCase(t *testing.T) {
 		Error:             providerError,
 	}
 
-	const token = "428e1f07-79b6-4901-b0a0-ec1fe815331b"
+	const token = "22222222-2222-2222-2222-222222222222"
 	stub := testabilities.NewTestOverlayEngineStub(t, testabilities.WithStartGASPSyncProvider(testabilities.NewStartGASPSyncProviderMock(t, expectations)))
 	fixture := server.NewTestFixture(t, server.WithEngine(stub), server.WithAdminBearerToken(token))
 	expectedResponse := testabilities.NewTestOpenapiErrorResponse(t, app.NewStartGASPSyncProviderError(providerError))
@@ -42,7 +42,7 @@ func TestStartGASPSyncHandler_InvalidCase(t *testing.T) {
 
 func TestStartGASPSyncHandler_ValidCase(t *testing.T) {
 	// given:
-	const token = "428e1f07-79b6-4901-b0a0-ec1fe815331b"
+	const token = "22222222-2222-2222-2222-222222222222"
 	expectations := testabilities.StartGASPSyncProviderMockExpectations{
 		StartGASPSyncCall: true,
 		Error:             nil,

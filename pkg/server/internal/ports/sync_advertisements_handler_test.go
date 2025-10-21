@@ -15,7 +15,7 @@ import (
 
 func TestSyncAdvertisementsHandler_InvalidCase(t *testing.T) {
 	// given:
-	const token = "428e1f07-79b6-4901-b0a0-ec1fe815331b"
+	const token = "22222222-2222-2222-2222-222222222222"
 	providerInternalErr := errors.New("internal SyncAdvertisements service test error")
 	expectedResponse := testabilities.NewTestOpenapiErrorResponse(t, app.NewSyncAdvertisementsProviderError(providerInternalErr))
 	stub := testabilities.NewTestOverlayEngineStub(t,
@@ -46,7 +46,7 @@ func TestSyncAdvertisementsHandler_InvalidCase(t *testing.T) {
 
 func TestSyncAdvertisementsHandler_ValidCase(t *testing.T) {
 	// given:
-	const token = "428e1f07-79b6-4901-b0a0-ec1fe815331b"
+	const token = "22222222-2222-2222-2222-222222222222"
 
 	stub := testabilities.NewTestOverlayEngineStub(t,
 		testabilities.WithSyncAdvertisementsProvider(testabilities.NewSyncAdvertisementsProviderMock(t,
