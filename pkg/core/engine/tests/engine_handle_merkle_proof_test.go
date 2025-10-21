@@ -319,24 +319,31 @@ func (m *mockHandleMerkleProofStorage) UpdateOutputBlockHeight(ctx context.Conte
 func (m *mockHandleMerkleProofStorage) SetIncoming(ctx context.Context, txs []*transaction.Transaction) error {
 	return nil
 }
+
 func (m *mockHandleMerkleProofStorage) SetOutgoing(ctx context.Context, tx *transaction.Transaction, steak *overlay.Steak) error {
 	return nil
 }
+
 func (m *mockHandleMerkleProofStorage) UpdateConsumedBy(ctx context.Context, outpoint *transaction.Outpoint, topic string, consumedBy []*transaction.Outpoint) error {
 	return nil
 }
+
 func (m *mockHandleMerkleProofStorage) DeleteOutput(ctx context.Context, outpoint *transaction.Outpoint, topic string) error {
 	return nil
 }
+
 func (m *mockHandleMerkleProofStorage) FindTransaction(ctx context.Context, txid chainhash.Hash, requireProof bool) (*transaction.Transaction, error) {
 	return nil, nil
 }
+
 func (m *mockHandleMerkleProofStorage) FindTransactionsCreatingUtxos(ctx context.Context) ([]*chainhash.Hash, error) {
 	return nil, nil
 }
+
 func (m *mockHandleMerkleProofStorage) FindUTXOsForTopic(ctx context.Context, topic string, since float64, limit uint32, includeBEEF bool) ([]*engine.Output, error) {
 	return nil, nil
 }
+
 func (m *mockHandleMerkleProofStorage) FindOutputs(ctx context.Context, outpoints []*transaction.Outpoint, topic string, spent *bool, includeBEEF bool) ([]*engine.Output, error) {
 	return nil, nil
 }
@@ -361,11 +368,11 @@ func (m *mockHandleMerkleProofStorage) UpdateTransactionBEEF(ctx context.Context
 	return nil
 }
 
-func (m *mockHandleMerkleProofStorage) UpdateLastInteraction(ctx context.Context, host string, topic string, since float64) error {
+func (m *mockHandleMerkleProofStorage) UpdateLastInteraction(ctx context.Context, host, topic string, since float64) error {
 	return nil
 }
 
-func (m *mockHandleMerkleProofStorage) GetLastInteraction(ctx context.Context, host string, topic string) (float64, error) {
+func (m *mockHandleMerkleProofStorage) GetLastInteraction(ctx context.Context, host, topic string) (float64, error) {
 	return 0, nil
 }
 
@@ -385,6 +392,7 @@ func (m *mockLookupService) OutputBlockHeightUpdated(ctx context.Context, txid *
 func (m *mockLookupService) Lookup(ctx context.Context, question *lookup.LookupQuestion) (*lookup.LookupAnswer, error) {
 	return nil, nil
 }
+
 func (m *mockLookupService) GetMetaData() *overlay.MetaData {
 	return nil
 }

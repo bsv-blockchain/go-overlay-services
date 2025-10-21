@@ -30,7 +30,7 @@ func NewStartGASPSyncService(provider StartGASPSyncProvider) *StartGASPSyncServi
 		panic("provider is nil")
 	}
 
-	return &StartGASPSyncService{ provider: provider }
+	return &StartGASPSyncService{provider: provider}
 }
 
 // NewStartGASPSyncProviderError returns an Error indicating that the configured provider

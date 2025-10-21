@@ -510,18 +510,23 @@ func (m *mockStorage) FindOutputs(ctx context.Context, outpoints []*transaction.
 func (m *mockStorage) SetIncoming(ctx context.Context, txs []*transaction.Transaction) error {
 	return nil
 }
+
 func (m *mockStorage) SetOutgoing(ctx context.Context, tx *transaction.Transaction, steak *overlay.Steak) error {
 	return nil
 }
+
 func (m *mockStorage) UpdateConsumedBy(ctx context.Context, outpoint *transaction.Outpoint, consumedBy string, inputs []*transaction.Outpoint) error {
 	return nil
 }
+
 func (m *mockStorage) DeleteOutput(ctx context.Context, outpoint *transaction.Outpoint, topic string) error {
 	return nil
 }
+
 func (m *mockStorage) FindTransaction(ctx context.Context, txid chainhash.Hash, requireProof bool) (*transaction.Transaction, error) {
 	return nil, nil
 }
+
 func (m *mockStorage) FindTransactionsCreatingUtxos(ctx context.Context) ([]*chainhash.Hash, error) {
 	return nil, nil
 }
@@ -554,10 +559,10 @@ func (m *mockStorage) UpdateOutputBlockHeight(ctx context.Context, outpoint *tra
 	return nil
 }
 
-func (m *mockStorage) UpdateLastInteraction(ctx context.Context, host string, topic string, since float64) error {
+func (m *mockStorage) UpdateLastInteraction(ctx context.Context, host, topic string, since float64) error {
 	return nil
 }
 
-func (m *mockStorage) GetLastInteraction(ctx context.Context, host string, topic string) (float64, error) {
+func (m *mockStorage) GetLastInteraction(ctx context.Context, host, topic string) (float64, error) {
 	return 0, nil
 }

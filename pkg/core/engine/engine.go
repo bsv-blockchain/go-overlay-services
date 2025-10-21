@@ -24,8 +24,10 @@ import (
 
 const DEFAULT_GASP_SYNC_LIMIT = 10000
 
-var TRUE = true
-var FALSE = false
+var (
+	TRUE  = true
+	FALSE = false
+)
 
 type SumbitMode string
 
@@ -124,12 +126,14 @@ func NewEngine(cfg Engine) *Engine {
 	return &cfg
 }
 
-var ErrUnknownTopic = errors.New("unknown-topic")
-var ErrInvalidBeef = errors.New("invalid-beef")
-var ErrInvalidTransaction = errors.New("invalid-transaction")
-var ErrMissingInput = errors.New("missing-input")
-var ErrMissingOutput = errors.New("missing-output")
-var ErrInputSpent = errors.New("input-spent")
+var (
+	ErrUnknownTopic       = errors.New("unknown-topic")
+	ErrInvalidBeef        = errors.New("invalid-beef")
+	ErrInvalidTransaction = errors.New("invalid-transaction")
+	ErrMissingInput       = errors.New("missing-input")
+	ErrMissingOutput      = errors.New("missing-output")
+	ErrInputSpent         = errors.New("input-spent")
+)
 
 func (e *Engine) Submit(ctx context.Context, taggedBEEF overlay.TaggedBEEF, mode SumbitMode, onSteakReady OnSteakReady) (overlay.Steak, error) {
 	start := time.Now()
@@ -428,7 +432,7 @@ func (e *Engine) Lookup(ctx context.Context, question *lookup.LookupQuestion) (*
 	}
 }
 
-func (e *Engine) GetUTXOHistory(ctx context.Context, output *Output, historySelector func(beef []byte, outputIndex uint32, currentDepth uint32) bool, currentDepth uint32) (*Output, error) {
+func (e *Engine) GetUTXOHistory(ctx context.Context, output *Output, historySelector func(beef []byte, outputIndex, currentDepth uint32) bool, currentDepth uint32) (*Output, error) {
 	if historySelector == nil {
 		return output, nil
 	}
@@ -700,7 +704,7 @@ func (e *Engine) ProvideForeignSyncResponse(ctx context.Context, initialRequest 
 	}
 }
 
-func (e *Engine) ProvideForeignGASPNode(ctx context.Context, graphId *transaction.Outpoint, outpoint *transaction.Outpoint, topic string) (*gasp.Node, error) {
+func (e *Engine) ProvideForeignGASPNode(ctx context.Context, graphId, outpoint *transaction.Outpoint, topic string) (*gasp.Node, error) {
 	var hydrator func(ctx context.Context, output *Output) (*gasp.Node, error)
 	hydrator = func(ctx context.Context, output *Output) (*gasp.Node, error) {
 		if output.Beef == nil {
@@ -732,7 +736,6 @@ func (e *Engine) ProvideForeignGASPNode(ctx context.Context, graphId *transactio
 			return node, nil
 
 		}
-
 	}
 	if output, err := e.Storage.FindOutput(ctx, graphId, &topic, nil, true); err != nil {
 		slog.Error("failed to find output in ProvideForeignGASPNode", "graphId", graphId.String(), "topic", topic, "error", err)
@@ -899,7 +902,6 @@ func (e *Engine) updateMerkleProof(ctx context.Context, output *Output, txid cha
 		}
 	}
 	return nil
-
 }
 
 func (e *Engine) HandleNewMerkleProof(ctx context.Context, txid *chainhash.Hash, proof *transaction.MerklePath) error {

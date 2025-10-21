@@ -32,7 +32,7 @@ type mockGASPStorage struct {
 
 	// Configurable behavior functions
 	findKnownUTXOsFunc      func(ctx context.Context, sinceWhen float64, limit uint32) ([]*gasp.Output, error)
-	hydrateGASPNodeFunc     func(ctx context.Context, graphID *transaction.Outpoint, outpoint *transaction.Outpoint, metadata bool) (*gasp.Node, error)
+	hydrateGASPNodeFunc     func(ctx context.Context, graphID, outpoint *transaction.Outpoint, metadata bool) (*gasp.Node, error)
 	appendToGraphFunc       func(ctx context.Context, tx *gasp.Node, spentBy *transaction.Outpoint) error
 	validateGraphAnchorFunc func(ctx context.Context, graphID *transaction.Outpoint) error
 	discardGraphFunc        func(ctx context.Context, graphID *transaction.Outpoint) error
@@ -80,7 +80,7 @@ func (m *mockGASPStorage) FindKnownUTXOs(ctx context.Context, sinceWhen float64,
 	return result, nil
 }
 
-func (m *mockGASPStorage) HydrateGASPNode(ctx context.Context, graphID *transaction.Outpoint, outpoint *transaction.Outpoint, metadata bool) (*gasp.Node, error) {
+func (m *mockGASPStorage) HydrateGASPNode(ctx context.Context, graphID, outpoint *transaction.Outpoint, metadata bool) (*gasp.Node, error) {
 	if m.hydrateGASPNodeFunc != nil {
 		return m.hydrateGASPNodeFunc(ctx, graphID, outpoint, metadata)
 	}
@@ -248,7 +248,7 @@ func (m *mockGASPRemote) SubmitNode(ctx context.Context, node *gasp.Node) (*gasp
 	}, nil
 }
 
-func createMockUTXO(txHex string, outputIndex uint32, time uint32) *mockUTXO {
+func createMockUTXO(txHex string, outputIndex, time uint32) *mockUTXO {
 	// Create a proper transaction and get its hex
 	tx := transaction.NewTransaction()
 	tx.AddOutput(&transaction.TransactionOutput{

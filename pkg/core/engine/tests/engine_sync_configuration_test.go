@@ -323,7 +323,7 @@ func (m *mockTopicManager) IdentifyAdmissibleOutputs(ctx context.Context, beef [
 	return overlay.AdmittanceInstructions{}, nil
 }
 
-func (m *mockTopicManager) ProcessOutput(ctx context.Context, output []byte, proof []byte, vout uint32, topic string) error {
+func (m *mockTopicManager) ProcessOutput(ctx context.Context, output, proof []byte, vout uint32, topic string) error {
 	return nil
 }
 

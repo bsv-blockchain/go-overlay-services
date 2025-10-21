@@ -33,7 +33,8 @@ func (*NoopEngineProvider) Submit(ctx context.Context, taggedBEEF overlay.Tagged
 			OutputsToAdmit: []uint32{1000},
 			CoinsToRetain:  []uint32{1000},
 			CoinsRemoved:   []uint32{1000},
-		}})
+		},
+	})
 	return overlay.Steak{}, nil
 }
 
@@ -66,7 +67,7 @@ func (*NoopEngineProvider) Lookup(ctx context.Context, question *lookup.LookupQu
 }
 
 // GetUTXOHistory is a no-op call that always returns an empty engine output with nil error.
-func (*NoopEngineProvider) GetUTXOHistory(ctx context.Context, output *engine.Output, historySelector func(beef []byte, outputIndex uint32, currentDepth uint32) bool, currentDepth uint32) (*engine.Output, error) {
+func (*NoopEngineProvider) GetUTXOHistory(ctx context.Context, output *engine.Output, historySelector func(beef []byte, outputIndex, currentDepth uint32) bool, currentDepth uint32) (*engine.Output, error) {
 	return &engine.Output{}, nil
 }
 

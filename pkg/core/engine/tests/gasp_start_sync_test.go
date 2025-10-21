@@ -34,13 +34,13 @@ func TestEngine_StartGASPSync_CallsSyncSuccessfully(t *testing.T) {
 	}
 
 	mockStorage := &fakeStorage{
-		getLastInteractionFunc: func(ctx context.Context, host string, topic string) (float64, error) {
+		getLastInteractionFunc: func(ctx context.Context, host, topic string) (float64, error) {
 			return 0, nil
 		},
 		findUTXOsForTopicFunc: func(ctx context.Context, topic string, since float64, limit uint32, includeBEEF bool) ([]*engine.Output, error) {
 			return []*engine.Output{}, nil
 		},
-		updateLastInteractionFunc: func(ctx context.Context, host string, topic string, since float64) error {
+		updateLastInteractionFunc: func(ctx context.Context, host, topic string, since float64) error {
 			return nil
 		},
 	}
@@ -88,13 +88,13 @@ func TestEngine_StartGASPSync_ResolverQueryFails(t *testing.T) {
 	}
 
 	mockStorage := &fakeStorage{
-		getLastInteractionFunc: func(ctx context.Context, host string, topic string) (float64, error) {
+		getLastInteractionFunc: func(ctx context.Context, host, topic string) (float64, error) {
 			return 0, nil
 		},
 		findUTXOsForTopicFunc: func(ctx context.Context, topic string, since float64, limit uint32, includeBEEF bool) ([]*engine.Output, error) {
 			return []*engine.Output{}, nil
 		},
-		updateLastInteractionFunc: func(ctx context.Context, host string, topic string, since float64) error {
+		updateLastInteractionFunc: func(ctx context.Context, host, topic string, since float64) error {
 			return nil
 		},
 	}
@@ -140,13 +140,13 @@ func TestEngine_StartGASPSync_GaspSyncFails(t *testing.T) {
 	}
 
 	mockStorage := &fakeStorage{
-		getLastInteractionFunc: func(ctx context.Context, host string, topic string) (float64, error) {
+		getLastInteractionFunc: func(ctx context.Context, host, topic string) (float64, error) {
 			return 0, nil
 		},
 		findUTXOsForTopicFunc: func(ctx context.Context, topic string, since float64, limit uint32, includeBEEF bool) ([]*engine.Output, error) {
 			return []*engine.Output{}, nil
 		},
-		updateLastInteractionFunc: func(ctx context.Context, host string, topic string, since float64) error {
+		updateLastInteractionFunc: func(ctx context.Context, host, topic string, since float64) error {
 			return nil
 		},
 	}

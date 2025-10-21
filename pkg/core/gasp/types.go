@@ -73,7 +73,7 @@ func (e *VersionMismatchError) Error() string {
 	return e.Message
 }
 
-func NewVersionMismatchError(currentVersion int, foreignVersion int) *VersionMismatchError {
+func NewVersionMismatchError(currentVersion, foreignVersion int) *VersionMismatchError {
 	return &VersionMismatchError{
 		Message:        fmt.Sprintf("GASP version mismatch. Current version: %d, foreign version: %d", currentVersion, foreignVersion),
 		Code:           "ERR_GASP_VERSION_MISMATCH",

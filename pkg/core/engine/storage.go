@@ -48,9 +48,9 @@ type Storage interface {
 	DoesAppliedTransactionExist(ctx context.Context, tx *overlay.AppliedTransaction) (bool, error)
 
 	// Updates the last interaction score for a given host and topic
-	UpdateLastInteraction(ctx context.Context, host string, topic string, since float64) error
+	UpdateLastInteraction(ctx context.Context, host, topic string, since float64) error
 
 	// Retrieves the last interaction score for a given host and topic
 	// Returns 0 if no record exists
-	GetLastInteraction(ctx context.Context, host string, topic string) (float64, error)
+	GetLastInteraction(ctx context.Context, host, topic string) (float64, error)
 }

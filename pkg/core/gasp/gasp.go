@@ -239,7 +239,7 @@ func (g *GASP) GetInitialReply(ctx context.Context, response *InitialResponse) (
 	return resp, nil
 }
 
-func (g *GASP) RequestNode(ctx context.Context, graphID *transaction.Outpoint, outpoint *transaction.Outpoint, metadata bool) (node *Node, err error) {
+func (g *GASP) RequestNode(ctx context.Context, graphID, outpoint *transaction.Outpoint, metadata bool) (node *Node, err error) {
 	slog.Info(fmt.Sprintf("%sRemote is requesting node with graphID: %s, txid: %s, outputIndex: %d, metadata: %v", g.LogPrefix, graphID.String(), outpoint.Txid.String(), outpoint.Index, metadata))
 	if node, err = g.Storage.HydrateGASPNode(ctx, graphID, outpoint, metadata); err != nil {
 		return nil, err

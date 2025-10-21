@@ -19,7 +19,7 @@ func (f fakeGASPStorage) FindKnownUTXOs(ctx context.Context, since float64, limi
 	return f.findKnownUTXOsFunc(ctx, since, limit)
 }
 
-func (f fakeGASPStorage) HydrateGASPNode(ctx context.Context, graphID *transaction.Outpoint, outpoint *transaction.Outpoint, metadata bool) (*gasp.Node, error) {
+func (f fakeGASPStorage) HydrateGASPNode(ctx context.Context, graphID, outpoint *transaction.Outpoint, metadata bool) (*gasp.Node, error) {
 	panic("not implemented")
 }
 

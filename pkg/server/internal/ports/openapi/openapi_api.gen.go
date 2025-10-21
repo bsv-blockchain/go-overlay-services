@@ -117,7 +117,6 @@ type RequestSyncResponseJSONRequestBody RequestSyncResponseJSONBody
 
 // ServerInterface represents all server handlers.
 type ServerInterface interface {
-
 	// (POST /api/v1/admin/startGASPSync)
 	StartGASPSync(c *fiber.Ctx) error
 
@@ -161,7 +160,6 @@ type ServerInterfaceWrapper struct {
 
 // StartGASPSync operation middleware
 func (siw *ServerInterfaceWrapper) StartGASPSync(c *fiber.Ctx) error {
-
 	c.Context().SetUserValue(BearerAuthScopes, []string{"admin"})
 
 	for _, m := range siw.handlerMiddleware {
@@ -174,7 +172,6 @@ func (siw *ServerInterfaceWrapper) StartGASPSync(c *fiber.Ctx) error {
 
 // AdvertisementsSync operation middleware
 func (siw *ServerInterfaceWrapper) AdvertisementsSync(c *fiber.Ctx) error {
-
 	c.Context().SetUserValue(BearerAuthScopes, []string{"admin"})
 
 	for _, m := range siw.handlerMiddleware {
@@ -187,7 +184,6 @@ func (siw *ServerInterfaceWrapper) AdvertisementsSync(c *fiber.Ctx) error {
 
 // ArcIngest operation middleware
 func (siw *ServerInterfaceWrapper) ArcIngest(c *fiber.Ctx) error {
-
 	c.Context().SetUserValue(BearerAuthScopes, []string{"user"})
 
 	for _, m := range siw.handlerMiddleware {
@@ -200,7 +196,6 @@ func (siw *ServerInterfaceWrapper) ArcIngest(c *fiber.Ctx) error {
 
 // GetLookupServiceProviderDocumentation operation middleware
 func (siw *ServerInterfaceWrapper) GetLookupServiceProviderDocumentation(c *fiber.Ctx) error {
-
 	var err error
 
 	c.Context().SetUserValue(BearerAuthScopes, []string{"user"})
@@ -217,7 +212,6 @@ func (siw *ServerInterfaceWrapper) GetLookupServiceProviderDocumentation(c *fibe
 	// ------------- Required query parameter "lookupService" -------------
 
 	if paramValue := c.Query("lookupService"); paramValue != "" {
-
 	} else {
 		return fiber.NewError(fiber.StatusBadRequest, "A valid lookupService must be provided to retrieve documentation.")
 	}
@@ -237,7 +231,6 @@ func (siw *ServerInterfaceWrapper) GetLookupServiceProviderDocumentation(c *fibe
 
 // GetTopicManagerDocumentation operation middleware
 func (siw *ServerInterfaceWrapper) GetTopicManagerDocumentation(c *fiber.Ctx) error {
-
 	var err error
 
 	c.Context().SetUserValue(BearerAuthScopes, []string{"user"})
@@ -254,7 +247,6 @@ func (siw *ServerInterfaceWrapper) GetTopicManagerDocumentation(c *fiber.Ctx) er
 	// ------------- Required query parameter "topicManager" -------------
 
 	if paramValue := c.Query("topicManager"); paramValue != "" {
-
 	} else {
 		return fiber.NewError(fiber.StatusBadRequest, "A valid topicManager must be provided to retrieve documentation.")
 	}
@@ -274,7 +266,6 @@ func (siw *ServerInterfaceWrapper) GetTopicManagerDocumentation(c *fiber.Ctx) er
 
 // ListLookupServiceProviders operation middleware
 func (siw *ServerInterfaceWrapper) ListLookupServiceProviders(c *fiber.Ctx) error {
-
 	c.Context().SetUserValue(BearerAuthScopes, []string{"user"})
 
 	for _, m := range siw.handlerMiddleware {
@@ -287,7 +278,6 @@ func (siw *ServerInterfaceWrapper) ListLookupServiceProviders(c *fiber.Ctx) erro
 
 // ListTopicManagers operation middleware
 func (siw *ServerInterfaceWrapper) ListTopicManagers(c *fiber.Ctx) error {
-
 	c.Context().SetUserValue(BearerAuthScopes, []string{"user"})
 
 	for _, m := range siw.handlerMiddleware {
@@ -300,7 +290,6 @@ func (siw *ServerInterfaceWrapper) ListTopicManagers(c *fiber.Ctx) error {
 
 // LookupQuestion operation middleware
 func (siw *ServerInterfaceWrapper) LookupQuestion(c *fiber.Ctx) error {
-
 	c.Context().SetUserValue(BearerAuthScopes, []string{"user"})
 
 	for _, m := range siw.handlerMiddleware {
@@ -313,7 +302,6 @@ func (siw *ServerInterfaceWrapper) LookupQuestion(c *fiber.Ctx) error {
 
 // RequestForeignGASPNode operation middleware
 func (siw *ServerInterfaceWrapper) RequestForeignGASPNode(c *fiber.Ctx) error {
-
 	var err error
 
 	c.Context().SetUserValue(BearerAuthScopes, []string{"user"})
@@ -348,7 +336,6 @@ func (siw *ServerInterfaceWrapper) RequestForeignGASPNode(c *fiber.Ctx) error {
 
 // RequestSyncResponse operation middleware
 func (siw *ServerInterfaceWrapper) RequestSyncResponse(c *fiber.Ctx) error {
-
 	var err error
 
 	c.Context().SetUserValue(BearerAuthScopes, []string{"user"})
@@ -383,7 +370,6 @@ func (siw *ServerInterfaceWrapper) RequestSyncResponse(c *fiber.Ctx) error {
 
 // SubmitTransaction operation middleware
 func (siw *ServerInterfaceWrapper) SubmitTransaction(c *fiber.Ctx) error {
-
 	var err error
 
 	c.Context().SetUserValue(BearerAuthScopes, []string{"user"})
@@ -461,5 +447,4 @@ func RegisterHandlersWithOptions(router fiber.Router, si ServerInterface, option
 	router.Post(options.BaseURL+"/api/v1/requestSyncResponse", wrapper.RequestSyncResponse)
 
 	router.Post(options.BaseURL+"/api/v1/submit", wrapper.SubmitTransaction)
-
 }

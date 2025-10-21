@@ -19,7 +19,7 @@ components:
   responses:
     AdvertisementsSyncResponse:
       description: |
-         Advertisement sync request successfully delegated to overlay engine.
+        Advertisement sync request successfully delegated to overlay engine.
       content:
         application/json:
           schema:
@@ -27,7 +27,7 @@ components:
 
     StartGASPSyncResponse:
       description: |
-         GASP sync request successfully started.
+        GASP sync request successfully started.
       content:
         application/json:
           schema:

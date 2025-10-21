@@ -29,7 +29,7 @@ func TestEngine_GetUTXOHistory_ShouldReturnNil_WhenSelectorReturnsFalse(t *testi
 	output := &engine.Output{Beef: []byte("beef")}
 	sut := &engine.Engine{}
 
-	historySelector := func(beef []byte, outputIndex uint32, currentDepth uint32) bool {
+	historySelector := func(beef []byte, outputIndex, currentDepth uint32) bool {
 		return false
 	}
 
@@ -49,7 +49,7 @@ func TestEngine_GetUTXOHistory_ShouldReturnOutput_WhenNoOutputsConsumed(t *testi
 	}
 	sut := &engine.Engine{}
 
-	historySelector := func(beef []byte, outputIndex uint32, currentDepth uint32) bool {
+	historySelector := func(beef []byte, outputIndex, currentDepth uint32) bool {
 		return true
 	}
 
@@ -92,7 +92,7 @@ func TestEngine_GetUTXOHistory_ShouldTravelRecursively_WhenOutputsConsumedPresen
 		},
 	}
 
-	historySelector := func(beef []byte, outputIndex uint32, currentDepth uint32) bool {
+	historySelector := func(beef []byte, outputIndex, currentDepth uint32) bool {
 		return true
 	}
 
@@ -126,7 +126,7 @@ func TestEngine_GetUTXOHistory_ShouldReturnError_WhenStorageFails(t *testing.T) 
 		},
 	}
 
-	historySelector := func(beef []byte, outputIndex uint32, currentDepth uint32) bool {
+	historySelector := func(beef []byte, outputIndex, currentDepth uint32) bool {
 		return true
 	}
 
@@ -177,7 +177,7 @@ func TestEngine_GetUTXOHistory_ShouldRespectDepthInHistorySelector(t *testing.T)
 	}
 
 	// History selector that stops at depth 2
-	historySelector := func(beef []byte, outputIndex uint32, currentDepth uint32) bool {
+	historySelector := func(beef []byte, outputIndex, currentDepth uint32) bool {
 		return currentDepth < 2
 	}
 
@@ -231,7 +231,7 @@ func TestEngine_GetUTXOHistory_ShouldHandleMultipleOutputsConsumed(t *testing.T)
 		},
 	}
 
-	historySelector := func(beef []byte, outputIndex uint32, currentDepth uint32) bool {
+	historySelector := func(beef []byte, outputIndex, currentDepth uint32) bool {
 		return true
 	}
 
@@ -288,7 +288,7 @@ func TestEngine_GetUTXOHistory_ShouldHandleCircularReferences(t *testing.T) {
 		},
 	}
 
-	historySelector := func(beef []byte, outputIndex uint32, currentDepth uint32) bool {
+	historySelector := func(beef []byte, outputIndex, currentDepth uint32) bool {
 		// Limit depth to prevent infinite recursion
 		return currentDepth < 5
 	}
@@ -310,7 +310,7 @@ func TestEngine_GetUTXOHistory_ShouldHandleEmptyOutputsConsumed(t *testing.T) {
 	}
 	sut := &engine.Engine{}
 
-	historySelector := func(beef []byte, outputIndex uint32, currentDepth uint32) bool {
+	historySelector := func(beef []byte, outputIndex, currentDepth uint32) bool {
 		return true
 	}
 
@@ -339,7 +339,7 @@ func TestEngine_GetUTXOHistory_ShouldInvokeHistorySelectorWithCorrectParameters(
 	sut := &engine.Engine{}
 
 	selectorCalled := false
-	historySelector := func(beef []byte, outputIndex uint32, currentDepth uint32) bool {
+	historySelector := func(beef []byte, outputIndex, currentDepth uint32) bool {
 		selectorCalled = true
 		assert.Equal(t, expectedBeef, beef)
 		assert.Equal(t, expectedOutputIndex, outputIndex)

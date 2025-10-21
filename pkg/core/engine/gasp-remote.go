@@ -50,7 +50,7 @@ func (r *OverlayGASPRemote) GetInitialResponse(ctx context.Context, request *gas
 	}
 }
 
-func (r *OverlayGASPRemote) RequestNode(ctx context.Context, graphID *transaction.Outpoint, outpoint *transaction.Outpoint, metadata bool) (*gasp.Node, error) {
+func (r *OverlayGASPRemote) RequestNode(ctx context.Context, graphID, outpoint *transaction.Outpoint, metadata bool) (*gasp.Node, error) {
 	if j, err := json.Marshal(&gasp.NodeRequest{
 		GraphID:     graphID,
 		Txid:        &outpoint.Txid,
