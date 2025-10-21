@@ -1,8 +1,8 @@
 server:
   addr: localhost
-  admin_bearer_token: f21fc2dc-2a58-48a6-9058-633805134f7e
+  admin_bearer_token: 00000000-0000-0000-0000-000000000000
   arc_api_key: ""
-  arc_callback_token: 0655e37a-c6a7-4afb-b546-20a5ccd211a9
+  arc_callback_token: 11111111-1111-1111-1111-111111111111
   app_name: Overlay API v1.0.0
   port: 3000
   server_header: Overlay API

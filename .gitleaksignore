@@ -1,0 +1,27 @@
+# Historical commits with example/test tokens - false positives
+14c4a53133e74da3365bd0f0272d4b2302bd72b7:app-config.example.yaml:generic-api-key:3
+14c4a53133e74da3365bd0f0272d4b2302bd72b7:app-config.example.yaml:generic-api-key:5
+3d53e0a8c7ded2b0dc8c0d1126747bab462a1ed7:pkg/server2/internal/ports/start_gasp_sync_handler_test.go:generic-api-key:24
+3d53e0a8c7ded2b0dc8c0d1126747bab462a1ed7:pkg/server2/internal/ports/start_gasp_sync_handler_test.go:generic-api-key:45
+d73dd27da5fcdf37954f20749ba3a0d699556753:pkg/server2/internal/ports/sync_advertisements_handler_test.go:generic-api-key:18
+d73dd27da5fcdf37954f20749ba3a0d699556753:pkg/server2/internal/ports/sync_advertisements_handler_test.go:generic-api-key:49
+7b548b4a7f05a3244ff3276b063f528140de9c9f:pkg/server2/internal/ports/start_gasp_sync_handler_test.go:generic-api-key:47
+7b548b4a7f05a3244ff3276b063f528140de9c9f:pkg/server2/internal/ports/start_gasp_sync_handler_test.go:generic-api-key:81
+9b5c88b6ee8a3c3f2d3f5bb08def4ce53b9bd9e5:pkg/server2/internal/ports/start_gasp_sync_handler_test.go:generic-api-key:26
+1d2ae93f23bcb479f24854e8c0cf1d6e44ceab23:pkg/server2/internal/ports/sync_advertisements_handler_test.go:generic-api-key:20
+1d2ae93f23bcb479f24854e8c0cf1d6e44ceab23:pkg/server2/internal/ports/sync_advertisements_handler_test.go:generic-api-key:51
+3021b605047773bf7d54458d4e079bde21a0210b:pkg/server2/internal/ports/start_gasp_sync_handler_test.go:generic-api-key:35
+3021b605047773bf7d54458d4e079bde21a0210b:pkg/server2/internal/ports/start_gasp_sync_handler_test.go:generic-api-key:59
+f1d2f7eb7be5034980faa1af480b0a4c6448e47b:pkg/server2/internal/ports/sync_advertisements_handler_test.go:generic-api-key:17
+f1d2f7eb7be5034980faa1af480b0a4c6448e47b:pkg/server2/internal/ports/sync_advertisements_handler_test.go:generic-api-key:40
+826973d0b5b77c401bdc30909d64ae07226375df:app-config.example.yaml:generic-api-key:3
+826973d0b5b77c401bdc30909d64ae07226375df:app-config.example.yaml:generic-api-key:4
+adfb88993fa774a0c624ef183a199c861f659f98:app-config.example.yaml:generic-api-key:5
+dd605130bfe2b256a74ef307171fb2010d8f2962:app-config.example.yaml:generic-api-key:4
+dd605130bfe2b256a74ef307171fb2010d8f2962:pkg/server/middleware/arc_callback_token_middleware_test.go:generic-api-key:24
+1844b09479a86b3fe7be24578e47106ebcf941cf:app-config.example.yaml:generic-api-key:3
+1844b09479a86b3fe7be24578e47106ebcf941cf:docs/admin_api.http:generic-api-key:6
+740055ef6d1a446ea271d967290137ab9bf3840c:app-config.example.yaml:generic-api-key:3
+740055ef6d1a446ea271d967290137ab9bf3840c:docs/admin_api.http:generic-api-key:6
+732d8ea20860b18b9a83c73d1f5472d9acda053f:app-config.example.yaml:generic-api-key:2
+67d1643eed28d8862c951d87de030c94e5c74ac8:app-config.example.yaml:generic-api-key:2
