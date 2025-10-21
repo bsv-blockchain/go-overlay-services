@@ -19,45 +19,45 @@ This standalone HTTP server provides a customizable interface for interacting wi
 
 ## Features
 
-- **Standalone HTTP Server**  
+- **Standalone HTTP Server**
   Operates as a self-contained server with customizable configuration and overlay engine layers.
 
-- **📖 OpenAPI Integration**  
+- **📖 OpenAPI Integration**
   Supports OpenAPI specifications with an interactive Swagger UI for exploring and testing endpoints.
 
-- **🗂️ Flexible Configuration Formats**  
+- **🗂️ Flexible Configuration Formats**
   Allows importing and exporting configuration using common formats such as `.env`, `.yaml`, and `.json`.
 
-- **📊 Real-Time Observability**  
+- **📊 Real-Time Observability**
   Provides basic real-time observability and performance monitoring out of the box.
 
 ## Middleware & Built-in Components
 
-- **🔎 Request Tracing**  
+- **🔎 Request Tracing**
   Attaches a unique `request ID` to every incoming request for consistent traceability across logs and systems.
 
-- **🔄 Idempotency Support**  
+- **🔄 Idempotency Support**
   Enables safe request retries by ensuring idempotent behavior for designated endpoints.
 
-- **🌐 CORS Handling**  
+- **🌐 CORS Handling**
   Manages cross-origin resource sharing (CORS) to support web applications securely.
 
-- **🚨 Panic Recovery**  
+- **🚨 Panic Recovery**
   Catches and logs panics during request handling, with optional stack trace support.
 
-- **📝 Structured Request Logging**  
+- **📝 Structured Request Logging**
   Logs HTTP requests using a customizable format, including method, path, status, and errors.
 
-- **❤️ Health Check Endpoint**  
+- **❤️ Health Check Endpoint**
   Exposes an endpoint for health and readiness checks, suitable for orchestration tools.
 
-- **📈 Performance Profiling**  
+- **📈 Performance Profiling**
   Integrates `pprof` profiling tools under the `/api/v1` path for runtime diagnostics.
 
-- **📦 Request Body Limits**  
+- **📦 Request Body Limits**
   Enforces size limits on `application/octet-stream` payloads to protect against abuse.
 
-- **🔐 Bearer Token Authorization**  
+- **🔐 Bearer Token Authorization**
   Validates Bearer tokens found in the `Authorization` header of incoming HTTP requests and enforces authorization based on OpenAPI security scopes.
 
 ## Supported API Endpoints
@@ -116,33 +116,33 @@ This project uses a dedicated **Taskfile.yml** powered by the [`task`](https://t
 
 Formalizing these processes ensures:
 
-- ✅ **Consistency** across developer environments  
-- ⚙️ **Automation** of chained commands and validations  
-- ⏱️ **Efficiency** by reducing manual complexity  
-- 🔁 **Reproducibility** in CI/CD and local setups  
-- 🧹 **Maintainability** with centralized workflow updates  
+- ✅ **Consistency** across developer environments
+- ⚙️ **Automation** of chained commands and validations
+- ⏱️ **Efficiency** by reducing manual complexity
+- 🔁 **Reproducibility** in CI/CD and local setups
+- 🧹 **Maintainability** with centralized workflow updates
 
 ### Available Tasks
 
-- **`execute-unit-tests`**  
+- **`execute-unit-tests`**
   Runs all unit tests with fail-fast, vet checks, and disables caching for fresh results.
 
-- **`oapi-codegen`**  
+- **`oapi-codegen`**
   Generates HTTP server code and models from the OpenAPI spec to keep the API and code in sync.
 
-- **`swagger-doc-gen`**  
+- **`swagger-doc-gen`**
   Bundles the OpenAPI spec into a single YAML file, ready for validation and documentation tools.
 
-- **`swagger-ui-up`**  
+- **`swagger-ui-up`**
   Bundles, validates, and starts Swagger UI with Docker Compose for interactive API exploration.
 
-- **`swagger-ui-down`**  
+- **`swagger-ui-down`**
   Stops Swagger UI services and cleans up containers.
 
-- **`swagger-cleanup`**  
+- **`swagger-cleanup`**
   Removes generated Swagger files and stops any running Swagger UI containers.
 
-- **`execute-linters`**  
+- **`execute-linters`**
   Runs Go linters and applies automatic fixes to maintain code quality.
 
 ### Usage Examples
@@ -154,11 +154,11 @@ Formalizing these processes ensures:
 All the proposed examples are available in the [examples directory](./examples/).
 
 
-## Support & Contacts 
+## Support & Contacts
 
 For questions, bug reports, or feature requests, please open an issue on GitHub.
 
-## License  
+## License
 
 The license for the code in this repository is the Open BSV License. Refer to [LICENSE.txt](./LICENSE) for the license text.
 Thank you for being a part of the BSV Blockchain Libraries Project. Let's build the future of BSV Blockchain together! 🚀🔥
