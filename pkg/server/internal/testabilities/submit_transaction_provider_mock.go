@@ -2,6 +2,7 @@ package testabilities
 
 import (
 	"context"
+	"sync"
 	"testing"
 	"time"
 
@@ -42,6 +43,9 @@ type SubmitTransactionProviderMock struct {
 	// expectations defines the expected behavior and outcomes for this mock.
 	expectations SubmitTransactionProviderMockExpectations
 
+	// mu protects concurrent access to the fields below.
+	mu sync.RWMutex
+
 	// called is true if the Submit method was called.
 	called bool
 
@@ -60,18 +64,23 @@ type SubmitTransactionProviderMock struct {
 func (s *SubmitTransactionProviderMock) Submit(_ context.Context, taggedBEEF overlay.TaggedBEEF, mode engine.SumbitMode, callback engine.OnSteakReady) (overlay.Steak, error) {
 	s.t.Helper()
 
+	s.mu.Lock()
 	s.called = true
 	s.calledTaggedBEEF = taggedBEEF
 	s.calledSubmitMode = mode
 	s.callbackInvoked = false
+	err := s.expectations.Error
+	s.mu.Unlock()
 
-	if s.expectations.Error != nil {
-		return nil, s.expectations.Error
+	if err != nil {
+		return nil, err
 	}
 
 	time.AfterFunc(s.expectations.TriggerCallbackAfter, func() {
 		callback(s.expectations.STEAK)
+		s.mu.Lock()
 		s.callbackInvoked = true
+		s.mu.Unlock()
 	})
 
 	return overlay.Steak{}, nil
@@ -80,7 +89,10 @@ func (s *SubmitTransactionProviderMock) Submit(_ context.Context, taggedBEEF ove
 // AssertCalled verifies that the Submit method was called if it was expected to be.
 func (s *SubmitTransactionProviderMock) AssertCalled() {
 	s.t.Helper()
-	require.Equal(s.t, s.expectations.SubmitCall, s.called, "Discrepancy between expected and actual Submit call")
+	s.mu.RLock()
+	called := s.called
+	s.mu.RUnlock()
+	require.Equal(s.t, s.expectations.SubmitCall, called, "Discrepancy between expected and actual Submit call")
 }
 
 // NewSubmitTransactionProviderMock creates a new instance of SubmitTransactionProviderMock with the given expectations.
