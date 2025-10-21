@@ -7,7 +7,7 @@ require (
 	github.com/bsv-blockchain/universal-test-vectors v0.5.0
 	github.com/go-resty/resty/v2 v2.16.5
 	github.com/go-viper/mapstructure/v2 v2.4.0
-	github.com/gofiber/fiber/v2 v2.52.8
+	github.com/gofiber/fiber/v2 v2.52.9
 	github.com/google/uuid v1.6.0
 	github.com/mitchellh/mapstructure v1.5.0
 	github.com/oapi-codegen/runtime v1.1.1
