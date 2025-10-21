@@ -1,3 +1,4 @@
+// Package ports defines the HTTP handlers and routing for the overlay services API.
 package ports
 
 import (

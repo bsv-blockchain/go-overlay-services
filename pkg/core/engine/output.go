@@ -6,6 +6,7 @@ import (
 	"github.com/bsv-blockchain/go-sdk/transaction"
 )
 
+// Output represents a transaction output with its metadata, history, and BEEF data.
 type Output struct {
 	Outpoint        transaction.Outpoint
 	Topic           string

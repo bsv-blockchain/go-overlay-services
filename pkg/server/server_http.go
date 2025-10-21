@@ -1,3 +1,6 @@
+// Package server provides the HTTP server implementation for the overlay services API.
+// It includes configuration management, route registration, middleware support, and
+// integration with the overlay engine for processing Bitcoin overlay network transactions.
 package server
 
 import (
@@ -145,7 +148,7 @@ func (s *HTTP) SocketAddr() string {
 
 // ListenAndServe starts the HTTP server and begins listening on the configured socket address.
 // It blocks until the server is stopped or an error occurs.
-func (s *HTTP) ListenAndServe(ctx context.Context) error {
+func (s *HTTP) ListenAndServe(_ context.Context) error {
 	return s.app.Listen(s.SocketAddr())
 }
 

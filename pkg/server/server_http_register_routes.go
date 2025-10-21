@@ -60,7 +60,7 @@ func RegisterRoutesWithErrorHandler(app *fiber.App, cfg *RegisterRoutesConfig) *
 // It accepts a RegisterRoutesConfig to set up API keys, processing limits,
 // and a custom implementation of the overlay engine.
 //
-// Note: The returned instance does not include a predefined error handler that
+// The returned instance does not include a predefined error handler that
 // translates application-level errors into appropriate HTTP status codes and JSON
 // responses. To handle such errors, the error handling configuration of the provided
 // fiber.App instance must be extended externally before calling this function.

@@ -36,7 +36,7 @@ func (f *TestFixture) Client() *resty.Client {
 	f.t.Helper()
 
 	c := resty.New()
-	c.OnError(func(r *resty.Request, err error) {
+	c.OnError(func(_ *resty.Request, err error) {
 		require.NoError(f.t, err, "HTTP request ended with unexpected error")
 	})
 	c.GetClient().Transport = f.roundTripper

@@ -11,6 +11,8 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+var errStorageFailed = errors.New("storage failed")
+
 func TestEngine_ProvideForeignSyncResponse_ShouldReturnUTXOList(t *testing.T) {
 	// given
 	expectedOutpoint := &transaction.Outpoint{
@@ -28,7 +30,7 @@ func TestEngine_ProvideForeignSyncResponse_ShouldReturnUTXOList(t *testing.T) {
 
 	sut := &engine.Engine{
 		Storage: fakeStorage{
-			findUTXOsForTopicFunc: func(ctx context.Context, topic string, since float64, limit uint32, includeBEEF bool) ([]*engine.Output, error) {
+			findUTXOsForTopicFunc: func(_ context.Context, _ string, _ float64, _ uint32, _ bool) ([]*engine.Output, error) {
 				return []*engine.Output{
 					{Outpoint: *expectedOutpoint},
 				}, nil
@@ -46,11 +48,10 @@ func TestEngine_ProvideForeignSyncResponse_ShouldReturnUTXOList(t *testing.T) {
 
 func TestEngine_ProvideForeignSyncResponse_ShouldReturnError_WhenStorageFails(t *testing.T) {
 	// given
-	expectedError := errors.New("storage failed")
 	sut := &engine.Engine{
 		Storage: fakeStorage{
-			findUTXOsForTopicFunc: func(ctx context.Context, topic string, since float64, limit uint32, includeBEEF bool) ([]*engine.Output, error) {
-				return nil, expectedError
+			findUTXOsForTopicFunc: func(_ context.Context, _ string, _ float64, _ uint32, _ bool) ([]*engine.Output, error) {
+				return nil, errStorageFailed
 			},
 		},
 	}
@@ -61,5 +62,5 @@ func TestEngine_ProvideForeignSyncResponse_ShouldReturnError_WhenStorageFails(t 
 	// then
 	require.Error(t, err)
 	require.Nil(t, resp)
-	require.Equal(t, expectedError, err)
+	require.Equal(t, errStorageFailed, err)
 }

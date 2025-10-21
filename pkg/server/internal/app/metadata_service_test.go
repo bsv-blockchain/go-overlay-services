@@ -46,7 +46,7 @@ func TestMetadataService_ValidCases(t *testing.T) {
 		actualDTO, err := service.GetMetadata(app.TopicManagersServiceMetadataType)
 
 		// then:
-		require.Nil(t, err)
+		require.NoError(t, err)
 		require.Equal(t, expectedDTO, actualDTO)
 
 		provider1.AssertCalled()
@@ -89,7 +89,7 @@ func TestMetadataService_ValidCases(t *testing.T) {
 		actualDTO, err := service.GetMetadata(app.LookupsMetadataServiceMetadataType)
 
 		// then:
-		require.Nil(t, err)
+		require.NoError(t, err)
 		require.Equal(t, expectedDTO, actualDTO)
 
 		provider1.AssertCalled()

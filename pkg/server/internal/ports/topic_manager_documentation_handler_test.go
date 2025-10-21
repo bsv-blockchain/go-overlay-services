@@ -12,6 +12,8 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+var errTopicManagerDocHandlerTestError = errors.New("test error")
+
 func TestTopicManagerDocumentationHandler_InvalidCases(t *testing.T) {
 	tests := map[string]struct {
 		expectedStatusCode int
@@ -30,10 +32,10 @@ func TestTopicManagerDocumentationHandler_InvalidCases(t *testing.T) {
 		"Topic manager documentation service fails to handle request - internal error": {
 			expectedStatusCode: fiber.StatusInternalServerError,
 			queryParams:        map[string]string{"topicManager": "testProvider"},
-			expectedResponse:   testabilities.NewTestOpenapiErrorResponse(t, app.NewTopicManagerDocumentationProviderError(errors.New("test error"))),
+			expectedResponse:   testabilities.NewTestOpenapiErrorResponse(t, app.NewTopicManagerDocumentationProviderError(errTopicManagerDocHandlerTestError)),
 			expectations: testabilities.TopicManagerDocumentationProviderMockExpectations{
 				DocumentationCall: true,
-				Error:             app.NewTopicManagerDocumentationProviderError(errors.New("test error")),
+				Error:             app.NewTopicManagerDocumentationProviderError(errTopicManagerDocHandlerTestError),
 			},
 		},
 	}

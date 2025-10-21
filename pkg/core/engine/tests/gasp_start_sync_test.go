@@ -12,6 +12,8 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+var errInternalQueryCallFailure = errors.New("internal query call failure")
+
 func TestEngine_StartGASPSync_CallsSyncSuccessfully(t *testing.T) {
 	// given:
 	resolver := LookupResolverMock{
@@ -28,19 +30,19 @@ func TestEngine_StartGASPSync_CallsSyncSuccessfully(t *testing.T) {
 		},
 	}
 	advertiser := fakeAdvertiser{
-		parseAdvertisement: func(script *script.Script) (*advertiser.Advertisement, error) {
+		parseAdvertisement: func(_ *script.Script) (*advertiser.Advertisement, error) {
 			return &advertiser.Advertisement{Protocol: "SHIP"}, nil
 		},
 	}
 
 	mockStorage := &fakeStorage{
-		getLastInteractionFunc: func(ctx context.Context, host, topic string) (float64, error) {
+		getLastInteractionFunc: func(_ context.Context, _, _ string) (float64, error) {
 			return 0, nil
 		},
-		findUTXOsForTopicFunc: func(ctx context.Context, topic string, since float64, limit uint32, includeBEEF bool) ([]*engine.Output, error) {
+		findUTXOsForTopicFunc: func(_ context.Context, _ string, _ float64, _ uint32, _ bool) ([]*engine.Output, error) {
 			return []*engine.Output{}, nil
 		},
-		updateLastInteractionFunc: func(ctx context.Context, host, topic string, since float64) error {
+		updateLastInteractionFunc: func(_ context.Context, _, _ string, _ float64) error {
 			return nil
 		},
 	}
@@ -65,11 +67,11 @@ func TestEngine_StartGASPSync_CallsSyncSuccessfully(t *testing.T) {
 
 func TestEngine_StartGASPSync_ResolverQueryFails(t *testing.T) {
 	// given:
-	expectedQueryCallErr := errors.New("internal query call failure")
+	// Use the static error variable
 	resolver := LookupResolverMock{
 		ExpectQueryCall:       true,
 		ExpectSetTrackersCall: true,
-		ExpectedError:         expectedQueryCallErr,
+		ExpectedError:         errInternalQueryCallFailure,
 		ExpectedAnswer: &lookup.LookupAnswer{
 			Type: lookup.AnswerTypeOutputList,
 			Outputs: []*lookup.OutputListItem{
@@ -82,19 +84,19 @@ func TestEngine_StartGASPSync_ResolverQueryFails(t *testing.T) {
 	}
 
 	advertiser := fakeAdvertiser{
-		parseAdvertisement: func(script *script.Script) (*advertiser.Advertisement, error) {
+		parseAdvertisement: func(_ *script.Script) (*advertiser.Advertisement, error) {
 			return &advertiser.Advertisement{Protocol: "SHIP"}, nil
 		},
 	}
 
 	mockStorage := &fakeStorage{
-		getLastInteractionFunc: func(ctx context.Context, host, topic string) (float64, error) {
+		getLastInteractionFunc: func(_ context.Context, _, _ string) (float64, error) {
 			return 0, nil
 		},
-		findUTXOsForTopicFunc: func(ctx context.Context, topic string, since float64, limit uint32, includeBEEF bool) ([]*engine.Output, error) {
+		findUTXOsForTopicFunc: func(_ context.Context, _ string, _ float64, _ uint32, _ bool) ([]*engine.Output, error) {
 			return []*engine.Output{}, nil
 		},
-		updateLastInteractionFunc: func(ctx context.Context, host, topic string, since float64) error {
+		updateLastInteractionFunc: func(_ context.Context, _, _ string, _ float64) error {
 			return nil
 		},
 	}
@@ -112,7 +114,7 @@ func TestEngine_StartGASPSync_ResolverQueryFails(t *testing.T) {
 	err := sut.StartGASPSync(context.Background())
 
 	// then:
-	require.ErrorIs(t, err, expectedQueryCallErr)
+	require.ErrorIs(t, err, errInternalQueryCallFailure)
 
 	resolver.AssertCalled(t)
 }
@@ -134,19 +136,19 @@ func TestEngine_StartGASPSync_GaspSyncFails(t *testing.T) {
 	}
 
 	advertiser := fakeAdvertiser{
-		parseAdvertisement: func(script *script.Script) (*advertiser.Advertisement, error) {
+		parseAdvertisement: func(_ *script.Script) (*advertiser.Advertisement, error) {
 			return &advertiser.Advertisement{Protocol: "SHIP"}, nil
 		},
 	}
 
 	mockStorage := &fakeStorage{
-		getLastInteractionFunc: func(ctx context.Context, host, topic string) (float64, error) {
+		getLastInteractionFunc: func(_ context.Context, _, _ string) (float64, error) {
 			return 0, nil
 		},
-		findUTXOsForTopicFunc: func(ctx context.Context, topic string, since float64, limit uint32, includeBEEF bool) ([]*engine.Output, error) {
+		findUTXOsForTopicFunc: func(_ context.Context, _ string, _ float64, _ uint32, _ bool) ([]*engine.Output, error) {
 			return []*engine.Output{}, nil
 		},
-		updateLastInteractionFunc: func(ctx context.Context, host, topic string, since float64) error {
+		updateLastInteractionFunc: func(_ context.Context, _, _ string, _ float64) error {
 			return nil
 		},
 	}
@@ -186,7 +188,7 @@ type GASPMock struct {
 // Sync simulates the synchronization process.
 // It returns the predefined ExpectedErr if set,
 // and marks the method as called for test verification.
-func (g *GASPMock) Sync(ctx context.Context) error {
+func (g *GASPMock) Sync(_ context.Context) error {
 	g.SyncWasCalled = true
 
 	if g.ExpectedErr != nil {
@@ -236,7 +238,7 @@ func (m *LookupResolverMock) SetSLAPTrackers(trackers []string) {
 }
 
 // Query simulates a resolver query and captures the input question.
-func (m *LookupResolverMock) Query(ctx context.Context, question *lookup.LookupQuestion) (*lookup.LookupAnswer, error) {
+func (m *LookupResolverMock) Query(_ context.Context, question *lookup.LookupQuestion) (*lookup.LookupAnswer, error) {
 	m.QueryCalled = true
 	m.ReceivedQuestion = question
 

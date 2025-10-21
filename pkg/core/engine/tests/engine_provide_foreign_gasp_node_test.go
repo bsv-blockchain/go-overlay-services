@@ -11,6 +11,8 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+var errForcedError = errors.New("forced error")
+
 func TestEngine_ProvideForeignGASPNode_Success(t *testing.T) {
 	// given:
 	ctx := context.Background()
@@ -26,7 +28,7 @@ func TestEngine_ProvideForeignGASPNode_Success(t *testing.T) {
 
 	sut := &engine.Engine{
 		Storage: fakeStorage{
-			findOutputFunc: func(ctx context.Context, outpoint *transaction.Outpoint, topic *string, spent *bool, includeBEEF bool) (*engine.Output, error) {
+			findOutputFunc: func(_ context.Context, _ *transaction.Outpoint, _ *string, _ *bool, _ bool) (*engine.Output, error) {
 				return &engine.Output{Beef: BEEF}, nil
 			},
 		},
@@ -48,7 +50,7 @@ func TestEngine_ProvideForeignGASPNode_MissingBeef_ShouldReturnError(t *testing.
 
 	sut := &engine.Engine{
 		Storage: fakeStorage{
-			findOutputFunc: func(ctx context.Context, outpoint *transaction.Outpoint, topic *string, spent *bool, includeBEEF bool) (*engine.Output, error) {
+			findOutputFunc: func(_ context.Context, _ *transaction.Outpoint, _ *string, _ *bool, _ bool) (*engine.Output, error) {
 				return &engine.Output{}, nil // Missing Beef
 			},
 		},
@@ -67,12 +69,11 @@ func TestEngine_ProvideForeignGASPNode_CannotFindOutput_ShouldReturnError(t *tes
 	ctx := context.Background()
 	graphID := &transaction.Outpoint{}
 	outpoint := &transaction.Outpoint{}
-	expectedErr := errors.New("forced error")
 
 	sut := &engine.Engine{
 		Storage: fakeStorage{
-			findOutputFunc: func(ctx context.Context, outpoint *transaction.Outpoint, topic *string, spent *bool, includeBEEF bool) (*engine.Output, error) {
-				return nil, expectedErr
+			findOutputFunc: func(_ context.Context, _ *transaction.Outpoint, _ *string, _ *bool, _ bool) (*engine.Output, error) {
+				return nil, errForcedError
 			},
 		},
 	}
@@ -81,7 +82,7 @@ func TestEngine_ProvideForeignGASPNode_CannotFindOutput_ShouldReturnError(t *tes
 	node, err := sut.ProvideForeignGASPNode(ctx, graphID, outpoint, "test-topic")
 
 	// then:
-	require.ErrorIs(t, err, expectedErr)
+	require.ErrorIs(t, err, errForcedError)
 	require.Nil(t, node)
 }
 
@@ -93,7 +94,7 @@ func TestEngine_ProvideForeignGASPNode_TransactionNotFound_ShouldReturnError(t *
 
 	sut := &engine.Engine{
 		Storage: fakeStorage{
-			findOutputFunc: func(ctx context.Context, outpoint *transaction.Outpoint, topic *string, spent *bool, includeBEEF bool) (*engine.Output, error) {
+			findOutputFunc: func(_ context.Context, _ *transaction.Outpoint, _ *string, _ *bool, _ bool) (*engine.Output, error) {
 				return &engine.Output{Beef: []byte{0x00}}, nil
 			},
 		},

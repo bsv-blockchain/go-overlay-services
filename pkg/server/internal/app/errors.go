@@ -9,13 +9,21 @@ type ErrorType struct {
 }
 
 var (
-	ErrorTypeProviderFailure      = ErrorType{"provider-failure"}
-	ErrorTypeAuthorization        = ErrorType{"authorization"}
-	ErrorTypeAccessForbidden      = ErrorType{"access-forbidden"}
-	ErrorTypeIncorrectInput       = ErrorType{"incorrect-input"}
-	ErrorTypeUnknown              = ErrorType{"unknown"}
-	ErrorTypeOperationTimeout     = ErrorType{"operation-timeout"}
-	ErrorTypeRawDataProcessing    = ErrorType{"raw-data-processing"}
+	// ErrorTypeProviderFailure indicates a failure in a service dependency or provider.
+	ErrorTypeProviderFailure = ErrorType{"provider-failure"}
+	// ErrorTypeAuthorization indicates an authentication or authorization failure.
+	ErrorTypeAuthorization = ErrorType{"authorization"}
+	// ErrorTypeAccessForbidden indicates that access to a resource is forbidden.
+	ErrorTypeAccessForbidden = ErrorType{"access-forbidden"}
+	// ErrorTypeIncorrectInput indicates that the provided input is invalid or malformed.
+	ErrorTypeIncorrectInput = ErrorType{"incorrect-input"}
+	// ErrorTypeUnknown indicates an unclassified or unexpected error.
+	ErrorTypeUnknown = ErrorType{"unknown"}
+	// ErrorTypeOperationTimeout indicates that an operation exceeded its time limit.
+	ErrorTypeOperationTimeout = ErrorType{"operation-timeout"}
+	// ErrorTypeRawDataProcessing indicates an error during raw data processing.
+	ErrorTypeRawDataProcessing = ErrorType{"raw-data-processing"}
+	// ErrorTypeUnsupportedOperation indicates that the requested operation is not supported.
 	ErrorTypeUnsupportedOperation = ErrorType{"unsupported-operation"}
 )
 
@@ -37,11 +45,19 @@ type Error struct {
 	errorType ErrorType
 }
 
-func (e Error) Slug() string         { return e.slug }
-func (e Error) IsZero() bool         { return e == Error{} }
-func (e Error) Error() string        { return e.err }
+// Slug returns the error slug identifier.
+func (e Error) Slug() string { return e.slug }
+
+// IsZero returns true if the error is the zero value.
+func (e Error) IsZero() bool { return e == Error{} }
+
+// Error returns the error message string.
+func (e Error) Error() string { return e.err }
+
+// ErrorType returns the type of error.
 func (e Error) ErrorType() ErrorType { return e.errorType }
 
+// NewUnsupportedOperationError creates an error for unsupported operations.
 func NewUnsupportedOperationError(err, slug string) Error {
 	return Error{
 		slug:      slug,

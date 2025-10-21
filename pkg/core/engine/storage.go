@@ -9,8 +9,10 @@ import (
 	"github.com/bsv-blockchain/go-sdk/transaction"
 )
 
+// ErrNotFound is returned when a requested item is not found in storage.
 var ErrNotFound = fmt.Errorf("not-found")
 
+// Storage defines the interface for persisting and retrieving overlay transaction data.
 type Storage interface {
 	// Adds a new output to storage
 	InsertOutput(ctx context.Context, utxo *Output) error

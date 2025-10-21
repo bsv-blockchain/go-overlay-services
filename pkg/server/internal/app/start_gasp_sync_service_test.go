@@ -10,9 +10,11 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+var errStartGASPSyncTestError = errors.New("internal start GASP sync service test error")
+
 func TestStartGASPSyncService_InvalidCase(t *testing.T) {
 	// given:
-	providerError := errors.New("internal start GASP sync service test error")
+	providerError := errStartGASPSyncTestError
 	expectations := testabilities.StartGASPSyncProviderMockExpectations{
 		StartGASPSyncCall: true,
 		Error:             providerError,

@@ -23,7 +23,7 @@ type LookupProviderDocumentationHandler struct {
 //
 // On success, it returns a 200 OK response containing the provider's documentation
 // in the LookupServiceProviderDocumentationResponse format.
-func (h *LookupProviderDocumentationHandler) Handle(c *fiber.Ctx, params openapi.GetLookupServiceProviderDocumentationParams) error {
+func (h *LookupProviderDocumentationHandler) Handle(c *fiber.Ctx, _ openapi.GetLookupServiceProviderDocumentationParams) error {
 	documentation, err := h.service.GetDocumentation(c.UserContext(), c.Query("lookupService"))
 	if err != nil {
 		return err

@@ -19,7 +19,7 @@ type LookupDocumentationService struct {
 // Returns the documentation string on success, or an error if:
 // - The lookup service name is empty (ErrorTypeIncorrectInput).
 // - The provider fails to retrieve documentation (ErrorTypeProviderFailure).
-func (s *LookupDocumentationService) GetDocumentation(ctx context.Context, lookupServiceName string) (string, error) {
+func (s *LookupDocumentationService) GetDocumentation(_ context.Context, lookupServiceName string) (string, error) {
 	if lookupServiceName == "" {
 		return "", NewEmptyLookupServiceNameError()
 	}

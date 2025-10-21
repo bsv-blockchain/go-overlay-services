@@ -10,6 +10,7 @@ import (
 	"github.com/bsv-blockchain/go-sdk/transaction"
 )
 
+// OutputAdmittedByTopic contains information about an output that has been admitted by a topic manager.
 type OutputAdmittedByTopic struct {
 	Topic         string
 	Outpoint      *transaction.Outpoint
@@ -18,6 +19,7 @@ type OutputAdmittedByTopic struct {
 	AtomicBEEF    []byte
 }
 
+// OutputSpent contains information about an output that has been spent.
 type OutputSpent struct {
 	Outpoint           *transaction.Outpoint
 	Topic              string
@@ -28,6 +30,7 @@ type OutputSpent struct {
 	SpendingAtomicBEEF []byte
 }
 
+// LookupService defines the interface for managing and querying outputs in a lookup service.
 type LookupService interface {
 	/**
 	 * Invoked when a Topic Manager admits a new UTXO.

@@ -1,3 +1,4 @@
+// Package decorators provides HTTP handler decorators for authentication and authorization.
 package decorators
 
 import (

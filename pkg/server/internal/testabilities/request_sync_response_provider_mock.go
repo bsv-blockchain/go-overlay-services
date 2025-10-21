@@ -9,11 +9,14 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// DefaultTopic is the default topic name used in tests.
 const DefaultTopic = "test-topic"
 
 const (
+	// DefaultVersion is the default GASP version used in tests.
 	DefaultVersion = 1
-	DefaultSince   = float64(100000)
+	// DefaultSince is the default since value used in tests.
+	DefaultSince = float64(100000)
 )
 
 // RequestSyncResponseProviderMockExpectations defines mock expectations.
@@ -59,7 +62,7 @@ func NewDefaultGASPInitialResponseTestHelper(t *testing.T) *gasp.InitialResponse
 // It captures input values and returns either the expected mock response or error.
 //
 // Implements the same signature as the real method for interchangeability in tests.
-func (m *RequestSyncResponseProviderMock) ProvideForeignSyncResponse(ctx context.Context, initialRequest *gasp.InitialRequest, topic string) (*gasp.InitialResponse, error) {
+func (m *RequestSyncResponseProviderMock) ProvideForeignSyncResponse(_ context.Context, initialRequest *gasp.InitialRequest, topic string) (*gasp.InitialResponse, error) {
 	m.t.Helper()
 	m.called = true
 	m.topic = topic

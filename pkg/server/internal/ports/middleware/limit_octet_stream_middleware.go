@@ -53,9 +53,9 @@ func (l *limitedBytesReader) Read() ([]byte, error) {
 			if read > l.readLimit {
 				return nil, NewBodySizeLimitExceededError(l.readLimit)
 			}
-			_, err := buff.Write(bb[:n])
-			if err != nil {
-				return nil, NewBodyReadError(err)
+			_, writeErr := buff.Write(bb[:n])
+			if writeErr != nil {
+				return nil, NewBodyReadError(writeErr)
 			}
 		}
 

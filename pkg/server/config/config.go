@@ -1,3 +1,6 @@
+// Package config provides configuration management for the overlay-engine server.
+// It includes functionality for loading, exporting, and managing server settings
+// from various file formats (JSON, YAML, environment files).
 package config
 
 import (
@@ -27,7 +30,7 @@ func (c *Config) Export(path string) error {
 	case "json":
 		err = exporters.ToJSONFile(c, path)
 	case "env", "dotenv":
-		err = exporters.ToEnvFile(c, path, strings.Replace(c.Server.AppName, " ", "_", -1))
+		err = exporters.ToEnvFile(c, path, strings.ReplaceAll(c.Server.AppName, " ", "_"))
 	default: // yaml, yml
 		err = exporters.ToYAMLFile(c, path)
 	}

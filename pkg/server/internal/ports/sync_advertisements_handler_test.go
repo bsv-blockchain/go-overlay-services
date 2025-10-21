@@ -13,10 +13,12 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+var errSyncAdvertisementsHandlerTestError = errors.New("internal SyncAdvertisements service test error")
+
 func TestSyncAdvertisementsHandler_InvalidCase(t *testing.T) {
 	// given:
 	const token = "22222222-2222-2222-2222-222222222222"
-	providerInternalErr := errors.New("internal SyncAdvertisements service test error")
+	providerInternalErr := errSyncAdvertisementsHandlerTestError
 	expectedResponse := testabilities.NewTestOpenapiErrorResponse(t, app.NewSyncAdvertisementsProviderError(providerInternalErr))
 	stub := testabilities.NewTestOverlayEngineStub(t,
 		testabilities.WithSyncAdvertisementsProvider(

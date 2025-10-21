@@ -31,7 +31,7 @@ type TopicManagerDocumentationProviderMock struct {
 
 // GetDocumentationForTopicManager simulates a documentation retrieval operation
 // and returns the expected documentation string and error.
-func (m *TopicManagerDocumentationProviderMock) GetDocumentationForTopicManager(topicManagerName string) (string, error) {
+func (m *TopicManagerDocumentationProviderMock) GetDocumentationForTopicManager(_ string) (string, error) {
 	m.t.Helper()
 	m.called = true
 

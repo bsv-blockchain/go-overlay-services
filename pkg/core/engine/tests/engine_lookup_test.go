@@ -11,6 +11,8 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+var errInternalError = errors.New("internal error")
+
 func TestEngine_Lookup_ShouldReturnError_WhenServiceUnknown(t *testing.T) {
 	// given
 	expectedErr := engine.ErrUnknownTopic
@@ -29,13 +31,11 @@ func TestEngine_Lookup_ShouldReturnError_WhenServiceUnknown(t *testing.T) {
 
 func TestEngine_Lookup_ShouldReturnError_WhenServiceLookupFails(t *testing.T) {
 	// given
-	expectedErr := errors.New("internal error")
-
 	sut := &engine.Engine{
 		LookupServices: map[string]engine.LookupService{
 			"test": fakeLookupService{
-				lookupFunc: func(ctx context.Context, question *lookup.LookupQuestion) (*lookup.LookupAnswer, error) {
-					return nil, expectedErr
+				lookupFunc: func(_ context.Context, _ *lookup.LookupQuestion) (*lookup.LookupAnswer, error) {
+					return nil, errInternalError
 				},
 			},
 		},
@@ -45,7 +45,7 @@ func TestEngine_Lookup_ShouldReturnError_WhenServiceLookupFails(t *testing.T) {
 	actualAnswer, err := sut.Lookup(context.Background(), &lookup.LookupQuestion{Service: "test"})
 
 	// then
-	require.ErrorIs(t, err, expectedErr)
+	require.ErrorIs(t, err, errInternalError)
 	require.Nil(t, actualAnswer)
 }
 
@@ -61,7 +61,7 @@ func TestEngine_Lookup_ShouldReturnDirectResult_WhenAnswerTypeIsFreeform(t *test
 	sut := &engine.Engine{
 		LookupServices: map[string]engine.LookupService{
 			"test": fakeLookupService{
-				lookupFunc: func(ctx context.Context, question *lookup.LookupQuestion) (*lookup.LookupAnswer, error) {
+				lookupFunc: func(_ context.Context, _ *lookup.LookupQuestion) (*lookup.LookupAnswer, error) {
 					return expectedAnswer, nil
 				},
 			},
@@ -91,7 +91,7 @@ func TestEngine_Lookup_ShouldReturnDirectResult_WhenAnswerTypeIsOutputList(t *te
 	sut := &engine.Engine{
 		LookupServices: map[string]engine.LookupService{
 			"test": fakeLookupService{
-				lookupFunc: func(ctx context.Context, question *lookup.LookupQuestion) (*lookup.LookupAnswer, error) {
+				lookupFunc: func(_ context.Context, _ *lookup.LookupQuestion) (*lookup.LookupAnswer, error) {
 					return expectedAnswer, nil
 				},
 			},
@@ -115,7 +115,7 @@ func TestEngine_Lookup_ShouldHydrateOutputs_WhenFormulasProvided(t *testing.T) {
 	sut := &engine.Engine{
 		LookupServices: map[string]engine.LookupService{
 			"test": fakeLookupService{
-				lookupFunc: func(ctx context.Context, question *lookup.LookupQuestion) (*lookup.LookupAnswer, error) {
+				lookupFunc: func(_ context.Context, _ *lookup.LookupQuestion) (*lookup.LookupAnswer, error) {
 					return &lookup.LookupAnswer{
 						Type: lookup.AnswerTypeFormula,
 						Formulas: []lookup.LookupFormula{
@@ -126,7 +126,7 @@ func TestEngine_Lookup_ShouldHydrateOutputs_WhenFormulasProvided(t *testing.T) {
 			},
 		},
 		Storage: fakeStorage{
-			findOutputFunc: func(ctx context.Context, outpoint *transaction.Outpoint, topic *string, spent *bool, includeBEEF bool) (*engine.Output, error) {
+			findOutputFunc: func(_ context.Context, outpoint *transaction.Outpoint, _ *string, _ *bool, _ bool) (*engine.Output, error) {
 				return &engine.Output{
 					Outpoint: *outpoint,
 					Beef:     expectedBeef,

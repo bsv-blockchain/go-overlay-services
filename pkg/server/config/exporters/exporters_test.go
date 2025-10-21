@@ -22,7 +22,7 @@ func TestToEnvFile(t *testing.T) {
 	// then:
 	require.NoError(t, err)
 
-	data, err := os.ReadFile(configFilePath)
+	data, err := os.ReadFile(configFilePath) // #nosec G304
 	require.NoError(t, err)
 
 	content := string(data)
@@ -41,7 +41,7 @@ func TestToEnvFile_WithEmptyPrefix(t *testing.T) {
 	// then:
 	require.NoError(t, err)
 
-	data, err := os.ReadFile(configFilePath)
+	data, err := os.ReadFile(configFilePath) // #nosec G304
 	require.NoError(t, err)
 
 	content := string(data)
@@ -60,7 +60,7 @@ func TestToJSONFile(t *testing.T) {
 	// then:
 	require.NoError(t, err)
 
-	data, err := os.ReadFile(configFilePath)
+	data, err := os.ReadFile(configFilePath) // #nosec G304
 	require.NoError(t, err)
 
 	var result map[string]any
@@ -88,7 +88,7 @@ func TestToYAMLFile(t *testing.T) {
 	// then:
 	require.NoError(t, err)
 
-	yamlFile, err := os.ReadFile(configFilePath)
+	yamlFile, err := os.ReadFile(configFilePath) // #nosec G304
 	require.NoError(t, err)
 
 	require.Contains(t, string(yamlFile), "a: default_hello")
@@ -109,7 +109,7 @@ func TestExportToYAML_ShouldWriteFile_WhenConfigIsValid(t *testing.T) {
 	// then:
 	require.NoError(t, err)
 
-	data, err := os.ReadFile(tmpFile)
+	data, err := os.ReadFile(tmpFile) // #nosec G304
 	require.NoError(t, err)
 
 	require.Contains(t, string(data), "a: default_hello")

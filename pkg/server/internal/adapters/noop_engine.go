@@ -1,3 +1,4 @@
+// Package adapters provides adapter implementations for interfacing with external services and systems.
 package adapters
 
 import (
@@ -16,12 +17,12 @@ import (
 type NoopEngineProvider struct{}
 
 // HandleNewMerkleProof implements engine.OverlayEngineProvider.
-func (n *NoopEngineProvider) HandleNewMerkleProof(ctx context.Context, txid *chainhash.Hash, proof *transaction.MerklePath) error {
+func (n *NoopEngineProvider) HandleNewMerkleProof(_ context.Context, _ *chainhash.Hash, _ *transaction.MerklePath) error {
 	panic("unimplemented")
 }
 
 // Submit is a no-op call that always returns an empty STEAK with nil error.
-func (*NoopEngineProvider) Submit(ctx context.Context, taggedBEEF overlay.TaggedBEEF, mode engine.SumbitMode, onSteakReady engine.OnSteakReady) (overlay.Steak, error) {
+func (*NoopEngineProvider) Submit(_ context.Context, _ overlay.TaggedBEEF, _ engine.SumbitMode, onSteakReady engine.OnSteakReady) (overlay.Steak, error) {
 	hex1, _ := chainhash.NewHashFromHex("03895fb984362a4196bc9931629318fcbb2aeba7c6293638119ea653fa31d119")
 	hex2, _ := chainhash.NewHashFromHex("03815fb984362a4196bc9931629318fcbb2aeba7c6293638119ea653fa31d119")
 
@@ -39,13 +40,13 @@ func (*NoopEngineProvider) Submit(ctx context.Context, taggedBEEF overlay.Tagged
 }
 
 // SyncAdvertisements is a no-op call that always returns a nil error.
-func (*NoopEngineProvider) SyncAdvertisements(ctx context.Context) error { return nil }
+func (*NoopEngineProvider) SyncAdvertisements(_ context.Context) error { return nil }
 
 // GetTopicManagerDocumentation is a no-op call that always returns a nil error.
-func (*NoopEngineProvider) GetTopicManagerDocumentation(ctx context.Context) error { return nil }
+func (*NoopEngineProvider) GetTopicManagerDocumentation(_ context.Context) error { return nil }
 
 // Lookup is a no-op call that always returns an empty lookup answer with nil error.
-func (*NoopEngineProvider) Lookup(ctx context.Context, question *lookup.LookupQuestion) (*lookup.LookupAnswer, error) {
+func (*NoopEngineProvider) Lookup(_ context.Context, _ *lookup.LookupQuestion) (*lookup.LookupAnswer, error) {
 	return &lookup.LookupAnswer{
 		Type: "noop_engine_provider",
 		Outputs: []*lookup.OutputListItem{
@@ -67,15 +68,15 @@ func (*NoopEngineProvider) Lookup(ctx context.Context, question *lookup.LookupQu
 }
 
 // GetUTXOHistory is a no-op call that always returns an empty engine output with nil error.
-func (*NoopEngineProvider) GetUTXOHistory(ctx context.Context, output *engine.Output, historySelector func(beef []byte, outputIndex, currentDepth uint32) bool, currentDepth uint32) (*engine.Output, error) {
+func (*NoopEngineProvider) GetUTXOHistory(_ context.Context, _ *engine.Output, _ func(beef []byte, outputIndex, currentDepth uint32) bool, _ uint32) (*engine.Output, error) {
 	return &engine.Output{}, nil
 }
 
 // StartGASPSync is a no-op call that always returns a nil error.
-func (*NoopEngineProvider) StartGASPSync(ctx context.Context) error { return nil }
+func (*NoopEngineProvider) StartGASPSync(_ context.Context) error { return nil }
 
 // ProvideForeignSyncResponse is a no-op call that always returns an empty initial GASP response with nil error.
-func (*NoopEngineProvider) ProvideForeignSyncResponse(ctx context.Context, initialRequest *gasp.InitialRequest, topic string) (*gasp.InitialResponse, error) {
+func (*NoopEngineProvider) ProvideForeignSyncResponse(_ context.Context, _ *gasp.InitialRequest, _ string) (*gasp.InitialResponse, error) {
 	return &gasp.InitialResponse{
 		UTXOList: []*gasp.Output{},
 		Since:    0,
@@ -83,7 +84,7 @@ func (*NoopEngineProvider) ProvideForeignSyncResponse(ctx context.Context, initi
 }
 
 // ProvideForeignGASPNode is a no-op call that always returns an empty GASP node with nil error.
-func (*NoopEngineProvider) ProvideForeignGASPNode(ctx context.Context, graphId, outpoint *transaction.Outpoint, topic string) (*gasp.Node, error) {
+func (*NoopEngineProvider) ProvideForeignGASPNode(_ context.Context, _, _ *transaction.Outpoint, _ string) (*gasp.Node, error) {
 	return &gasp.Node{}, nil
 }
 
@@ -128,12 +129,12 @@ func (*NoopEngineProvider) ListLookupServiceProviders() map[string]*overlay.Meta
 }
 
 // GetDocumentationForLookupServiceProvider is a no-op call that always returns an empty string with nil error.
-func (*NoopEngineProvider) GetDocumentationForLookupServiceProvider(provider string) (string, error) {
+func (*NoopEngineProvider) GetDocumentationForLookupServiceProvider(_ string) (string, error) {
 	return "noop_engine_lookuo_service_provider_doc", nil
 }
 
 // GetDocumentationForTopicManager is a no-op call that always returns an empty string with nil error.
-func (*NoopEngineProvider) GetDocumentationForTopicManager(provider string) (string, error) {
+func (*NoopEngineProvider) GetDocumentationForTopicManager(_ string) (string, error) {
 	return "noop_engine_topic_manager_doc", nil
 }
 

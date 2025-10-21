@@ -27,7 +27,7 @@ func TestEngine_SyncConfiguration_DefaultBehavior(t *testing.T) {
 		// then
 		require.NotNil(t, result.SyncConfiguration)
 
-		// NOTE: Unlike the TypeScript implementation, the Go version does NOT
+		// Unlike the TypeScript implementation, the Go version does NOT
 		// automatically set undefined managers to SHIP by default.
 		// This is a behavioral difference that should be considered.
 		_, hasHelloworld := result.SyncConfiguration["tm_helloworld"]
@@ -82,7 +82,7 @@ func TestEngine_SyncConfiguration_DefaultBehavior(t *testing.T) {
 		// then
 		require.Equal(t, engine.SyncConfigurationNone, result.SyncConfiguration["tm_defined"].Type)
 
-		// NOTE: Unlike TypeScript, Go doesn't default undefined managers to SHIP
+		// Unlike TypeScript, Go doesn't default undefined managers to SHIP
 		_, hasUndefined := result.SyncConfiguration["tm_undefined"]
 		require.False(t, hasUndefined)
 	})
@@ -211,7 +211,7 @@ func TestEngine_SyncConfiguration_TypeScriptParity(t *testing.T) {
 	t.Run("should set default SHIP sync configuration for undefined managers", func(t *testing.T) {
 		// This test reflects the TypeScript behavior where undefined topic managers
 		// are set to sync method of "SHIP" by default
-		// NOTE: The Go implementation might differ in behavior
+		// The Go implementation might differ in behavior
 
 		// given
 		input := engine.Engine{
@@ -319,15 +319,15 @@ func TestEngine_SyncConfiguration_TypeScriptParity(t *testing.T) {
 // Mock topic manager for testing
 type mockTopicManager struct{}
 
-func (m *mockTopicManager) IdentifyAdmissibleOutputs(ctx context.Context, beef []byte, previousCoins map[uint32]*transaction.TransactionOutput) (overlay.AdmittanceInstructions, error) {
+func (m *mockTopicManager) IdentifyAdmissibleOutputs(_ context.Context, _ []byte, _ map[uint32]*transaction.TransactionOutput) (overlay.AdmittanceInstructions, error) {
 	return overlay.AdmittanceInstructions{}, nil
 }
 
-func (m *mockTopicManager) ProcessOutput(ctx context.Context, output, proof []byte, vout uint32, topic string) error {
+func (m *mockTopicManager) ProcessOutput(_ context.Context, _, _ []byte, _ uint32, _ string) error {
 	return nil
 }
 
-func (m *mockTopicManager) IdentifyNeededInputs(ctx context.Context, beef []byte) ([]*transaction.Outpoint, error) {
+func (m *mockTopicManager) IdentifyNeededInputs(_ context.Context, _ []byte) ([]*transaction.Outpoint, error) {
 	return nil, nil
 }
 

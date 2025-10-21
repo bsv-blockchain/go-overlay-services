@@ -30,7 +30,7 @@ type StartGASPSyncProviderMock struct {
 
 // StartGASPSync simulates the initiation of GASP synchronization. It records the call
 // and returns the predefined error if set.
-func (s *StartGASPSyncProviderMock) StartGASPSync(ctx context.Context) error {
+func (s *StartGASPSyncProviderMock) StartGASPSync(_ context.Context) error {
 	s.t.Helper()
 	s.called = true
 

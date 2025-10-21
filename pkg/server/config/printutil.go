@@ -2,11 +2,16 @@ package config
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
+	"log"
 	"strings"
 
 	"gopkg.in/yaml.v3"
 )
+
+// ErrUnsupportedPrintFormat is returned when an unsupported print format is provided.
+var ErrUnsupportedPrintFormat = errors.New("unsupported print format")
 
 // PrettyPrint prints the configuration in a human-readable format.
 func PrettyPrint(cfg any) error {
@@ -15,7 +20,7 @@ func PrettyPrint(cfg any) error {
 		return fmt.Errorf("failed to marshal config for printing: %w", err)
 	}
 
-	fmt.Println("Loaded Configuration:\n" + string(data))
+	log.Println("Loaded Configuration:\n" + string(data))
 	return nil
 }
 
@@ -26,7 +31,7 @@ func PrettyPrintJSON(cfg any) error {
 		return fmt.Errorf("failed to marshal config to JSON: %w", err)
 	}
 
-	fmt.Println("Loaded Configuration (JSON):\n" + string(data))
+	log.Println("Loaded Configuration (JSON):\n" + string(data))
 	return nil
 }
 
@@ -38,6 +43,6 @@ func PrettyPrintAs(cfg any, format string) error {
 	case "yaml", "yml":
 		return PrettyPrint(cfg)
 	default:
-		return fmt.Errorf("unsupported print format: %s", format)
+		return fmt.Errorf("%w: %s", ErrUnsupportedPrintFormat, format)
 	}
 }

@@ -1,3 +1,4 @@
+// Package main demonstrates custom overlay services configuration.
 package main
 
 import (
@@ -14,7 +15,7 @@ func main() {
 		ARCAPIKey:        "YOUR_ARC_API_KEY",
 		ARCCallbackToken: "YOUR_CALLBACK_TOKEN",
 		AdminBearerToken: "YOUR_TOKEN",
-		Engine:           engine.NewEngine(engine.Engine{}), // Note: Please remember to define the engine config.
+		Engine:           engine.NewEngine(engine.Engine{}), // Please remember to define the engine config.
 		OctetStreamLimit: 500 * MB,
 	})
 

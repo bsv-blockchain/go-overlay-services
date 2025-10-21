@@ -10,6 +10,8 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+var errInternalTestError = errors.New("internal test error")
+
 func TestAdvertisementsSyncService_ValidCase(t *testing.T) {
 	// given:
 	mock := testabilities.NewSyncAdvertisementsProviderMock(t, testabilities.SyncAdvertisementsProviderMockExpectations{
@@ -30,7 +32,7 @@ func TestAdvertisementsSyncService_InvalidCase(t *testing.T) {
 	// given:
 	expectations := testabilities.SyncAdvertisementsProviderMockExpectations{
 		SyncAdvertisementsCall: true,
-		Err:                    errors.New("internal test error"),
+		Err:                    errInternalTestError,
 	}
 	mock := testabilities.NewSyncAdvertisementsProviderMock(t, expectations)
 	service := app.NewAdvertisementsSyncService(mock)

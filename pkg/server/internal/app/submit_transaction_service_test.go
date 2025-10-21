@@ -12,6 +12,8 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+var errSubmitTransactionTestError = errors.New("internal submit transaction service test error")
+
 func TestSubmitTransactionService_InvalidCase_ContextCancellation(t *testing.T) {
 	expectations := testabilities.SubmitTransactionProviderMockExpectations{
 		SubmitCall:           true,
@@ -56,9 +58,9 @@ func TestSubmitTransactionService_InvalidCases(t *testing.T) {
 			expectations: testabilities.SubmitTransactionProviderMockExpectations{
 				SubmitCall: true,
 				STEAK:      nil,
-				Error:      errors.New("internal submit transaction service test error"),
+				Error:      errSubmitTransactionTestError,
 			},
-			expectedError: app.NewSubmitTransactionProviderError(errors.New("internal submit transaction service test error")),
+			expectedError: app.NewSubmitTransactionProviderError(errSubmitTransactionTestError),
 		},
 		"Submit transaction service fails to handle the transaction submission - empty topics": {
 			txBytes: testabilities.DummyTxBEEF(t),

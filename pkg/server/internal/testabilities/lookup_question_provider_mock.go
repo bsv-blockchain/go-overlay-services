@@ -23,7 +23,7 @@ type LookupQuestionProviderMock struct {
 }
 
 // Lookup simulates a lookup operation and returns the expected answer or error.
-func (m *LookupQuestionProviderMock) Lookup(ctx context.Context, question *lookup.LookupQuestion) (*lookup.LookupAnswer, error) {
+func (m *LookupQuestionProviderMock) Lookup(_ context.Context, _ *lookup.LookupQuestion) (*lookup.LookupAnswer, error) {
 	m.t.Helper()
 	m.called = true
 

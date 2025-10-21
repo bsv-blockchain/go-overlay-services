@@ -11,6 +11,12 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+var (
+	errUnexpectedOutput = errors.New("unexpected output")
+	errStorageError     = errors.New("storage error")
+	errMaxCallsExceeded = errors.New("max calls exceeded")
+)
+
 func TestEngine_GetUTXOHistory_ShouldReturnImmediateOutput_WhenSelectorIsNil(t *testing.T) {
 	// given
 	output := &engine.Output{Beef: []byte("beef")}
@@ -29,7 +35,7 @@ func TestEngine_GetUTXOHistory_ShouldReturnNil_WhenSelectorReturnsFalse(t *testi
 	output := &engine.Output{Beef: []byte("beef")}
 	sut := &engine.Engine{}
 
-	historySelector := func(beef []byte, outputIndex, currentDepth uint32) bool {
+	historySelector := func(_ []byte, _, _ uint32) bool {
 		return false
 	}
 
@@ -49,7 +55,7 @@ func TestEngine_GetUTXOHistory_ShouldReturnOutput_WhenNoOutputsConsumed(t *testi
 	}
 	sut := &engine.Engine{}
 
-	historySelector := func(beef []byte, outputIndex, currentDepth uint32) bool {
+	historySelector := func(_ []byte, _, _ uint32) bool {
 		return true
 	}
 
@@ -83,16 +89,16 @@ func TestEngine_GetUTXOHistory_ShouldTravelRecursively_WhenOutputsConsumedPresen
 
 	sut := &engine.Engine{
 		Storage: fakeStorage{
-			findOutputFunc: func(ctx context.Context, outpoint *transaction.Outpoint, topic *string, spent *bool, includeBEEF bool) (*engine.Output, error) {
+			findOutputFunc: func(_ context.Context, outpoint *transaction.Outpoint, _ *string, _ *bool, _ bool) (*engine.Output, error) {
 				if outpoint.String() == childOutpoint.String() {
 					return childOutput, nil
 				}
-				return nil, errors.New("unexpected output")
+				return nil, errUnexpectedOutput
 			},
 		},
 	}
 
-	historySelector := func(beef []byte, outputIndex, currentDepth uint32) bool {
+	historySelector := func(_ []byte, _, _ uint32) bool {
 		return true
 	}
 
@@ -120,13 +126,13 @@ func TestEngine_GetUTXOHistory_ShouldReturnError_WhenStorageFails(t *testing.T) 
 
 	sut := &engine.Engine{
 		Storage: fakeStorage{
-			findOutputFunc: func(ctx context.Context, outpoint *transaction.Outpoint, topic *string, spent *bool, includeBEEF bool) (*engine.Output, error) {
-				return nil, errors.New("storage error")
+			findOutputFunc: func(_ context.Context, _ *transaction.Outpoint, _ *string, _ *bool, _ bool) (*engine.Output, error) {
+				return nil, errStorageError
 			},
 		},
 	}
 
-	historySelector := func(beef []byte, outputIndex, currentDepth uint32) bool {
+	historySelector := func(_ []byte, _, _ uint32) bool {
 		return true
 	}
 
@@ -163,21 +169,21 @@ func TestEngine_GetUTXOHistory_ShouldRespectDepthInHistorySelector(t *testing.T)
 
 	sut := &engine.Engine{
 		Storage: fakeStorage{
-			findOutputFunc: func(ctx context.Context, outpoint *transaction.Outpoint, topic *string, spent *bool, includeBEEF bool) (*engine.Output, error) {
+			findOutputFunc: func(_ context.Context, outpoint *transaction.Outpoint, _ *string, _ *bool, _ bool) (*engine.Output, error) {
 				switch outpoint.Index {
 				case 2:
 					return output2, nil
 				case 3:
 					return output3, nil
 				default:
-					return nil, errors.New("unexpected output")
+					return nil, errUnexpectedOutput
 				}
 			},
 		},
 	}
 
 	// History selector that stops at depth 2
-	historySelector := func(beef []byte, outputIndex, currentDepth uint32) bool {
+	historySelector := func(_ []byte, _, currentDepth uint32) bool {
 		return currentDepth < 2
 	}
 
@@ -217,7 +223,7 @@ func TestEngine_GetUTXOHistory_ShouldHandleMultipleOutputsConsumed(t *testing.T)
 	findOutputCallCount := 0
 	sut := &engine.Engine{
 		Storage: fakeStorage{
-			findOutputFunc: func(ctx context.Context, outpoint *transaction.Outpoint, topic *string, spent *bool, includeBEEF bool) (*engine.Output, error) {
+			findOutputFunc: func(_ context.Context, outpoint *transaction.Outpoint, _ *string, _ *bool, _ bool) (*engine.Output, error) {
 				findOutputCallCount++
 				switch outpoint.Index {
 				case 10:
@@ -225,13 +231,13 @@ func TestEngine_GetUTXOHistory_ShouldHandleMultipleOutputsConsumed(t *testing.T)
 				case 11:
 					return consumed2, nil
 				default:
-					return nil, errors.New("unexpected output")
+					return nil, errUnexpectedOutput
 				}
 			},
 		},
 	}
 
-	historySelector := func(beef []byte, outputIndex, currentDepth uint32) bool {
+	historySelector := func(_ []byte, _, _ uint32) bool {
 		return true
 	}
 
@@ -269,11 +275,11 @@ func TestEngine_GetUTXOHistory_ShouldHandleCircularReferences(t *testing.T) {
 	callCount := 0
 	sut := &engine.Engine{
 		Storage: fakeStorage{
-			findOutputFunc: func(ctx context.Context, outpoint *transaction.Outpoint, topic *string, spent *bool, includeBEEF bool) (*engine.Output, error) {
+			findOutputFunc: func(_ context.Context, outpoint *transaction.Outpoint, _ *string, _ *bool, _ bool) (*engine.Output, error) {
 				callCount++
 				if callCount > maxCalls {
 					// Prevent infinite loop in test
-					return nil, errors.New("max calls exceeded")
+					return nil, errMaxCallsExceeded
 				}
 
 				switch outpoint.Index {
@@ -282,13 +288,13 @@ func TestEngine_GetUTXOHistory_ShouldHandleCircularReferences(t *testing.T) {
 				case 2:
 					return output2Data, nil
 				default:
-					return nil, errors.New("unexpected output")
+					return nil, errUnexpectedOutput
 				}
 			},
 		},
 	}
 
-	historySelector := func(beef []byte, outputIndex, currentDepth uint32) bool {
+	historySelector := func(_ []byte, _, currentDepth uint32) bool {
 		// Limit depth to prevent infinite recursion
 		return currentDepth < 5
 	}
@@ -299,7 +305,7 @@ func TestEngine_GetUTXOHistory_ShouldHandleCircularReferences(t *testing.T) {
 	// then
 	// Should handle gracefully without infinite recursion
 	assert.True(t, err != nil || result != nil)
-	assert.True(t, callCount <= maxCalls)
+	assert.LessOrEqual(t, callCount, maxCalls)
 }
 
 func TestEngine_GetUTXOHistory_ShouldHandleEmptyOutputsConsumed(t *testing.T) {
@@ -310,7 +316,7 @@ func TestEngine_GetUTXOHistory_ShouldHandleEmptyOutputsConsumed(t *testing.T) {
 	}
 	sut := &engine.Engine{}
 
-	historySelector := func(beef []byte, outputIndex, currentDepth uint32) bool {
+	historySelector := func(_ []byte, _, _ uint32) bool {
 		return true
 	}
 

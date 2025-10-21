@@ -1,3 +1,4 @@
+// Package app provides application-level services for the overlay server.
 package app
 
 import (

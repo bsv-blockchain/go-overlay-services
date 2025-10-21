@@ -57,7 +57,7 @@ type SubmitTransactionProviderMock struct {
 
 // Submit simulates the submission of a transaction. It records the call, returns
 // the predefined error if set, and optionally invokes the callback with the mock STEAK after a delay.
-func (s *SubmitTransactionProviderMock) Submit(ctx context.Context, taggedBEEF overlay.TaggedBEEF, mode engine.SumbitMode, callback engine.OnSteakReady) (overlay.Steak, error) {
+func (s *SubmitTransactionProviderMock) Submit(_ context.Context, taggedBEEF overlay.TaggedBEEF, mode engine.SumbitMode, callback engine.OnSteakReady) (overlay.Steak, error) {
 	s.t.Helper()
 
 	s.called = true

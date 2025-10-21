@@ -1,8 +1,8 @@
+// Package main generates a default overlay services configuration file.
 package main
 
 import (
 	"flag"
-	"fmt"
 	"log"
 
 	"github.com/bsv-blockchain/go-overlay-services/pkg/server/config"
@@ -27,5 +27,5 @@ func main() {
 		log.Fatalf("Error writing configuration: %v\n", err)
 	}
 
-	fmt.Printf("Configuration written to %s\n", *outputFile)
+	log.Printf("Configuration written to %s\n", *outputFile)
 }

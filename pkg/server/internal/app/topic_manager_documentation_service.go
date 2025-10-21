@@ -19,7 +19,7 @@ type TopicManagerDocumentationService struct {
 // Returns the documentation string on success, or an error if:
 // - The topic manager name is empty (ErrorTypeIncorrectInput)
 // - The provider fails to retrieve documentation (ErrorTypeProviderFailure)
-func (s *TopicManagerDocumentationService) GetDocumentation(ctx context.Context, topicManagerName string) (string, error) {
+func (s *TopicManagerDocumentationService) GetDocumentation(_ context.Context, topicManagerName string) (string, error) {
 	if topicManagerName == "" {
 		return "", NewEmptyTopicManagerNameError()
 	}

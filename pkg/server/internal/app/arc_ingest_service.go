@@ -8,6 +8,9 @@ import (
 	"github.com/bsv-blockchain/go-sdk/transaction"
 )
 
+// ErrInvalidBlockHeight is returned when block height is zero or invalid.
+var ErrInvalidBlockHeight = errors.New("block height must be a positive integer (greater than 0)")
+
 // ARCIngestProvider defines an interface for handling the ingestion of Merkle proofs
 // for a given transaction. It is typically implemented by a domain service or adapter
 // responsible for storing or processing Merkle proofs.
@@ -37,7 +40,7 @@ func (a *ARCIngestService) ProcessIngest(ctx context.Context, txID, merklePath s
 	}
 
 	if blockHeight == 0 {
-		return NewInvalidBlockHeightError(errors.New("block height must be a positive integer (greater than 0)"))
+		return NewInvalidBlockHeightError(ErrInvalidBlockHeight)
 	}
 
 	path.BlockHeight = blockHeight

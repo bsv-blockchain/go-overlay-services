@@ -19,7 +19,7 @@ type TopicManagerDocumentationHandler struct {
 // and returns it as a JSON response.
 // On success, it returns HTTP 200 OK with the documentation content.
 // Returns an appropriate error if the service fails.
-func (h *TopicManagerDocumentationHandler) Handle(c *fiber.Ctx, params openapi.GetTopicManagerDocumentationParams) error {
+func (h *TopicManagerDocumentationHandler) Handle(c *fiber.Ctx, _ openapi.GetTopicManagerDocumentationParams) error {
 	documentation, err := h.service.GetDocumentation(c.UserContext(), c.Query("topicManager"))
 	if err != nil {
 		return err

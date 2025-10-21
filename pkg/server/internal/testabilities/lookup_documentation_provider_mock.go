@@ -31,7 +31,7 @@ type LookupServiceDocumentationProviderMock struct {
 
 // GetDocumentationForLookupServiceProvider simulates a documentation retrieval operation
 // for a lookup service provider.
-func (m *LookupServiceDocumentationProviderMock) GetDocumentationForLookupServiceProvider(lookupServiceName string) (string, error) {
+func (m *LookupServiceDocumentationProviderMock) GetDocumentationForLookupServiceProvider(_ string) (string, error) {
 	m.t.Helper()
 	m.called = true
 

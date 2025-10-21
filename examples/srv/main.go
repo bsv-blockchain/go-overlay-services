@@ -1,3 +1,4 @@
+// Package main provides an example overlay services HTTP server implementation.
 package main
 
 import (
@@ -40,12 +41,12 @@ func execute() error {
 		signal.Notify(sigint, os.Interrupt)
 		<-sigint
 
-		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
 
 		// We received an interrupt signal, shut down.
-		if err := srv.Shutdown(ctx); err != nil {
-			log.Printf("http server shutdown err: %v", err)
+		if shutdownErr := srv.Shutdown(shutdownCtx); err != nil {
+			log.Printf("http server shutdown err: %v", shutdownErr)
 		}
 		close(done)
 	}()

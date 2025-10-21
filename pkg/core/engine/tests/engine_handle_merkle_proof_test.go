@@ -14,6 +14,12 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+var (
+	errOutputNotFound      = errors.New("output not found")
+	errMockFunctionNotSet  = errors.New("mock function not set")
+	errTransactionNotFound = errors.New("transaction not found")
+)
+
 func TestEngine_HandleNewMerkleProof(t *testing.T) {
 	t.Run("should handle simple proof", func(t *testing.T) {
 		// given
@@ -59,10 +65,10 @@ func TestEngine_HandleNewMerkleProof(t *testing.T) {
 
 		// Mock storage
 		mockStorage := &mockHandleMerkleProofStorage{
-			findOutputsForTransactionFunc: func(ctx context.Context, txid *chainhash.Hash, includeBEEF bool) ([]*engine.Output, error) {
+			findOutputsForTransactionFunc: func(_ context.Context, _ *chainhash.Hash, _ bool) ([]*engine.Output, error) {
 				return []*engine.Output{output}, nil
 			},
-			updateOutputBlockHeightFunc: func(ctx context.Context, outpoint *transaction.Outpoint, topic string, blockHeight uint32, blockIdx uint64, ancillaryBeef []byte) error {
+			updateOutputBlockHeightFunc: func(_ context.Context, _ *transaction.Outpoint, _ string, blockHeight uint32, blockIdx uint64, _ []byte) error {
 				// Verify the block height and index are updated
 				require.Equal(t, uint32(814435), blockHeight)
 				require.Equal(t, uint64(123), blockIdx)
@@ -72,7 +78,7 @@ func TestEngine_HandleNewMerkleProof(t *testing.T) {
 
 		// Mock lookup service
 		mockLookupService := &mockLookupService{
-			outputBlockHeightUpdatedFunc: func(ctx context.Context, txid *chainhash.Hash, blockHeight uint32, blockIdx uint64) error {
+			outputBlockHeightUpdatedFunc: func(_ context.Context, _ *chainhash.Hash, blockHeight uint32, blockIdx uint64) error {
 				// Verify notification is sent
 				require.Equal(t, uint32(814435), blockHeight)
 				require.Equal(t, uint64(123), blockIdx)
@@ -123,7 +129,7 @@ func TestEngine_HandleNewMerkleProof(t *testing.T) {
 		}
 
 		mockStorage := &mockHandleMerkleProofStorage{
-			findOutputsForTransactionFunc: func(ctx context.Context, txid *chainhash.Hash, includeBEEF bool) ([]*engine.Output, error) {
+			findOutputsForTransactionFunc: func(_ context.Context, _ *chainhash.Hash, _ bool) ([]*engine.Output, error) {
 				return []*engine.Output{output}, nil
 			},
 		}
@@ -147,7 +153,7 @@ func TestEngine_HandleNewMerkleProof(t *testing.T) {
 		merklePath := &transaction.MerklePath{}
 
 		mockStorage := &mockHandleMerkleProofStorage{
-			findOutputsForTransactionFunc: func(ctx context.Context, txid *chainhash.Hash, includeBEEF bool) ([]*engine.Output, error) {
+			findOutputsForTransactionFunc: func(_ context.Context, _ *chainhash.Hash, _ bool) ([]*engine.Output, error) {
 				return []*engine.Output{}, nil // No outputs
 			},
 		}
@@ -168,11 +174,10 @@ func TestEngine_HandleNewMerkleProof(t *testing.T) {
 		ctx := context.Background()
 		txid := &chainhash.Hash{1, 2, 3}
 		merklePath := &transaction.MerklePath{}
-		expectedErr := errors.New("storage error")
 
 		mockStorage := &mockHandleMerkleProofStorage{
-			findOutputsForTransactionFunc: func(ctx context.Context, txid *chainhash.Hash, includeBEEF bool) ([]*engine.Output, error) {
-				return nil, expectedErr
+			findOutputsForTransactionFunc: func(_ context.Context, _ *chainhash.Hash, _ bool) ([]*engine.Output, error) {
+				return nil, errStorageError
 			},
 		}
 
@@ -185,7 +190,7 @@ func TestEngine_HandleNewMerkleProof(t *testing.T) {
 
 		// then
 		require.Error(t, err)
-		require.Equal(t, expectedErr, err)
+		require.Equal(t, errStorageError, err)
 	})
 
 	t.Run("should update consumedBy relationships for chain of transactions", func(t *testing.T) {
@@ -255,19 +260,19 @@ func TestEngine_HandleNewMerkleProof(t *testing.T) {
 
 		updateCount := 0
 		mockStorage := &mockHandleMerkleProofStorage{
-			findOutputsForTransactionFunc: func(ctx context.Context, txid *chainhash.Hash, includeBEEF bool) ([]*engine.Output, error) {
+			findOutputsForTransactionFunc: func(_ context.Context, txid *chainhash.Hash, _ bool) ([]*engine.Output, error) {
 				if txid.Equal(*txid2) {
 					return []*engine.Output{output2}, nil
 				}
 				return nil, nil
 			},
-			findOutputFunc: func(ctx context.Context, outpoint *transaction.Outpoint, topic *string, spent *bool, includeBEEF bool) (*engine.Output, error) {
+			findOutputFunc: func(_ context.Context, outpoint *transaction.Outpoint, _ *string, _ *bool, _ bool) (*engine.Output, error) {
 				if outpoint.Txid.Equal(*txid1) {
 					return output1, nil
 				}
-				return nil, nil
+				return nil, errOutputNotFound
 			},
-			updateOutputBlockHeightFunc: func(ctx context.Context, outpoint *transaction.Outpoint, topic string, blockHeight uint32, blockIdx uint64, ancillaryBeef []byte) error {
+			updateOutputBlockHeightFunc: func(_ context.Context, _ *transaction.Outpoint, _ string, _ uint32, _ uint64, _ []byte) error {
 				updateCount++
 				return nil
 			},
@@ -289,9 +294,9 @@ func TestEngine_HandleNewMerkleProof(t *testing.T) {
 
 // Mock storage for HandleNewMerkleProof tests
 type mockHandleMerkleProofStorage struct {
-	findOutputsForTransactionFunc func(ctx context.Context, txid *chainhash.Hash, includeBEEF bool) ([]*engine.Output, error)
-	findOutputFunc                func(ctx context.Context, outpoint *transaction.Outpoint, topic *string, spent *bool, includeBEEF bool) (*engine.Output, error)
-	updateOutputBlockHeightFunc   func(ctx context.Context, outpoint *transaction.Outpoint, topic string, blockHeight uint32, blockIdx uint64, ancillaryBeef []byte) error
+	findOutputsForTransactionFunc func(_ context.Context, _ *chainhash.Hash, _ bool) ([]*engine.Output, error)
+	findOutputFunc                func(_ context.Context, outpoint *transaction.Outpoint, topic *string, spent *bool, includeBEEF bool) (*engine.Output, error)
+	updateOutputBlockHeightFunc   func(_ context.Context, _ *transaction.Outpoint, _ string, blockHeight uint32, blockIdx uint64, _ []byte) error
 }
 
 func (m *mockHandleMerkleProofStorage) FindOutputsForTransaction(ctx context.Context, txid *chainhash.Hash, includeBEEF bool) ([]*engine.Output, error) {
@@ -305,7 +310,7 @@ func (m *mockHandleMerkleProofStorage) FindOutput(ctx context.Context, outpoint 
 	if m.findOutputFunc != nil {
 		return m.findOutputFunc(ctx, outpoint, topic, spent, includeBEEF)
 	}
-	return nil, nil
+	return nil, errMockFunctionNotSet
 }
 
 func (m *mockHandleMerkleProofStorage) UpdateOutputBlockHeight(ctx context.Context, outpoint *transaction.Outpoint, topic string, blockHeight uint32, blockIdx uint64, ancillaryBeef []byte) error {
@@ -316,69 +321,69 @@ func (m *mockHandleMerkleProofStorage) UpdateOutputBlockHeight(ctx context.Conte
 }
 
 // Implement remaining Storage interface methods
-func (m *mockHandleMerkleProofStorage) SetIncoming(ctx context.Context, txs []*transaction.Transaction) error {
+func (m *mockHandleMerkleProofStorage) SetIncoming(_ context.Context, _ []*transaction.Transaction) error {
 	return nil
 }
 
-func (m *mockHandleMerkleProofStorage) SetOutgoing(ctx context.Context, tx *transaction.Transaction, steak *overlay.Steak) error {
+func (m *mockHandleMerkleProofStorage) SetOutgoing(_ context.Context, _ *transaction.Transaction, _ *overlay.Steak) error {
 	return nil
 }
 
-func (m *mockHandleMerkleProofStorage) UpdateConsumedBy(ctx context.Context, outpoint *transaction.Outpoint, topic string, consumedBy []*transaction.Outpoint) error {
+func (m *mockHandleMerkleProofStorage) UpdateConsumedBy(_ context.Context, _ *transaction.Outpoint, _ string, _ []*transaction.Outpoint) error {
 	return nil
 }
 
-func (m *mockHandleMerkleProofStorage) DeleteOutput(ctx context.Context, outpoint *transaction.Outpoint, topic string) error {
+func (m *mockHandleMerkleProofStorage) DeleteOutput(_ context.Context, _ *transaction.Outpoint, _ string) error {
 	return nil
 }
 
-func (m *mockHandleMerkleProofStorage) FindTransaction(ctx context.Context, txid chainhash.Hash, requireProof bool) (*transaction.Transaction, error) {
+func (m *mockHandleMerkleProofStorage) FindTransaction(_ context.Context, _ chainhash.Hash, _ bool) (*transaction.Transaction, error) {
+	return nil, errTransactionNotFound
+}
+
+func (m *mockHandleMerkleProofStorage) FindTransactionsCreatingUtxos(_ context.Context) ([]*chainhash.Hash, error) {
 	return nil, nil
 }
 
-func (m *mockHandleMerkleProofStorage) FindTransactionsCreatingUtxos(ctx context.Context) ([]*chainhash.Hash, error) {
+func (m *mockHandleMerkleProofStorage) FindUTXOsForTopic(_ context.Context, _ string, _ float64, _ uint32, _ bool) ([]*engine.Output, error) {
 	return nil, nil
 }
 
-func (m *mockHandleMerkleProofStorage) FindUTXOsForTopic(ctx context.Context, topic string, since float64, limit uint32, includeBEEF bool) ([]*engine.Output, error) {
+func (m *mockHandleMerkleProofStorage) FindOutputs(_ context.Context, _ []*transaction.Outpoint, _ string, _ *bool, _ bool) ([]*engine.Output, error) {
 	return nil, nil
 }
 
-func (m *mockHandleMerkleProofStorage) FindOutputs(ctx context.Context, outpoints []*transaction.Outpoint, topic string, spent *bool, includeBEEF bool) ([]*engine.Output, error) {
-	return nil, nil
-}
-
-func (m *mockHandleMerkleProofStorage) InsertOutput(ctx context.Context, utxo *engine.Output) error {
+func (m *mockHandleMerkleProofStorage) InsertOutput(_ context.Context, _ *engine.Output) error {
 	return nil
 }
 
-func (m *mockHandleMerkleProofStorage) InsertAppliedTransaction(ctx context.Context, tx *overlay.AppliedTransaction) error {
+func (m *mockHandleMerkleProofStorage) InsertAppliedTransaction(_ context.Context, _ *overlay.AppliedTransaction) error {
 	return nil
 }
 
-func (m *mockHandleMerkleProofStorage) DoesAppliedTransactionExist(ctx context.Context, tx *overlay.AppliedTransaction) (bool, error) {
+func (m *mockHandleMerkleProofStorage) DoesAppliedTransactionExist(_ context.Context, _ *overlay.AppliedTransaction) (bool, error) {
 	return false, nil
 }
 
-func (m *mockHandleMerkleProofStorage) MarkUTXOsAsSpent(ctx context.Context, outpoints []*transaction.Outpoint, topic string, spendTxid *chainhash.Hash) error {
+func (m *mockHandleMerkleProofStorage) MarkUTXOsAsSpent(_ context.Context, _ []*transaction.Outpoint, _ string, _ *chainhash.Hash) error {
 	return nil
 }
 
-func (m *mockHandleMerkleProofStorage) UpdateTransactionBEEF(ctx context.Context, txid *chainhash.Hash, beef []byte) error {
+func (m *mockHandleMerkleProofStorage) UpdateTransactionBEEF(_ context.Context, _ *chainhash.Hash, _ []byte) error {
 	return nil
 }
 
-func (m *mockHandleMerkleProofStorage) UpdateLastInteraction(ctx context.Context, host, topic string, since float64) error {
+func (m *mockHandleMerkleProofStorage) UpdateLastInteraction(_ context.Context, _, _ string, _ float64) error {
 	return nil
 }
 
-func (m *mockHandleMerkleProofStorage) GetLastInteraction(ctx context.Context, host, topic string) (float64, error) {
+func (m *mockHandleMerkleProofStorage) GetLastInteraction(_ context.Context, _, _ string) (float64, error) {
 	return 0, nil
 }
 
 // Mock lookup service
 type mockLookupService struct {
-	outputBlockHeightUpdatedFunc func(ctx context.Context, txid *chainhash.Hash, blockHeight uint32, blockIdx uint64) error
+	outputBlockHeightUpdatedFunc func(_ context.Context, _ *chainhash.Hash, blockHeight uint32, blockIdx uint64) error
 }
 
 func (m *mockLookupService) OutputBlockHeightUpdated(ctx context.Context, txid *chainhash.Hash, blockHeight uint32, blockIdx uint64) error {
@@ -389,8 +394,8 @@ func (m *mockLookupService) OutputBlockHeightUpdated(ctx context.Context, txid *
 }
 
 // Implement remaining LookupService interface methods
-func (m *mockLookupService) Lookup(ctx context.Context, question *lookup.LookupQuestion) (*lookup.LookupAnswer, error) {
-	return nil, nil
+func (m *mockLookupService) Lookup(_ context.Context, _ *lookup.LookupQuestion) (*lookup.LookupAnswer, error) {
+	return &lookup.LookupAnswer{}, nil
 }
 
 func (m *mockLookupService) GetMetaData() *overlay.MetaData {
@@ -401,18 +406,18 @@ func (m *mockLookupService) GetDocumentation() string {
 	return ""
 }
 
-func (m *mockLookupService) OutputAdmittedByTopic(ctx context.Context, payload *engine.OutputAdmittedByTopic) error {
+func (m *mockLookupService) OutputAdmittedByTopic(_ context.Context, _ *engine.OutputAdmittedByTopic) error {
 	return nil
 }
 
-func (m *mockLookupService) OutputSpent(ctx context.Context, payload *engine.OutputSpent) error {
+func (m *mockLookupService) OutputSpent(_ context.Context, _ *engine.OutputSpent) error {
 	return nil
 }
 
-func (m *mockLookupService) OutputNoLongerRetainedInHistory(ctx context.Context, outpoint *transaction.Outpoint, topic string) error {
+func (m *mockLookupService) OutputNoLongerRetainedInHistory(_ context.Context, _ *transaction.Outpoint, _ string) error {
 	return nil
 }
 
-func (m *mockLookupService) OutputEvicted(ctx context.Context, outpoint *transaction.Outpoint) error {
+func (m *mockLookupService) OutputEvicted(_ context.Context, _ *transaction.Outpoint) error {
 	return nil
 }

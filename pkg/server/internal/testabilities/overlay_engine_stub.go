@@ -222,7 +222,7 @@ func (s *TestOverlayEngineStub) GetDocumentationForTopicManager(provider string)
 
 // GetUTXOHistory retrieves UTXO history for the given output (unimplemented).
 // This is a placeholder function meant to be overridden in actual implementations.
-func (s *TestOverlayEngineStub) GetUTXOHistory(ctx context.Context, outpus *engine.Output, historySelector func(beef []byte, outputIndex, currentDepth uint32) bool, currentDepth uint32) (*engine.Output, error) {
+func (s *TestOverlayEngineStub) GetUTXOHistory(_ context.Context, _ *engine.Output, _ func(beef []byte, outputIndex, currentDepth uint32) bool, _ uint32) (*engine.Output, error) {
 	panic("unimplemented")
 }
 
@@ -253,9 +253,9 @@ func (s *TestOverlayEngineStub) Lookup(ctx context.Context, question *lookup.Loo
 }
 
 // ProvideForeignGASPNode returns a foreign GASP node using the configured RequestForeignGASPNodeProvider.
-func (s *TestOverlayEngineStub) ProvideForeignGASPNode(ctx context.Context, graphId, outpoints *transaction.Outpoint, topic string) (*gasp.Node, error) {
+func (s *TestOverlayEngineStub) ProvideForeignGASPNode(ctx context.Context, graphID, outpoints *transaction.Outpoint, topic string) (*gasp.Node, error) {
 	s.t.Helper()
-	return s.requestForeignGASPNodeProvider.ProvideForeignGASPNode(ctx, graphId, outpoints, topic)
+	return s.requestForeignGASPNodeProvider.ProvideForeignGASPNode(ctx, graphID, outpoints, topic)
 }
 
 // ProvideForeignSyncResponse returns a foreign sync response.

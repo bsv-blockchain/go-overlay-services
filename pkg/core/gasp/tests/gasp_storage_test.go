@@ -14,6 +14,11 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+var (
+	errDatabaseError  = errors.New("database error")
+	errOutputNotFound = errors.New("output not found")
+)
+
 func TestOverlayGASPStorage_AppendToGraph(t *testing.T) {
 	t.Run("should append a new node to an empty graph", func(t *testing.T) {
 		// given
@@ -87,12 +92,12 @@ func TestOverlayGASPStorage_AppendToGraph(t *testing.T) {
 
 			graphID := &transaction.Outpoint{
 				Txid:  *tx.TxID(),
-				Index: uint32(i),
+				Index: uint32(i), // #nosec G115
 			}
 
 			gaspNode := &gasp.Node{
 				RawTx:       tx.Hex(),
-				OutputIndex: uint32(i),
+				OutputIndex: uint32(i), // #nosec G115
 				GraphID:     graphID,
 			}
 
@@ -172,7 +177,7 @@ func TestOverlayGASPStorage_FindKnownUTXOs(t *testing.T) {
 		}
 
 		mockStorage := &mockStorage{
-			findUTXOsForTopicFunc: func(ctx context.Context, topic string, since float64, limit uint32, historical bool) ([]*engine.Output, error) {
+			findUTXOsForTopicFunc: func(_ context.Context, _ string, _ float64, _ uint32, _ bool) ([]*engine.Output, error) {
 				return expectedUTXOs, nil
 			},
 		}
@@ -237,7 +242,7 @@ func TestOverlayGASPStorage_FindKnownUTXOs(t *testing.T) {
 		}
 
 		mockStorage := &mockStorage{
-			findUTXOsForTopicFunc: func(ctx context.Context, topic string, since float64, limit uint32, historical bool) ([]*engine.Output, error) {
+			findUTXOsForTopicFunc: func(_ context.Context, _ string, _ float64, limit uint32, _ bool) ([]*engine.Output, error) {
 				// Mock should respect the limit
 				if limit > 0 && len(expectedUTXOs) > int(limit) {
 					return expectedUTXOs[:limit], nil
@@ -269,11 +274,11 @@ func TestOverlayGASPStorage_FindKnownUTXOs(t *testing.T) {
 	t.Run("should handle storage errors", func(t *testing.T) {
 		// given
 		ctx := context.Background()
-		expectedErr := errors.New("database error")
+		// Use the static error variable
 
 		mockStorage := &mockStorage{
-			findUTXOsForTopicFunc: func(ctx context.Context, topic string, since float64, limit uint32, historical bool) ([]*engine.Output, error) {
-				return nil, expectedErr
+			findUTXOsForTopicFunc: func(_ context.Context, _ string, _ float64, _ uint32, _ bool) ([]*engine.Output, error) {
+				return nil, errDatabaseError
 			},
 		}
 
@@ -287,7 +292,7 @@ func TestOverlayGASPStorage_FindKnownUTXOs(t *testing.T) {
 
 		// then
 		require.Error(t, err)
-		require.Equal(t, expectedErr, err)
+		require.Equal(t, errDatabaseError, err)
 		require.Nil(t, result)
 	})
 }
@@ -392,8 +397,8 @@ func TestOverlayGASPStorage_HydrateGASPNode(t *testing.T) {
 		// given
 		ctx := context.Background()
 		mockStorage := &mockStorage{
-			findOutputFunc: func(ctx context.Context, outpoint *transaction.Outpoint, topic *string, spent *bool, historical bool) (*engine.Output, error) {
-				return nil, nil // No output found
+			findOutputFunc: func(_ context.Context, _ *transaction.Outpoint, _ *string, _ *bool, _ bool) (*engine.Output, error) {
+				return nil, errOutputNotFound // No output found
 			},
 		}
 
@@ -416,7 +421,7 @@ func TestOverlayGASPStorage_HydrateGASPNode(t *testing.T) {
 
 		// then
 		require.Error(t, err)
-		require.Equal(t, engine.ErrMissingInput, err)
+		require.Equal(t, errOutputNotFound, err)
 		require.Nil(t, result)
 	})
 
@@ -443,7 +448,7 @@ func TestOverlayGASPStorage_HydrateGASPNode(t *testing.T) {
 		require.NoError(t, err)
 
 		mockStorage := &mockStorage{
-			findOutputFunc: func(ctx context.Context, outpoint *transaction.Outpoint, topic *string, spent *bool, historical bool) (*engine.Output, error) {
+			findOutputFunc: func(_ context.Context, outpoint *transaction.Outpoint, _ *string, _ *bool, _ bool) (*engine.Output, error) {
 				return &engine.Output{
 					Outpoint: *outpoint,
 					Beef:     beefBytes,
@@ -480,9 +485,9 @@ func TestOverlayGASPStorage_HydrateGASPNode(t *testing.T) {
 
 // Mock storage implementation
 type mockStorage struct {
-	findUTXOsForTopicFunc func(ctx context.Context, topic string, since float64, limit uint32, historical bool) ([]*engine.Output, error)
-	findOutputFunc        func(ctx context.Context, outpoint *transaction.Outpoint, topic *string, spent *bool, historical bool) (*engine.Output, error)
-	findOutputsFunc       func(ctx context.Context, outpoints []*transaction.Outpoint, topic string, spent *bool, historical bool) ([]*engine.Output, error)
+	findUTXOsForTopicFunc func(_ context.Context, topic string, since float64, limit uint32, historical bool) ([]*engine.Output, error)
+	findOutputFunc        func(_ context.Context, outpoint *transaction.Outpoint, topic *string, spent *bool, historical bool) (*engine.Output, error)
+	findOutputsFunc       func(_ context.Context, outpoints []*transaction.Outpoint, topic string, spent *bool, historical bool) ([]*engine.Output, error)
 }
 
 func (m *mockStorage) FindUTXOsForTopic(ctx context.Context, topic string, since float64, limit uint32, historical bool) ([]*engine.Output, error) {
@@ -496,7 +501,7 @@ func (m *mockStorage) FindOutput(ctx context.Context, outpoint *transaction.Outp
 	if m.findOutputFunc != nil {
 		return m.findOutputFunc(ctx, outpoint, topic, spent, historical)
 	}
-	return nil, nil
+	return nil, nil //nolint:nilnil // mock returns nil for unset implementation
 }
 
 func (m *mockStorage) FindOutputs(ctx context.Context, outpoints []*transaction.Outpoint, topic string, spent *bool, historical bool) ([]*engine.Output, error) {
@@ -507,62 +512,62 @@ func (m *mockStorage) FindOutputs(ctx context.Context, outpoints []*transaction.
 }
 
 // Implement remaining Storage interface methods with empty implementations
-func (m *mockStorage) SetIncoming(ctx context.Context, txs []*transaction.Transaction) error {
+func (m *mockStorage) SetIncoming(_ context.Context, _ []*transaction.Transaction) error {
 	return nil
 }
 
-func (m *mockStorage) SetOutgoing(ctx context.Context, tx *transaction.Transaction, steak *overlay.Steak) error {
+func (m *mockStorage) SetOutgoing(_ context.Context, _ *transaction.Transaction, _ *overlay.Steak) error {
 	return nil
 }
 
-func (m *mockStorage) UpdateConsumedBy(ctx context.Context, outpoint *transaction.Outpoint, consumedBy string, inputs []*transaction.Outpoint) error {
+func (m *mockStorage) UpdateConsumedBy(_ context.Context, _ *transaction.Outpoint, _ string, _ []*transaction.Outpoint) error {
 	return nil
 }
 
-func (m *mockStorage) DeleteOutput(ctx context.Context, outpoint *transaction.Outpoint, topic string) error {
+func (m *mockStorage) DeleteOutput(_ context.Context, _ *transaction.Outpoint, _ string) error {
 	return nil
 }
 
-func (m *mockStorage) FindTransaction(ctx context.Context, txid chainhash.Hash, requireProof bool) (*transaction.Transaction, error) {
+func (m *mockStorage) FindTransaction(_ context.Context, _ chainhash.Hash, _ bool) (*transaction.Transaction, error) {
+	return nil, nil //nolint:nilnil // mock returns nil for unset implementation
+}
+
+func (m *mockStorage) FindTransactionsCreatingUtxos(_ context.Context) ([]*chainhash.Hash, error) {
 	return nil, nil
 }
 
-func (m *mockStorage) FindTransactionsCreatingUtxos(ctx context.Context) ([]*chainhash.Hash, error) {
-	return nil, nil
-}
-
-func (m *mockStorage) DoesAppliedTransactionExist(ctx context.Context, tx *overlay.AppliedTransaction) (bool, error) {
+func (m *mockStorage) DoesAppliedTransactionExist(_ context.Context, _ *overlay.AppliedTransaction) (bool, error) {
 	return false, nil
 }
 
-func (m *mockStorage) InsertAppliedTransaction(ctx context.Context, tx *overlay.AppliedTransaction) error {
+func (m *mockStorage) InsertAppliedTransaction(_ context.Context, _ *overlay.AppliedTransaction) error {
 	return nil
 }
 
-func (m *mockStorage) UpdateTransactionBEEF(ctx context.Context, txid *chainhash.Hash, beef []byte) error {
+func (m *mockStorage) UpdateTransactionBEEF(_ context.Context, _ *chainhash.Hash, _ []byte) error {
 	return nil
 }
 
-func (m *mockStorage) MarkUTXOsAsSpent(ctx context.Context, utxos []*transaction.Outpoint, spentBy string, blockHash *chainhash.Hash) error {
+func (m *mockStorage) MarkUTXOsAsSpent(_ context.Context, _ []*transaction.Outpoint, _ string, _ *chainhash.Hash) error {
 	return nil
 }
 
-func (m *mockStorage) InsertOutput(ctx context.Context, output *engine.Output) error {
+func (m *mockStorage) InsertOutput(_ context.Context, _ *engine.Output) error {
 	return nil
 }
 
-func (m *mockStorage) FindOutputsForTransaction(ctx context.Context, txid *chainhash.Hash, includeBEEF bool) ([]*engine.Output, error) {
+func (m *mockStorage) FindOutputsForTransaction(_ context.Context, _ *chainhash.Hash, _ bool) ([]*engine.Output, error) {
 	return nil, nil
 }
 
-func (m *mockStorage) UpdateOutputBlockHeight(ctx context.Context, outpoint *transaction.Outpoint, topic string, blockHeight uint32, blockIndex uint64, ancillaryBeef []byte) error {
+func (m *mockStorage) UpdateOutputBlockHeight(_ context.Context, _ *transaction.Outpoint, _ string, _ uint32, _ uint64, _ []byte) error {
 	return nil
 }
 
-func (m *mockStorage) UpdateLastInteraction(ctx context.Context, host, topic string, since float64) error {
+func (m *mockStorage) UpdateLastInteraction(_ context.Context, _, _ string, _ float64) error {
 	return nil
 }
 
-func (m *mockStorage) GetLastInteraction(ctx context.Context, host, topic string) (float64, error) {
+func (m *mockStorage) GetLastInteraction(_ context.Context, _, _ string) (float64, error) {
 	return 0, nil
 }

@@ -10,6 +10,8 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+var errTopicManagerDocTestError = errors.New("internal topic manager documentation provider test error")
+
 func TestTopicManagerDocumentationService_InvalidCases(t *testing.T) {
 	tests := map[string]struct {
 		expectedError app.Error
@@ -27,9 +29,9 @@ func TestTopicManagerDocumentationService_InvalidCases(t *testing.T) {
 			topicManager: "test-topic-manager",
 			expectations: testabilities.TopicManagerDocumentationProviderMockExpectations{
 				DocumentationCall: true,
-				Error:             errors.New("internal topic manager documentation provider test error"),
+				Error:             errTopicManagerDocTestError,
 			},
-			expectedError: app.NewTopicManagerDocumentationProviderError(errors.New("internal topic manager documentation provider test error")),
+			expectedError: app.NewTopicManagerDocumentationProviderError(errTopicManagerDocTestError),
 		},
 	}
 

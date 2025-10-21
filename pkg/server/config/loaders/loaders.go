@@ -1,6 +1,8 @@
+// Package loaders provides configuration loading utilities.
 package loaders
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -13,6 +15,9 @@ import (
 
 // DefaultConfigFilePath is the default path for the configuration file.
 const DefaultConfigFilePath = "config.yaml"
+
+// ErrUnsupportedConfigFileExtension is returned when an unsupported config file extension is provided.
+var ErrUnsupportedConfigFileExtension = errors.New("unsupported config file extension")
 
 // Loader is a generic struct that loads configuration of type T.
 // It handles reading the config file, supporting various file formats,
@@ -51,7 +56,7 @@ func (l *Loader[T]) SetConfigFilePath(path string) error {
 	}
 
 	if !slices.Contains(l.supportedExts, ext) {
-		return fmt.Errorf("unsupported config file extension: %s", ext)
+		return fmt.Errorf("%w: %s", ErrUnsupportedConfigFileExtension, ext)
 	}
 
 	l.configFilePath = path
@@ -60,13 +65,13 @@ func (l *Loader[T]) SetConfigFilePath(path string) error {
 }
 
 // Load loads the configuration from the environment and the config file.
-// NOTE: The priority of the values is as follows:
+// The priority of the values is as follows:
 // 1. Environment variables
 // 2. Config file (supported types: "yaml", "yml", "json", "env", "dotenv")
 // 3. Default values
 //
-// NOTE: The config file is optional.
-// NOTE: For multilevel nested structs, the keys in the ENV variables should be separated by underscores.
+// The config file is optional.
+// For multilevel nested structs, the keys in the ENV variables should be separated by underscores.
 // e.g. for the nesting:
 //
 //	{

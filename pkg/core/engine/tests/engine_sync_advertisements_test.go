@@ -11,6 +11,12 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+var (
+	errInvalidAtomicBeef = errors.New("invalid atomic beef")
+	errCreateFailed      = errors.New("create failed")
+	errRevokeFailed      = errors.New("revoke failed")
+)
+
 func TestEngine_SyncAdvertisements_ShouldReturnNil_WhenAdvertiserIsNil(t *testing.T) {
 	// given
 	sut := &engine.Engine{
@@ -28,11 +34,11 @@ func TestEngine_SyncAdvertisements_ShouldNotFail_WhenCreateAdvertisementsFails(t
 	// given
 	sut := &engine.Engine{
 		Advertiser: fakeAdvertiser{
-			findAllAdvertisementsFunc: func(protocol overlay.Protocol) ([]*advertiser.Advertisement, error) {
+			findAllAdvertisementsFunc: func(_ overlay.Protocol) ([]*advertiser.Advertisement, error) {
 				return []*advertiser.Advertisement{}, nil
 			},
-			createAdvertisementsFunc: func(data []*advertiser.AdvertisementData) (overlay.TaggedBEEF, error) {
-				return overlay.TaggedBEEF{}, errors.New("invalid-atomic-beef")
+			createAdvertisementsFunc: func(_ []*advertiser.AdvertisementData) (overlay.TaggedBEEF, error) {
+				return overlay.TaggedBEEF{}, errInvalidAtomicBeef
 			},
 		},
 		Managers:   map[string]engine.TopicManager{"test-topic": fakeTopicManager{}},
@@ -50,13 +56,13 @@ func TestEngine_SyncAdvertisements_ShouldCompleteSuccessfully(t *testing.T) {
 	// given
 	sut := &engine.Engine{
 		Advertiser: fakeAdvertiser{
-			findAllAdvertisementsFunc: func(protocol overlay.Protocol) ([]*advertiser.Advertisement, error) {
+			findAllAdvertisementsFunc: func(_ overlay.Protocol) ([]*advertiser.Advertisement, error) {
 				return []*advertiser.Advertisement{}, nil
 			},
-			createAdvertisementsFunc: func(data []*advertiser.AdvertisementData) (overlay.TaggedBEEF, error) {
+			createAdvertisementsFunc: func(_ []*advertiser.AdvertisementData) (overlay.TaggedBEEF, error) {
 				return overlay.TaggedBEEF{}, nil
 			},
-			revokeAdvertisementsFunc: func(data []*advertiser.Advertisement) (overlay.TaggedBEEF, error) {
+			revokeAdvertisementsFunc: func(_ []*advertiser.Advertisement) (overlay.TaggedBEEF, error) {
 				return overlay.TaggedBEEF{}, nil
 			},
 		},
@@ -76,14 +82,14 @@ func TestEngine_SyncAdvertisements_ShouldLogAndContinue_WhenCreateOrRevokeFails(
 	// given
 	sut := &engine.Engine{
 		Advertiser: fakeAdvertiser{
-			findAllAdvertisementsFunc: func(protocol overlay.Protocol) ([]*advertiser.Advertisement, error) {
+			findAllAdvertisementsFunc: func(_ overlay.Protocol) ([]*advertiser.Advertisement, error) {
 				return []*advertiser.Advertisement{}, nil
 			},
-			createAdvertisementsFunc: func(data []*advertiser.AdvertisementData) (overlay.TaggedBEEF, error) {
-				return overlay.TaggedBEEF{}, errors.New("create failed")
+			createAdvertisementsFunc: func(_ []*advertiser.AdvertisementData) (overlay.TaggedBEEF, error) {
+				return overlay.TaggedBEEF{}, errCreateFailed
 			},
-			revokeAdvertisementsFunc: func(data []*advertiser.Advertisement) (overlay.TaggedBEEF, error) {
-				return overlay.TaggedBEEF{}, errors.New("revoke failed")
+			revokeAdvertisementsFunc: func(_ []*advertiser.Advertisement) (overlay.TaggedBEEF, error) {
+				return overlay.TaggedBEEF{}, errRevokeFailed
 			},
 		},
 		Managers:       map[string]engine.TopicManager{"test-topic": fakeTopicManager{}},
@@ -119,10 +125,10 @@ func TestEngine_SyncAdvertisements_ShouldSkip_WhenHostingURLIsInvalid(t *testing
 			// given
 			sut := &engine.Engine{
 				Advertiser: fakeAdvertiser{
-					findAllAdvertisementsFunc: func(protocol overlay.Protocol) ([]*advertiser.Advertisement, error) {
+					findAllAdvertisementsFunc: func(_ overlay.Protocol) ([]*advertiser.Advertisement, error) {
 						return []*advertiser.Advertisement{}, nil
 					},
-					createAdvertisementsFunc: func(data []*advertiser.AdvertisementData) (overlay.TaggedBEEF, error) {
+					createAdvertisementsFunc: func(_ []*advertiser.AdvertisementData) (overlay.TaggedBEEF, error) {
 						return overlay.TaggedBEEF{}, nil
 					},
 				},
@@ -137,7 +143,7 @@ func TestEngine_SyncAdvertisements_ShouldSkip_WhenHostingURLIsInvalid(t *testing
 			require.NoError(t, err)
 			// The function should return early without calling advertiser methods
 			// when hosting URL is invalid
-			// NOTE: This test assumes the Go implementation will add URL validation
+			// This test assumes the Go implementation will add URL validation
 			// Currently, it doesn't validate URLs, so this is a suggested enhancement
 		})
 	}

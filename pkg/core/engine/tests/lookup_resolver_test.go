@@ -65,11 +65,11 @@ func TestLookupResolver_SetSLAPTrackers(t *testing.T) {
 }
 
 func TestLookupResolver_Query(t *testing.T) {
-	t.Run("should query with valid question", func(t *testing.T) {
+	t.Run("should query with valid question", func(_ *testing.T) {
 		// given
 		resolver := engine.NewLookupResolver()
 
-		// Note: In real implementation, you might need to expose a method to set facilitator
+		// In real implementation, you might need to expose a method to set facilitator
 		// or use dependency injection for better testability
 
 		question := &lookup.LookupQuestion{
@@ -78,7 +78,7 @@ func TestLookupResolver_Query(t *testing.T) {
 		}
 
 		// when
-		// Note: This test demonstrates the interface, but actual testing would require
+		// This test demonstrates the interface, but actual testing would require
 		// either mocking the HTTP client or using a test server
 		_ = resolver
 		_ = question
@@ -88,7 +88,7 @@ func TestLookupResolver_Query(t *testing.T) {
 		// would require integration tests or HTTP mocking
 	})
 
-	t.Run("should handle query errors", func(t *testing.T) {
+	t.Run("should handle query errors", func(_ *testing.T) {
 		// given
 		resolver := engine.NewLookupResolver()
 
@@ -98,7 +98,7 @@ func TestLookupResolver_Query(t *testing.T) {
 		}
 
 		// when
-		// Note: Testing error scenarios would require mocking the underlying HTTP client
+		// Testing error scenarios would require mocking the underlying HTTP client
 		// or using a test server that returns errors
 		_ = resolver
 		_ = question
@@ -119,13 +119,13 @@ func TestLookupResolver_QueryWithSLAPTrackers(t *testing.T) {
 		// then
 		require.Equal(t, trackers, resolver.SLAPTrackers())
 
-		// Note: Actual query behavior with trackers would require integration testing
+		// Actual query behavior with trackers would require integration testing
 		// or mocking the HTTP layer to verify that queries are sent to the configured trackers
 	})
 }
 
 func TestLookupResolver_ErrorScenarios(t *testing.T) {
-	t.Run("should handle nil question gracefully", func(t *testing.T) {
+	t.Run("should handle nil question gracefully", func(_ *testing.T) {
 		// given
 		resolver := engine.NewLookupResolver()
 
@@ -135,7 +135,7 @@ func TestLookupResolver_ErrorScenarios(t *testing.T) {
 		_ = resolver
 	})
 
-	t.Run("should handle context cancellation", func(t *testing.T) {
+	t.Run("should handle context cancellation", func(_ *testing.T) {
 		// given
 		ctx, cancel := context.WithCancel(context.Background())
 		cancel() // Cancel immediately

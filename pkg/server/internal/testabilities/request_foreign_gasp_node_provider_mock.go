@@ -29,7 +29,7 @@ var ForeignGASPNodeDefaultDTO = app.RequestForeignGASPNodeDTO{
 	Topic:       DefaultValidTopic,
 }
 
-// Default expectations for successful RequestForeignGASPNode operations
+// DefaultRequestForeignGASPNodeProviderMockExpectations provides default expectations for successful RequestForeignGASPNode operations.
 var DefaultRequestForeignGASPNodeProviderMockExpectations = RequestForeignGASPNodeProviderMockExpectations{
 	ProvideForeignGASPNodeCall: true,
 	Error:                      nil,
@@ -51,7 +51,7 @@ type RequestForeignGASPNodeProviderMock struct {
 }
 
 // ProvideForeignGASPNode mocks the ProvideForeignGASPNode method.
-func (m *RequestForeignGASPNodeProviderMock) ProvideForeignGASPNode(ctx context.Context, graphID, outpoint *transaction.Outpoint, topic string) (*gasp.Node, error) {
+func (m *RequestForeignGASPNodeProviderMock) ProvideForeignGASPNode(_ context.Context, _, _ *transaction.Outpoint, _ string) (*gasp.Node, error) {
 	m.t.Helper()
 	m.called = true
 

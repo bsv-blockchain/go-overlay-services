@@ -14,6 +14,8 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+var errSubmitTxHandlerTestError = errors.New("internal submit transaction provider error during submit transaction handler unit test")
+
 func TestSubmitTransactionHandler_InvalidCases(t *testing.T) {
 	tests := map[string]struct {
 		expectedStatusCode int
@@ -31,11 +33,11 @@ func TestSubmitTransactionHandler_InvalidCases(t *testing.T) {
 			},
 			expectedResponse: testabilities.NewTestOpenapiErrorResponse(t,
 				app.NewSubmitTransactionProviderError(
-					errors.New("internal submit transaction provider error during submit transaction handler unit test"),
+					errSubmitTxHandlerTestError,
 				),
 			),
 			expectations: testabilities.SubmitTransactionProviderMockExpectations{
-				Error:      errors.New("internal submit transaction provider error during submit transaction handler unit test"),
+				Error:      errSubmitTxHandlerTestError,
 				SubmitCall: true,
 			},
 		},

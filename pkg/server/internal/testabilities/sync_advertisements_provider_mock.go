@@ -38,7 +38,7 @@ type SyncAdvertisementsProviderMock struct {
 
 // SyncAdvertisements simulates a sync advertisements request.
 // It records that it was called and returns the configured error, if any.
-func (s *SyncAdvertisementsProviderMock) SyncAdvertisements(ctx context.Context) error {
+func (s *SyncAdvertisementsProviderMock) SyncAdvertisements(_ context.Context) error {
 	s.called = true
 	if s.expectations.Err != nil {
 		return s.expectations.Err

@@ -10,6 +10,8 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+var errLookupDocTestError = errors.New("internal lookup service documentation provider test error")
+
 func TestLookupDocumentationService_InvalidCases(t *testing.T) {
 	tests := map[string]struct {
 		expectedError app.Error
@@ -27,9 +29,9 @@ func TestLookupDocumentationService_InvalidCases(t *testing.T) {
 			lookupService: "test-lookup-service",
 			expectations: testabilities.LookupServiceDocumentationProviderMockExpectations{
 				DocumentationCall: true,
-				Error:             errors.New("internal lookup service documentation provider test error"),
+				Error:             errLookupDocTestError,
 			},
-			expectedError: app.NewLookupServiceProviderDocumentationError(errors.New("internal lookup service documentation provider test error")),
+			expectedError: app.NewLookupServiceProviderDocumentationError(errLookupDocTestError),
 		},
 	}
 

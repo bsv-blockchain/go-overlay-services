@@ -14,78 +14,89 @@ import (
 	"github.com/bsv-blockchain/go-sdk/util"
 )
 
+// ErrNotImplemented is returned when a method is not implemented for the OverlayGASPRemote.
+var ErrNotImplemented = errors.New("not-implemented")
+
+// OverlayGASPRemote provides a remote GASP implementation that communicates with overlay endpoints.
 type OverlayGASPRemote struct {
-	EndpointUrl string
+	EndpointURL string
 	Topic       string
-	HttpClient  util.HTTPClient
+	HTTPClient  util.HTTPClient
 }
 
+// GetInitialResponse sends a GASP initial request to the remote overlay and returns the response.
 func (r *OverlayGASPRemote) GetInitialResponse(ctx context.Context, request *gasp.InitialRequest) (*gasp.InitialResponse, error) {
 	var buf bytes.Buffer
 	if err := json.NewEncoder(&buf).Encode(request); err != nil {
-		slog.Error("failed to encode GASP initial request", "endpoint", r.EndpointUrl, "topic", r.Topic, "error", err)
+		slog.Error("failed to encode GASP initial request", "endpoint", r.EndpointURL, "topic", r.Topic, "error", err)
 		return nil, err
-	} else if req, err := http.NewRequest("POST", r.EndpointUrl+"/requestSyncResponse", io.NopCloser(&buf)); err != nil {
-		slog.Error("failed to create HTTP request for GASP initial response", "endpoint", r.EndpointUrl, "topic", r.Topic, "error", err)
+	}
+	req, err := http.NewRequestWithContext(ctx, "POST", r.EndpointURL+"/requestSyncResponse", io.NopCloser(&buf))
+	if err != nil {
+		slog.Error("failed to create HTTP request for GASP initial response", "endpoint", r.EndpointURL, "topic", r.Topic, "error", err)
 		return nil, err
-	} else {
-		req.Header.Set("Content-Type", "application/json")
-		req.Header.Set("X-BSV-Topic", r.Topic)
-		if resp, err := r.HttpClient.Do(req); err != nil {
-			return nil, err
-		} else {
-			defer func() { _ = resp.Body.Close() }()
-			if resp.StatusCode != http.StatusOK {
-				return nil, &util.HTTPError{
-					StatusCode: resp.StatusCode,
-					Err:        err,
-				}
-			}
-			result := &gasp.InitialResponse{}
-			if err := json.NewDecoder(resp.Body).Decode(result); err != nil {
-				return nil, err
-			}
-			return result, nil
+	}
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("X-BSV-Topic", r.Topic)
+	resp, err := r.HTTPClient.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = resp.Body.Close() }()
+	if resp.StatusCode != http.StatusOK {
+		return nil, &util.HTTPError{
+			StatusCode: resp.StatusCode,
+			Err:        err,
 		}
 	}
+	result := &gasp.InitialResponse{}
+	if err := json.NewDecoder(resp.Body).Decode(result); err != nil {
+		return nil, err
+	}
+	return result, nil
 }
 
+// RequestNode requests a specific node from the remote overlay.
 func (r *OverlayGASPRemote) RequestNode(ctx context.Context, graphID, outpoint *transaction.Outpoint, metadata bool) (*gasp.Node, error) {
-	if j, err := json.Marshal(&gasp.NodeRequest{
+	j, err := json.Marshal(&gasp.NodeRequest{
 		GraphID:     graphID,
 		Txid:        &outpoint.Txid,
 		OutputIndex: outpoint.Index,
 		Metadata:    metadata,
-	}); err != nil {
+	})
+	if err != nil {
 		return nil, err
-	} else if req, err := http.NewRequest("POST", r.EndpointUrl+"/requestForeignGASPNode", bytes.NewReader(j)); err != nil {
+	}
+	req, err := http.NewRequestWithContext(ctx, "POST", r.EndpointURL+"/requestForeignGASPNode", bytes.NewReader(j))
+	if err != nil {
 		return nil, err
-	} else {
-		req.Header.Set("Content-Type", "application/json")
-		req.Header.Set("X-BSV-Topic", r.Topic)
-		if resp, err := r.HttpClient.Do(req); err != nil {
-			return nil, err
-		} else {
-			defer func() { _ = resp.Body.Close() }()
-			if resp.StatusCode != http.StatusOK {
-				return nil, &util.HTTPError{
-					StatusCode: resp.StatusCode,
-					Err:        err,
-				}
-			}
-			result := &gasp.Node{}
-			if err := json.NewDecoder(resp.Body).Decode(result); err != nil {
-				return nil, err
-			}
-			return result, nil
+	}
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("X-BSV-Topic", r.Topic)
+	resp, err := r.HTTPClient.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = resp.Body.Close() }()
+	if resp.StatusCode != http.StatusOK {
+		return nil, &util.HTTPError{
+			StatusCode: resp.StatusCode,
+			Err:        err,
 		}
 	}
+	result := &gasp.Node{}
+	if err := json.NewDecoder(resp.Body).Decode(result); err != nil {
+		return nil, err
+	}
+	return result, nil
 }
 
-func (r *OverlayGASPRemote) GetInitialReply(ctx context.Context, response *gasp.InitialResponse) (*gasp.InitialReply, error) {
-	return nil, errors.New("not-implemented")
+// GetInitialReply is not implemented for OverlayGASPRemote and returns ErrNotImplemented.
+func (r *OverlayGASPRemote) GetInitialReply(_ context.Context, _ *gasp.InitialResponse) (*gasp.InitialReply, error) {
+	return nil, ErrNotImplemented
 }
 
-func (r *OverlayGASPRemote) SubmitNode(ctx context.Context, node *gasp.Node) (*gasp.NodeResponse, error) {
-	return nil, errors.New("not-implemented")
+// SubmitNode is not implemented for OverlayGASPRemote and returns ErrNotImplemented.
+func (r *OverlayGASPRemote) SubmitNode(_ context.Context, _ *gasp.Node) (*gasp.NodeResponse, error) {
+	return nil, ErrNotImplemented
 }
