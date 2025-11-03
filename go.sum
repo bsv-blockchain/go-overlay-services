@@ -4,8 +4,8 @@ github.com/andybalholm/brotli v1.2.0/go.mod h1:rzTDkvFWvIrjDXZHkuS16NPggd91W3kUS
 github.com/apapsch/go-jsonmerge/v2 v2.0.0 h1:axGnT1gRIfimI7gJifB699GoE/oq+F2MU7Dml6nw9rQ=
 github.com/apapsch/go-jsonmerge/v2 v2.0.0/go.mod h1:lvDnEdqiQrp0O42VQGgmlKpxL1AP2+08jFMw88y4klk=
 github.com/bmatcuk/doublestar v1.1.1/go.mod h1:UD6OnuiIn0yFxxA2le/rnRU1G4RaI4UvFv1sNto9p6w=
-github.com/bsv-blockchain/go-sdk v1.2.10 h1:e3wK/4SgSPqhz4Aw9vnKN/JkIwequdqlPWToYNGvuOg=
-github.com/bsv-blockchain/go-sdk v1.2.10/go.mod h1:C1r7iZbRUCbC015GjbhcpwH0jL5ubPn5XaQgjvUaPdU=
+github.com/bsv-blockchain/go-sdk v1.2.11 h1:SK8kDuDZNP3ubvx0AL0bR/I8tXWljJICyUsiF4y9ZkQ=
+github.com/bsv-blockchain/go-sdk v1.2.11/go.mod h1:S+8iokWX2la9G4mzwHIeCvYkADRzcdfk1AprN0z5MDI=
 github.com/bsv-blockchain/universal-test-vectors v0.6.1 h1:6mRV8T4ug8456p/rufoDselui3eKY6kr9mRYx8e87Rw=
 github.com/bsv-blockchain/universal-test-vectors v0.6.1/go.mod h1:aNNGIH9aN/aCQ9vw0gTiQiOajkyBQIPJM9O6nHhhF5g=
 github.com/chzyer/logex v1.1.10/go.mod h1:+Ywpsq7O8HXn0nuIou7OrIPyXbp3wmkHB+jjWRnGsAI=
