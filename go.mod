@@ -63,4 +63,6 @@ require (
 	gopkg.in/yaml.v2 v2.4.0 // indirect
 )
 
+replace github.com/sirupsen/logrus => github.com/sirupsen/logrus v1.9.3
+
 tool github.com/oapi-codegen/oapi-codegen/v2/cmd/oapi-codegen
