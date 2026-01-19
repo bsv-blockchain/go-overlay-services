@@ -6,7 +6,7 @@ require (
 	github.com/bsv-blockchain/go-sdk v1.2.14
 	github.com/bsv-blockchain/universal-test-vectors v0.6.1
 	github.com/go-resty/resty/v2 v2.17.1
-	github.com/go-viper/mapstructure/v2 v2.4.0
+	github.com/go-viper/mapstructure/v2 v2.5.0
 	github.com/gofiber/fiber/v2 v2.52.10
 	github.com/google/uuid v1.6.0
 	github.com/mitchellh/mapstructure v1.5.0
