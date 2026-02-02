@@ -473,11 +473,16 @@ func (e *Engine) Lookup(ctx context.Context, question *lookup.LookupQuestion) (*
 }
 
 // GetUTXOHistory retrieves the history of a UTXO
-func (e *Engine) GetUTXOHistory(ctx context.Context, output *Output, historySelector func(beef []byte, outputIndex, currentDepth uint32) bool, currentDepth uint32) (*Output, error) {
+func (e *Engine) GetUTXOHistory(ctx context.Context, output *Output, historySelector func(beef *transaction.Beef, outputIndex, currentDepth uint32) bool, currentDepth uint32) (*Output, error) {
 	if historySelector == nil {
 		return output, nil
 	}
-	shouldTravelHistory := historySelector(output.Beef, output.Outpoint.Index, currentDepth)
+	beef, beefParseErr := transaction.NewBeefFromBytes(output.Beef)
+	if beefParseErr != nil {
+		slog.Error("failed to parse BEEF in GetUTXOHistory", "outpoint", output.Outpoint.String(), "error", beefParseErr)
+		return nil, beefParseErr
+	}
+	shouldTravelHistory := historySelector(beef, output.Outpoint.Index, currentDepth)
 	if !shouldTravelHistory {
 		return nil, nil //nolint:nilnil // returning nil output with no error is valid when selector returns false
 	}
@@ -521,12 +526,12 @@ func (e *Engine) GetUTXOHistory(ctx context.Context, output *Output, historySele
 			}
 		}
 	}
-	beef, err := tx.BEEF()
+	beefBytes, err := tx.BEEF()
 	if err != nil {
 		slog.Error("failed to get BEEF from transaction in GetUTXOHistory", "outpoint", output.Outpoint.String(), "error", err)
 		return nil, err
 	}
-	output.Beef = beef
+	output.Beef = beefBytes
 	return output, nil
 }
 

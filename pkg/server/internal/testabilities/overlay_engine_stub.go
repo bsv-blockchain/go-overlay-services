@@ -223,7 +223,7 @@ func (s *TestOverlayEngineStub) GetDocumentationForTopicManager(provider string)
 
 // GetUTXOHistory retrieves UTXO history for the given output (unimplemented).
 // This is a placeholder function meant to be overridden in actual implementations.
-func (s *TestOverlayEngineStub) GetUTXOHistory(_ context.Context, _ *engine.Output, _ func(beef []byte, outputIndex, currentDepth uint32) bool, _ uint32) (*engine.Output, error) {
+func (s *TestOverlayEngineStub) GetUTXOHistory(_ context.Context, _ *engine.Output, _ func(beef *transaction.Beef, outputIndex, currentDepth uint32) bool, _ uint32) (*engine.Output, error) {
 	panic("unimplemented")
 }
 

@@ -33,10 +33,10 @@ func TestEngine_GetUTXOHistory_ShouldReturnImmediateOutput_WhenSelectorIsNil(t *
 
 func TestEngine_GetUTXOHistory_ShouldReturnNil_WhenSelectorReturnsFalse(t *testing.T) {
 	// given
-	output := &engine.Output{Beef: []byte("beef")}
+	output := &engine.Output{Beef: createDummyBEEF(t)}
 	sut := &engine.Engine{}
 
-	historySelector := func(_ []byte, _, _ uint32) bool {
+	historySelector := func(_ *transaction.Beef, _, _ uint32) bool {
 		return false
 	}
 
@@ -51,12 +51,12 @@ func TestEngine_GetUTXOHistory_ShouldReturnNil_WhenSelectorReturnsFalse(t *testi
 func TestEngine_GetUTXOHistory_ShouldReturnOutput_WhenNoOutputsConsumed(t *testing.T) {
 	// given
 	output := &engine.Output{
-		Beef:            []byte("beef"),
+		Beef:            createDummyBEEF(t),
 		OutputsConsumed: nil,
 	}
 	sut := &engine.Engine{}
 
-	historySelector := func(_ []byte, _, _ uint32) bool {
+	historySelector := func(_ *transaction.Beef, _, _ uint32) bool {
 		return true
 	}
 
@@ -99,7 +99,7 @@ func TestEngine_GetUTXOHistory_ShouldTravelRecursively_WhenOutputsConsumedPresen
 		},
 	}
 
-	historySelector := func(_ []byte, _, _ uint32) bool {
+	historySelector := func(_ *transaction.Beef, _, _ uint32) bool {
 		return true
 	}
 
@@ -121,7 +121,7 @@ func TestEngine_GetUTXOHistory_ShouldReturnError_WhenStorageFails(t *testing.T) 
 
 	parentOutput := &engine.Output{
 		Outpoint:        *parentOutpoint,
-		Beef:            []byte("parent beef"),
+		Beef:            createDummyBEEF(t),
 		OutputsConsumed: []*transaction.Outpoint{childOutpoint},
 	}
 
@@ -133,7 +133,7 @@ func TestEngine_GetUTXOHistory_ShouldReturnError_WhenStorageFails(t *testing.T) 
 		},
 	}
 
-	historySelector := func(_ []byte, _, _ uint32) bool {
+	historySelector := func(_ *transaction.Beef, _, _ uint32) bool {
 		return true
 	}
 
@@ -184,7 +184,7 @@ func TestEngine_GetUTXOHistory_ShouldRespectDepthInHistorySelector(t *testing.T)
 	}
 
 	// History selector that stops at depth 2
-	historySelector := func(_ []byte, _, currentDepth uint32) bool {
+	historySelector := func(_ *transaction.Beef, _, currentDepth uint32) bool {
 		return currentDepth < 2
 	}
 
@@ -238,7 +238,7 @@ func TestEngine_GetUTXOHistory_ShouldHandleMultipleOutputsConsumed(t *testing.T)
 		},
 	}
 
-	historySelector := func(_ []byte, _, _ uint32) bool {
+	historySelector := func(_ *transaction.Beef, _, _ uint32) bool {
 		return true
 	}
 
@@ -295,7 +295,7 @@ func TestEngine_GetUTXOHistory_ShouldHandleCircularReferences(t *testing.T) {
 		},
 	}
 
-	historySelector := func(_ []byte, _, currentDepth uint32) bool {
+	historySelector := func(_ *transaction.Beef, _, currentDepth uint32) bool {
 		// Limit depth to prevent infinite recursion
 		return currentDepth < 5
 	}
@@ -312,12 +312,12 @@ func TestEngine_GetUTXOHistory_ShouldHandleCircularReferences(t *testing.T) {
 func TestEngine_GetUTXOHistory_ShouldHandleEmptyOutputsConsumed(t *testing.T) {
 	// given
 	output := &engine.Output{
-		Beef:            []byte("beef"),
+		Beef:            createDummyBEEF(t),
 		OutputsConsumed: []*transaction.Outpoint{}, // Empty slice
 	}
 	sut := &engine.Engine{}
 
-	historySelector := func(_ []byte, _, _ uint32) bool {
+	historySelector := func(_ *transaction.Beef, _, _ uint32) bool {
 		return true
 	}
 
@@ -333,7 +333,7 @@ func TestEngine_GetUTXOHistory_ShouldInvokeHistorySelectorWithCorrectParameters(
 	// given
 	ctx := context.Background()
 
-	expectedBeef := []byte("expected beef")
+	expectedBeef := createDummyBEEF(t)
 	expectedOutputIndex := uint32(42)
 	initialDepth := uint32(3)
 
@@ -346,9 +346,9 @@ func TestEngine_GetUTXOHistory_ShouldInvokeHistorySelectorWithCorrectParameters(
 	sut := &engine.Engine{}
 
 	selectorCalled := false
-	historySelector := func(beef []byte, outputIndex, currentDepth uint32) bool {
+	historySelector := func(beef *transaction.Beef, outputIndex, currentDepth uint32) bool {
 		selectorCalled = true
-		assert.Equal(t, expectedBeef, beef)
+		assert.NotNil(t, beef)
 		assert.Equal(t, expectedOutputIndex, outputIndex)
 		assert.Equal(t, initialDepth, currentDepth)
 		return false

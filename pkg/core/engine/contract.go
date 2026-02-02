@@ -18,7 +18,7 @@ import (
 type OverlayEngineProvider interface {
 	Submit(ctx context.Context, taggedBEEF overlay.TaggedBEEF, mode SumbitMode, onSteakReady OnSteakReady) (overlay.Steak, error)
 	Lookup(ctx context.Context, question *lookup.LookupQuestion) (*lookup.LookupAnswer, error)
-	GetUTXOHistory(ctx context.Context, output *Output, historySelector func(beef []byte, outputIndex, currentDepth uint32) bool, currentDepth uint32) (*Output, error)
+	GetUTXOHistory(ctx context.Context, output *Output, historySelector func(beef *transaction.Beef, outputIndex, currentDepth uint32) bool, currentDepth uint32) (*Output, error)
 	SyncAdvertisements(ctx context.Context) error
 	StartGASPSync(ctx context.Context) error
 	ProvideForeignSyncResponse(ctx context.Context, initialRequest *gasp.InitialRequest, topic string) (*gasp.InitialResponse, error)

@@ -69,7 +69,7 @@ func (*NoopEngineProvider) Lookup(_ context.Context, _ *lookup.LookupQuestion) (
 }
 
 // GetUTXOHistory is a no-op call that always returns an empty engine output with nil error.
-func (*NoopEngineProvider) GetUTXOHistory(_ context.Context, _ *engine.Output, _ func(beef []byte, outputIndex, currentDepth uint32) bool, _ uint32) (*engine.Output, error) {
+func (*NoopEngineProvider) GetUTXOHistory(_ context.Context, _ *engine.Output, _ func(beef *transaction.Beef, outputIndex, currentDepth uint32) bool, _ uint32) (*engine.Output, error) {
 	return &engine.Output{}, nil
 }
 
