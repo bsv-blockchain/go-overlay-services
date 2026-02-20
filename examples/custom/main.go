@@ -12,7 +12,7 @@ import (
 
 func main() {
 	const MB = 1024 * 1024
-	app := server.RegisterRoutesWithErrorHandler(fiber.New(), &server.RegisterRoutesConfig{
+	app := server.RegisterRoutesWithErrorHandler(fiber.New(), &server.RegisterRoutesConfig{ //nolint:gosec // example placeholder values
 		ARCAPIKey:        "YOUR_ARC_API_KEY",
 		ARCCallbackToken: "YOUR_CALLBACK_TOKEN",
 		AdminBearerToken: "YOUR_TOKEN",

@@ -230,11 +230,11 @@ func (e *Engine) Submit(ctx context.Context, taggedBEEF overlay.TaggedBEEF, mode
 		for vin := 0; vin < len(outputs); vin++ {
 			output := outputs[vin]
 			if output != nil {
-				previousCoins[uint32(vin)] = &transaction.TransactionOutput{ //nolint:gosec // index bounded by slice length
+				previousCoins[uint32(vin)] = &transaction.TransactionOutput{
 					LockingScript: output.Script,
 					Satoshis:      output.Satoshis,
 				}
-				topicInputs[topic][uint32(vin)] = output //nolint:gosec // index bounded by slice length
+				topicInputs[topic][uint32(vin)] = output
 			}
 		}
 
@@ -288,7 +288,7 @@ func (e *Engine) Submit(ctx context.Context, taggedBEEF overlay.TaggedBEEF, mode
 					Outpoint:           outpoint,
 					Topic:              topic,
 					SpendingTxid:       txid,
-					InputIndex:         uint32(vin), //nolint:gosec // index bounded by slice length
+					InputIndex:         uint32(vin),
 					UnlockingScript:    tx.Inputs[vin].UnlockingScript,
 					SequenceNumber:     tx.Inputs[vin].SequenceNumber,
 					SpendingAtomicBEEF: taggedBEEF.Beef,
