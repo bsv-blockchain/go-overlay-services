@@ -73,7 +73,7 @@ type Option func(*HTTP)
 
 // WithARCAPIKey sets the ARC API key used for ARC service integration.
 // It returns an Option that applies this configuration to HTTP.
-func WithARCAPIKey(APIKey string) Option { //nolint:gosec // API key parameter name required by public interface
+func WithARCAPIKey(APIKey string) Option {
 	return func(s *HTTP) {
 		s.cfg.ARCAPIKey = APIKey
 	}
