@@ -18,7 +18,7 @@ type Handler interface {
 // ARCAuthorizationDecoratorConfig contains the configuration required
 // to enable and validate ARC-style authorization on an endpoint.
 type ARCAuthorizationDecoratorConfig struct {
-	APIKey        string //nolint:gosec // ARC API key required to enable this endpoint.
+	APIKey        string // ARC API key required to enable this endpoint.
 	CallbackToken string // Expected token value to authorize the request.
 	Scheme        string // Authorization scheme prefix (usually "Bearer ").
 }
