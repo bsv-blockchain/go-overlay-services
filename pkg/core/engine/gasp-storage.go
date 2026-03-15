@@ -210,7 +210,10 @@ func (s *OverlayGASPStorage) FindNeededInputs(ctx context.Context, gaspTx *gasp.
 		}
 
 		txid := tx.TxID()
-		admit, _ := s.IdentifyAdmissibleOutputs(ctx, beef, txid, previousCoins)
+		admit, admitErr := s.IdentifyAdmissibleOutputs(ctx, beef, txid, previousCoins)
+		if admitErr != nil {
+			return nil, fmt.Errorf("failed to identify admissible outputs: %w", admitErr)
+		}
 		if !slices.Contains(admit.OutputsToAdmit, gaspTx.OutputIndex) {
 			neededInputs, err := s.IdentifyNeededInputs(ctx, beef, txid)
 			if err != nil {

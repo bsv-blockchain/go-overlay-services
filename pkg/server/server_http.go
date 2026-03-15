@@ -53,6 +53,9 @@ type Config struct {
 
 	// ARCCallbackToken is the token for authenticating ARC callback requests.
 	ARCCallbackToken string `mapstructure:"arc_callback_token"`
+
+	// BaseURL is the base path prefix for all API routes (e.g., "/api/v1").
+	BaseURL string `mapstructure:"base_url"`
 }
 
 // DefaultConfig provides a default configuration with reasonable values for local development.
@@ -66,6 +69,7 @@ var DefaultConfig = Config{
 	ConnectionReadTimeout: 10 * time.Second,
 	ARCAPIKey:             "",
 	ARCCallbackToken:      uuid.NewString(),
+	BaseURL:               "/api/v1",
 }
 
 // Option defines a functional option for configuring an HTTP server.
@@ -195,7 +199,7 @@ func New(opts ...Option) *HTTP {
 		AdminBearerToken: srv.cfg.AdminBearerToken,
 		Engine:           srv.engine,
 		OctetStreamLimit: srv.cfg.OctetStreamLimit,
-		BaseURL:          "/api/v1",
+		BaseURL:          srv.cfg.BaseURL,
 	})
 
 	srv.app.Get("/metrics", monitor.New(monitor.Config{Title: "Overlay-services API"}))

@@ -947,6 +947,7 @@ func (e *Engine) StartGASPSync(ctx context.Context) error {
 				Concurrency:     syncEndpoints.Concurrency,
 				Topic:           topic,
 			})
+			defer gaspProvider.Close()
 
 			// Paginate through GASP sync, saving progress after each successful page
 			for {

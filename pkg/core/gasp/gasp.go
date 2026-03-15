@@ -80,6 +80,7 @@ type GASP struct {
 
 	// Individual UTXO processing queue (hidden from external callers)
 	utxoQueue chan *transaction.Outpoint
+	done      chan struct{} // signals runProcessingWorker to stop
 }
 
 // NewGASP creates a new GASP instance with the provided parameters.
@@ -91,6 +92,7 @@ func NewGASP(params Params) *GASP {
 		Unidirectional:  params.Unidirectional,
 		Topic:           params.Topic,
 		utxoQueue:       make(chan *transaction.Outpoint, 1000),
+		done:            make(chan struct{}),
 	}
 	// Concurrency limiter controlled by Concurrency config
 	if params.Concurrency > 1 {
@@ -444,7 +446,10 @@ func (g *GASP) ProcessUTXOToCompletion(ctx context.Context, outpoint, spentBy *t
 		return state.err
 	} else {
 		state := newState
-		defer state.wg.Done() // Signal completion when we're done
+		defer func() {
+			state.wg.Done()
+			g.utxoProcessingMap.Delete(*outpoint)
+		}()
 
 		// We're the first to process this outpoint, do the complete processing
 
@@ -480,16 +485,15 @@ func (g *GASP) computeTxID(rawtx string) (txID *chainhash.Hash, err error) {
 		}
 	}()
 
-	// Decode hex to validate and check for malicious VarInt patterns
+	// Check hex string length before decoding to prevent memory exhaustion
+	// 2 hex chars = 1 byte, so 200MB hex = 100MB decoded
+	if len(rawtx) > 200*1024*1024 {
+		return nil, fmt.Errorf("%w: %d hex chars (maximum 100MB)", ErrTransactionHexTooLong, len(rawtx))
+	}
+
 	txBytes, err := hex.DecodeString(rawtx)
 	if err != nil {
 		return nil, fmt.Errorf("invalid hex: %w", err)
-	}
-
-	// Reject extremely long inputs to prevent DoS attacks
-	// Maximum reasonable transaction size is 100MB
-	if len(txBytes) > 100*1024*1024 {
-		return nil, fmt.Errorf("%w: %d bytes (maximum 100MB)", ErrTransactionHexTooLong, len(txBytes))
 	}
 
 	tx, err := transaction.NewTransactionFromBytes(txBytes)
@@ -514,8 +518,16 @@ func (g *GASP) ProcessUTXO(ctx context.Context, outpoint *transaction.Outpoint) 
 	}
 }
 
-// runProcessingWorker is the always-running worker that processes queued UTXOs
+// Close stops the processing worker goroutine and drains the queue.
+func (g *GASP) Close() {
+	close(g.utxoQueue)
+	<-g.done
+}
+
+// runProcessingWorker is the background worker that processes queued UTXOs.
+// It exits when utxoQueue is closed (via Close).
 func (g *GASP) runProcessingWorker() {
+	defer close(g.done)
 	seenNodes := &sync.Map{}
 
 	for outpoint := range g.utxoQueue {
@@ -530,8 +542,11 @@ func (g *GASP) runProcessingWorker() {
 				slog.Error(fmt.Sprintf("%s Error processing UTXO %s: %v", g.LogPrefix, op, err))
 			}
 
-			// Cleanup seenNodes after processing completes
-			seenNodes.Delete(*op)
+			// Cleanup all seenNodes entries after processing completes
+			seenNodes.Range(func(key, _ any) bool {
+				seenNodes.Delete(key)
+				return true
+			})
 		}(outpoint)
 	}
 }
