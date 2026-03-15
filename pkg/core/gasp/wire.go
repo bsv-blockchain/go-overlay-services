@@ -3,11 +3,20 @@ package gasp
 import (
 	"encoding/binary"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"math"
 
 	"github.com/bsv-blockchain/go-sdk/chainhash"
 	"github.com/bsv-blockchain/go-sdk/transaction"
+)
+
+var (
+	ErrWireEmptyData      = errors.New("empty data")
+	ErrWireUnsupportedVer = errors.New("unsupported wire version")
+	ErrWireTooShort       = errors.New("insufficient data")
+	ErrWireInvalidVarint  = errors.New("invalid varint")
+	ErrWireTrailingBytes  = errors.New("trailing bytes")
 )
 
 // Binary wire format serialization for GASP types.
@@ -22,10 +31,10 @@ func writeVersion(buf []byte) []byte {
 
 func checkVersion(data []byte) (int, error) {
 	if len(data) < 1 {
-		return 0, fmt.Errorf("empty data")
+		return 0, ErrWireEmptyData
 	}
 	if data[0] != WireVersion {
-		return 0, fmt.Errorf("unsupported wire version: %d", data[0])
+		return 0, fmt.Errorf("%w: %d", ErrWireUnsupportedVer, data[0])
 	}
 	return 1, nil
 }
@@ -37,7 +46,7 @@ func checkVersion(data []byte) (int, error) {
 func (r *InitialRequest) Serialize() []byte {
 	buf := make([]byte, 0, 17)
 	buf = writeVersion(buf)
-	buf = binary.LittleEndian.AppendUint32(buf, uint32(r.Version))
+	buf = binary.LittleEndian.AppendUint32(buf, uint32(r.Version)) //nolint:gosec // version is always small
 	buf = binary.LittleEndian.AppendUint64(buf, math.Float64bits(r.Since))
 	buf = binary.LittleEndian.AppendUint32(buf, r.Limit)
 	return buf
@@ -50,7 +59,7 @@ func DeserializeInitialRequest(data []byte) (*InitialRequest, error) {
 		return nil, fmt.Errorf("InitialRequest: %w", err)
 	}
 	if len(data)-offset != 16 {
-		return nil, fmt.Errorf("InitialRequest: want 16 bytes after version, got %d", len(data)-offset)
+		return nil, fmt.Errorf("InitialRequest: %w: want 16 bytes, got %d", ErrWireTooShort, len(data)-offset)
 	}
 	return &InitialRequest{
 		Version: int(binary.LittleEndian.Uint32(data[offset : offset+4])),
@@ -79,7 +88,7 @@ func DeserializeInitialResponse(data []byte) (*InitialResponse, error) {
 		return nil, fmt.Errorf("InitialResponse: %w", err)
 	}
 	if len(data)-offset < 8 {
-		return nil, fmt.Errorf("InitialResponse too short: got %d bytes after version", len(data)-offset)
+		return nil, fmt.Errorf("InitialResponse: %w: got %d bytes", ErrWireTooShort, len(data)-offset)
 	}
 	r := &InitialResponse{
 		Since: math.Float64frombits(binary.LittleEndian.Uint64(data[offset : offset+8])),
@@ -153,7 +162,7 @@ func DeserializeNodeRequest(data []byte) (*NodeRequest, error) {
 		return nil, fmt.Errorf("NodeRequest: %w", err)
 	}
 	if len(data)-offset != 73 {
-		return nil, fmt.Errorf("NodeRequest: want 73 bytes after version, got %d", len(data)-offset)
+		return nil, fmt.Errorf("NodeRequest: %w: want 73 bytes, got %d", ErrWireTooShort, len(data)-offset)
 	}
 	r := &NodeRequest{}
 	graphID := &transaction.Outpoint{}
@@ -236,7 +245,7 @@ func DeserializeNode(data []byte) (*Node, error) {
 		return nil, fmt.Errorf("Node: %w", err)
 	}
 	if len(data)-offset < 40 {
-		return nil, fmt.Errorf("Node too short: got %d bytes after version", len(data)-offset)
+		return nil, fmt.Errorf("Node: %w: got %d bytes", ErrWireTooShort, len(data)-offset)
 	}
 
 	n := &Node{}
@@ -282,13 +291,13 @@ func DeserializeNode(data []byte) (*Node, error) {
 
 	inputCount, nn := binary.Uvarint(data[offset:])
 	if nn <= 0 {
-		return nil, fmt.Errorf("invalid input count varint at offset %d", offset)
+		return nil, fmt.Errorf("%w at offset %d", ErrWireInvalidVarint, offset)
 	}
 	offset += nn
 
 	if inputCount > 0 {
 		n.Inputs = make(map[string]*Input, inputCount)
-		for i := 0; i < int(inputCount); i++ {
+		for i := 0; i < int(inputCount); i++ { //nolint:gosec // inputCount bounded by data length
 			var hashBytes []byte
 			hashBytes, offset, err = readByteField(data, offset)
 			if err != nil {
@@ -299,7 +308,7 @@ func DeserializeNode(data []byte) (*Node, error) {
 	}
 
 	if offset != len(data) {
-		return nil, fmt.Errorf("trailing bytes: consumed %d of %d", offset, len(data))
+		return nil, fmt.Errorf("%w: consumed %d of %d", ErrWireTrailingBytes, offset, len(data))
 	}
 	return n, nil
 }
@@ -336,16 +345,16 @@ func DeserializeNodeResponse(data []byte) (*NodeResponse, error) {
 
 	count, n := binary.Uvarint(data[offset:])
 	if n <= 0 {
-		return nil, fmt.Errorf("invalid count varint at offset %d", offset)
+		return nil, fmt.Errorf("%w at offset %d", ErrWireInvalidVarint, offset)
 	}
 	offset += n
 
-	if offset+int(count)*37 > len(data) {
-		return nil, fmt.Errorf("need %d bytes for %d inputs, got %d", count*37, count, len(data)-offset)
+	if offset+int(count)*37 > len(data) { //nolint:gosec // count is bounded by data length
+		return nil, fmt.Errorf("%w: need %d bytes for %d inputs, got %d", ErrWireTooShort, count*37, count, len(data)-offset)
 	}
 
-	r.RequestedInputs = make(map[transaction.Outpoint]*NodeResponseData, count)
-	for i := 0; i < int(count); i++ {
+	r.RequestedInputs = make(map[transaction.Outpoint]*NodeResponseData, count) //nolint:gosec // count bounded above
+	for i := 0; i < int(count); i++ {                                           //nolint:gosec // count bounded above
 		outpoint := transaction.Outpoint{}
 		copy(outpoint.Txid[:], data[offset:offset+32])
 		offset += 32
@@ -358,7 +367,7 @@ func DeserializeNodeResponse(data []byte) (*NodeResponse, error) {
 	}
 
 	if offset != len(data) {
-		return nil, fmt.Errorf("trailing bytes: consumed %d of %d", offset, len(data))
+		return nil, fmt.Errorf("%w: consumed %d of %d", ErrWireTrailingBytes, offset, len(data))
 	}
 	return r, nil
 }
@@ -373,11 +382,11 @@ func appendByteField(buf, data []byte) []byte {
 func readByteField(data []byte, offset int) ([]byte, int, error) {
 	length, n := binary.Uvarint(data[offset:])
 	if n <= 0 {
-		return nil, offset, fmt.Errorf("invalid length varint at offset %d", offset)
+		return nil, offset, fmt.Errorf("%w at offset %d", ErrWireInvalidVarint, offset)
 	}
 	offset += n
 	if offset+int(length) > len(data) {
-		return nil, offset, fmt.Errorf("need %d bytes, got %d", length, len(data)-offset)
+		return nil, offset, fmt.Errorf("%w: need %d bytes, got %d", ErrWireTooShort, length, len(data)-offset)
 	}
 	if length == 0 {
 		return nil, offset, nil
@@ -400,13 +409,13 @@ func appendOutputList(buf []byte, outputs []*Output) []byte {
 func readOutputList(data []byte, offset int) ([]*Output, int, error) {
 	count, n := binary.Uvarint(data[offset:])
 	if n <= 0 {
-		return nil, offset, fmt.Errorf("invalid count varint at offset %d", offset)
+		return nil, offset, fmt.Errorf("%w at offset %d", ErrWireInvalidVarint, offset)
 	}
 	offset += n
 
 	needed := int(count) * 44
 	if offset+needed > len(data) {
-		return nil, offset, fmt.Errorf("need %d bytes for %d outputs, got %d", needed, count, len(data)-offset)
+		return nil, offset, fmt.Errorf("%w: need %d bytes for %d outputs, got %d", ErrWireTooShort, needed, count, len(data)-offset)
 	}
 
 	outputs := make([]*Output, count)
@@ -424,5 +433,5 @@ func readOutputList(data []byte, offset int) ([]*Output, int, error) {
 }
 
 func varintSize(n int) int {
-	return len(binary.AppendUvarint(nil, uint64(n)))
+	return len(binary.AppendUvarint(nil, uint64(n))) //nolint:gosec // n is always non-negative (slice length)
 }

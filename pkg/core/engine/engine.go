@@ -391,8 +391,8 @@ func (e *Engine) SubmitParsedBeef(ctx context.Context, beef *transaction.Beef, t
 						return nil, fmt.Errorf("failed to merge BEEF for input %d: %w", vin, mergeErr)
 					}
 				}
-				previousCoins = append(previousCoins, uint32(vin)) //nolint:gosec // index bounded by slice length
-				topicInputs[topic][uint32(vin)] = output           //nolint:gosec // index bounded by slice length
+				previousCoins = append(previousCoins, uint32(vin))
+				topicInputs[topic][uint32(vin)] = output
 			}
 		}
 		// Clone beef so topic managers cannot modify the shared instance
