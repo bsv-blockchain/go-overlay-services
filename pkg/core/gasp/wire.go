@@ -12,12 +12,31 @@ import (
 
 // Binary wire format serialization for GASP types.
 // These are transport-agnostic and can be used over libp2p, WebSocket, or raw TCP.
+// Every serialized message starts with a version byte for forward compatibility.
+
+const WireVersion byte = 0
+
+func writeVersion(buf []byte) []byte {
+	return append(buf, WireVersion)
+}
+
+func checkVersion(data []byte) (int, error) {
+	if len(data) < 1 {
+		return 0, fmt.Errorf("empty data")
+	}
+	if data[0] != WireVersion {
+		return 0, fmt.Errorf("unsupported wire version: %d", data[0])
+	}
+	return 1, nil
+}
 
 // SerializeInitialRequest encodes an InitialRequest into binary wire format.
 //
+//	[1 byte version]
 //	[uint32 version][float64 since][uint32 limit]
 func (r *InitialRequest) Serialize() []byte {
-	buf := make([]byte, 0, 16)
+	buf := make([]byte, 0, 17)
+	buf = writeVersion(buf)
 	buf = binary.LittleEndian.AppendUint32(buf, uint32(r.Version))
 	buf = binary.LittleEndian.AppendUint64(buf, math.Float64bits(r.Since))
 	buf = binary.LittleEndian.AppendUint32(buf, r.Limit)
@@ -26,22 +45,28 @@ func (r *InitialRequest) Serialize() []byte {
 
 // DeserializeInitialRequest decodes binary wire format into an InitialRequest.
 func DeserializeInitialRequest(data []byte) (*InitialRequest, error) {
-	if len(data) != 16 {
-		return nil, fmt.Errorf("InitialRequest: want 16 bytes, got %d", len(data))
+	offset, err := checkVersion(data)
+	if err != nil {
+		return nil, fmt.Errorf("InitialRequest: %w", err)
+	}
+	if len(data)-offset != 16 {
+		return nil, fmt.Errorf("InitialRequest: want 16 bytes after version, got %d", len(data)-offset)
 	}
 	return &InitialRequest{
-		Version: int(binary.LittleEndian.Uint32(data[0:4])),
-		Since:   math.Float64frombits(binary.LittleEndian.Uint64(data[4:12])),
-		Limit:   binary.LittleEndian.Uint32(data[12:16]),
+		Version: int(binary.LittleEndian.Uint32(data[offset : offset+4])),
+		Since:   math.Float64frombits(binary.LittleEndian.Uint64(data[offset+4 : offset+12])),
+		Limit:   binary.LittleEndian.Uint32(data[offset+12 : offset+16]),
 	}, nil
 }
 
 // SerializeInitialResponse encodes an InitialResponse into binary wire format.
 //
+//	[1 byte version]
 //	[float64 since][varint count][32 bytes txid, uint32 index, float64 score]...
 func (r *InitialResponse) Serialize() []byte {
-	size := 8 + varintSize(len(r.UTXOList)) + len(r.UTXOList)*44
+	size := 1 + 8 + varintSize(len(r.UTXOList)) + len(r.UTXOList)*44
 	buf := make([]byte, 0, size)
+	buf = writeVersion(buf)
 	buf = binary.LittleEndian.AppendUint64(buf, math.Float64bits(r.Since))
 	buf = appendOutputList(buf, r.UTXOList)
 	return buf
@@ -49,14 +74,17 @@ func (r *InitialResponse) Serialize() []byte {
 
 // DeserializeInitialResponse decodes binary wire format into an InitialResponse.
 func DeserializeInitialResponse(data []byte) (*InitialResponse, error) {
-	if len(data) < 8 {
-		return nil, fmt.Errorf("InitialResponse too short: got %d bytes", len(data))
+	offset, err := checkVersion(data)
+	if err != nil {
+		return nil, fmt.Errorf("InitialResponse: %w", err)
+	}
+	if len(data)-offset < 8 {
+		return nil, fmt.Errorf("InitialResponse too short: got %d bytes after version", len(data)-offset)
 	}
 	r := &InitialResponse{
-		Since: math.Float64frombits(binary.LittleEndian.Uint64(data[0:8])),
+		Since: math.Float64frombits(binary.LittleEndian.Uint64(data[offset : offset+8])),
 	}
-	var err error
-	r.UTXOList, _, err = readOutputList(data, 8)
+	r.UTXOList, _, err = readOutputList(data, offset+8)
 	if err != nil {
 		return nil, fmt.Errorf("InitialResponse: %w", err)
 	}
@@ -65,19 +93,24 @@ func DeserializeInitialResponse(data []byte) (*InitialResponse, error) {
 
 // SerializeInitialReply encodes an InitialReply into binary wire format.
 //
+//	[1 byte version]
 //	[varint count][32 bytes txid, uint32 index, float64 score]...
 func (r *InitialReply) Serialize() []byte {
-	size := varintSize(len(r.UTXOList)) + len(r.UTXOList)*44
+	size := 1 + varintSize(len(r.UTXOList)) + len(r.UTXOList)*44
 	buf := make([]byte, 0, size)
+	buf = writeVersion(buf)
 	buf = appendOutputList(buf, r.UTXOList)
 	return buf
 }
 
 // DeserializeInitialReply decodes binary wire format into an InitialReply.
 func DeserializeInitialReply(data []byte) (*InitialReply, error) {
+	offset, err := checkVersion(data)
+	if err != nil {
+		return nil, fmt.Errorf("InitialReply: %w", err)
+	}
 	r := &InitialReply{}
-	var err error
-	r.UTXOList, _, err = readOutputList(data, 0)
+	r.UTXOList, _, err = readOutputList(data, offset)
 	if err != nil {
 		return nil, fmt.Errorf("InitialReply: %w", err)
 	}
@@ -86,11 +119,13 @@ func DeserializeInitialReply(data []byte) (*InitialReply, error) {
 
 // SerializeNodeRequest encodes a NodeRequest into binary wire format.
 //
+//	[1 byte version]
 //	[32 bytes graphID txid][uint32 graphID index]
 //	[32 bytes txid][uint32 outputIndex]
 //	[1 byte metadata]
 func (r *NodeRequest) Serialize() []byte {
-	buf := make([]byte, 0, 73)
+	buf := make([]byte, 0, 74)
+	buf = writeVersion(buf)
 	if r.GraphID != nil {
 		buf = append(buf, r.GraphID.Txid[:]...)
 		buf = binary.LittleEndian.AppendUint32(buf, r.GraphID.Index)
@@ -113,26 +148,31 @@ func (r *NodeRequest) Serialize() []byte {
 
 // DeserializeNodeRequest decodes binary wire format into a NodeRequest.
 func DeserializeNodeRequest(data []byte) (*NodeRequest, error) {
-	if len(data) != 73 {
-		return nil, fmt.Errorf("NodeRequest: want 73 bytes, got %d", len(data))
+	offset, err := checkVersion(data)
+	if err != nil {
+		return nil, fmt.Errorf("NodeRequest: %w", err)
+	}
+	if len(data)-offset != 73 {
+		return nil, fmt.Errorf("NodeRequest: want 73 bytes after version, got %d", len(data)-offset)
 	}
 	r := &NodeRequest{}
 	graphID := &transaction.Outpoint{}
-	copy(graphID.Txid[:], data[0:32])
-	graphID.Index = binary.LittleEndian.Uint32(data[32:36])
+	copy(graphID.Txid[:], data[offset:offset+32])
+	graphID.Index = binary.LittleEndian.Uint32(data[offset+32 : offset+36])
 	r.GraphID = graphID
 
 	txid := &chainhash.Hash{}
-	copy(txid[:], data[36:68])
+	copy(txid[:], data[offset+36:offset+68])
 	r.Txid = txid
 
-	r.OutputIndex = binary.LittleEndian.Uint32(data[68:72])
-	r.Metadata = data[72] != 0
+	r.OutputIndex = binary.LittleEndian.Uint32(data[offset+68 : offset+72])
+	r.Metadata = data[offset+72] != 0
 	return r, nil
 }
 
 // SerializeNode encodes a Node into binary wire format.
 //
+//	[1 byte version]
 //	[32 bytes graphID txid][uint32 graphID index]
 //	[uint32 outputIndex]
 //	[varint len][rawTx bytes]
@@ -157,7 +197,7 @@ func (n *Node) Serialize() ([]byte, error) {
 	txMeta := []byte(n.TxMetadata)
 	outMeta := []byte(n.OutputMetadata)
 
-	size := 36 + 4 // graphID + outputIndex
+	size := 1 + 36 + 4 // version + graphID + outputIndex
 	size += varintSize(len(rawTxBytes)) + len(rawTxBytes)
 	size += varintSize(len(proofBytes)) + len(proofBytes)
 	size += varintSize(len(txMeta)) + len(txMeta)
@@ -168,6 +208,7 @@ func (n *Node) Serialize() ([]byte, error) {
 	}
 
 	buf := make([]byte, 0, size)
+	buf = writeVersion(buf)
 	if n.GraphID != nil {
 		buf = append(buf, n.GraphID.Txid[:]...)
 		buf = binary.LittleEndian.AppendUint32(buf, n.GraphID.Index)
@@ -190,12 +231,15 @@ func (n *Node) Serialize() ([]byte, error) {
 
 // DeserializeNode decodes binary wire format into a Node.
 func DeserializeNode(data []byte) (*Node, error) {
-	if len(data) < 40 {
-		return nil, fmt.Errorf("Node too short: got %d bytes", len(data))
+	offset, err := checkVersion(data)
+	if err != nil {
+		return nil, fmt.Errorf("Node: %w", err)
+	}
+	if len(data)-offset < 40 {
+		return nil, fmt.Errorf("Node too short: got %d bytes after version", len(data)-offset)
 	}
 
 	n := &Node{}
-	offset := 0
 
 	graphID := &transaction.Outpoint{}
 	copy(graphID.Txid[:], data[offset:offset+32])
@@ -207,7 +251,6 @@ func DeserializeNode(data []byte) (*Node, error) {
 	n.OutputIndex = binary.LittleEndian.Uint32(data[offset:])
 	offset += 4
 
-	var err error
 	var rawTxBytes, proofBytes, txMeta, outMeta []byte
 
 	rawTxBytes, offset, err = readByteField(data, offset)
@@ -263,10 +306,12 @@ func DeserializeNode(data []byte) (*Node, error) {
 
 // SerializeNodeResponse encodes a NodeResponse into binary wire format.
 //
+//	[1 byte version]
 //	[varint count][32 bytes txid, uint32 index, 1 byte metadata]...
 func (r *NodeResponse) Serialize() []byte {
-	size := varintSize(len(r.RequestedInputs)) + len(r.RequestedInputs)*37
+	size := 1 + varintSize(len(r.RequestedInputs)) + len(r.RequestedInputs)*37
 	buf := make([]byte, 0, size)
+	buf = writeVersion(buf)
 	buf = binary.AppendUvarint(buf, uint64(len(r.RequestedInputs)))
 	for outpoint, data := range r.RequestedInputs {
 		buf = append(buf, outpoint.Txid[:]...)
@@ -282,8 +327,12 @@ func (r *NodeResponse) Serialize() []byte {
 
 // DeserializeNodeResponse decodes binary wire format into a NodeResponse.
 func DeserializeNodeResponse(data []byte) (*NodeResponse, error) {
+	offset, err := checkVersion(data)
+	if err != nil {
+		return nil, fmt.Errorf("NodeResponse: %w", err)
+	}
+
 	r := &NodeResponse{}
-	offset := 0
 
 	count, n := binary.Uvarint(data[offset:])
 	if n <= 0 {

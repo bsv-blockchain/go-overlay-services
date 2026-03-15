@@ -115,8 +115,8 @@ func TestNodeRequest_Wire_RoundTrip(t *testing.T) {
 		Metadata:    true,
 	}
 	data := req.Serialize()
-	if len(data) != 73 {
-		t.Fatalf("expected 73 bytes, got %d", len(data))
+	if len(data) != 74 {
+		t.Fatalf("expected 74 bytes, got %d", len(data))
 	}
 	got, err := DeserializeNodeRequest(data)
 	if err != nil {
