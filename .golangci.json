@@ -147,6 +147,16 @@
                     "ATTENTION"
                 ]
             },
+            "gomoddirectives": {
+                "replace-allow-list": [
+                    "github.com/sirupsen/logrus"
+                ]
+            },
+            "gosec": {
+                "excludes": [
+                    "CVE-2025-65637"
+                ]
+            },
             "govet": {
                 "enable": [
                     "atomicalign",

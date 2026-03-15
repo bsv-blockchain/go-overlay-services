@@ -58,9 +58,8 @@ on:
         description: "OSS Index API token for Nancy authentication"
         required: false
 
-# Security: Restrictive default permissions with job-level overrides for least privilege access
-permissions:
-  contents: read
+# Security: Restrict default permissions (jobs must explicitly request what they need)
+permissions: {}
 
 jobs:
   # ----------------------------------------------------------------------------------
@@ -70,12 +69,14 @@ jobs:
     name: 🛡️ Ask Nancy (Dependency Checks)
     runs-on: ${{ inputs.primary-runner }}
     if: ${{ inputs.enable-nancy }}
+    permissions:
+      contents: read
     steps:
       # --------------------------------------------------------------------
       # Checkout code (required for local actions)
       # --------------------------------------------------------------------
       - name: 📥 Checkout code
-        uses: actions/checkout@1af3b93b6815bc44a9784bd300feb67ff0d1eeb3 # v6.0.0
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
       # --------------------------------------------------------------------
       # Parse environment variables
@@ -98,6 +99,7 @@ jobs:
           go-secondary-version: ${{ inputs.go-primary-version }}
           go-sum-file: ${{ inputs.go-sum-file }}
           enable-multi-module: ${{ env.ENABLE_MULTI_MODULE_TESTING }}
+          github-token: ${{ secrets.github-token }}
 
       # --------------------------------------------------------------------
       # Extract Go module directory from GO_SUM_FILE path
@@ -130,24 +132,55 @@ jobs:
           echo "✅ Module list generated successfully"
 
       # --------------------------------------------------------------------
+      # Install Nancy
+      # --------------------------------------------------------------------
+      - name: 📥 Install Nancy
+        run: |
+          echo "📥 Installing nancy version ${{ env.NANCY_VERSION }}..."
+          go install github.com/sonatype-nexus-community/nancy@${{ env.NANCY_VERSION }}
+          echo "✅ Nancy installed successfully"
+
+      # --------------------------------------------------------------------
       # Run Nancy to check for vulnerabilities
       # --------------------------------------------------------------------
       - name: 🔍 Ask Nancy
-        uses: sonatype-nexus-community/nancy-github-action@726e338312e68ecdd4b4195765f174d3b3ce1533 # v1.0.3
-        continue-on-error: false
+        id: run-nancy
+        continue-on-error: true
         env:
           OSSI_USERNAME: ${{ secrets.ossi-username }}
           OSSI_TOKEN: ${{ secrets.ossi-token }}
-        with:
-          githubToken: ${{ secrets.github-token }} # ← prevents rate-limit 403
-          nancyVersion: ${{ env.NANCY_VERSION }}
-          nancyCommand: sleuth --loud --exclude-vulnerability ${{ env.NANCY_EXCLUDES }}
+        run: |
+          echo "🔍 Running Nancy security scan..."
+          set +e
+          nancy sleuth --loud --exclude-vulnerability ${{ env.NANCY_EXCLUDES }} < go.list 2>&1 | tee nancy-output.log
+          NANCY_EXIT_CODE=${PIPESTATUS[0]}
+          set -e
+
+          echo "nancy-exit-code=$NANCY_EXIT_CODE" >> $GITHUB_OUTPUT
+          if [[ $NANCY_EXIT_CODE -eq 0 ]]; then
+            echo "nancy-status=success" >> $GITHUB_OUTPUT
+            echo "✅ Nancy scan completed - no vulnerabilities found"
+          else
+            echo "nancy-status=failure" >> $GITHUB_OUTPUT
+            echo "❌ Nancy scan completed - vulnerabilities detected (exit code: $NANCY_EXIT_CODE)"
+          fi
+
+      # --------------------------------------------------------------------
+      # Create GitHub Annotations for failures
+      # --------------------------------------------------------------------
+      - name: 📋 Create GitHub Annotations
+        if: always() && steps.run-nancy.outputs.nancy-status == 'failure'
+        run: |
+          echo "::error title=Nancy Security Scan Failed::Vulnerabilities detected in Go dependencies - see job summary for details"
 
       # --------------------------------------------------------------------
       # Summary of Nancy results
       # --------------------------------------------------------------------
       - name: 📊 Job Summary
+        if: always()
         run: |
+          NANCY_STATUS="${{ steps.run-nancy.outputs.nancy-status }}"
+
           echo "## 🛡️ Nancy Security Scan Summary" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "| Scan Details | Status |" >> $GITHUB_STEP_SUMMARY
@@ -156,11 +189,43 @@ jobs:
           echo "| **Mode** | Loud mode with exclusions |" >> $GITHUB_STEP_SUMMARY
           echo "| **Scope** | All Go modules |" >> $GITHUB_STEP_SUMMARY
           echo "| **Version** | ${{ env.NANCY_VERSION }} |" >> $GITHUB_STEP_SUMMARY
-          echo "| **Result** | ✅ No vulnerabilities found |" >> $GITHUB_STEP_SUMMARY
+
+          if [[ "$NANCY_STATUS" == "success" ]]; then
+            echo "| **Result** | ✅ No vulnerabilities found |" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "| **Result** | ❌ Vulnerabilities detected |" >> $GITHUB_STEP_SUMMARY
+          fi
+
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "### 🚫 Excluded Vulnerabilities" >> $GITHUB_STEP_SUMMARY
           echo "The following vulnerabilities were excluded from the scan:" >> $GITHUB_STEP_SUMMARY
           echo "${{ env.NANCY_EXCLUDES }}" >> $GITHUB_STEP_SUMMARY
+
+          # Show failure details if applicable
+          if [[ "$NANCY_STATUS" != "success" ]] && [[ -f nancy-output.log ]]; then
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "### 🚨 Vulnerability Details" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "<details>" >> $GITHUB_STEP_SUMMARY
+            echo "<summary>Click to expand full scan output</summary>" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo '```' >> $GITHUB_STEP_SUMMARY
+            head -200 nancy-output.log >> $GITHUB_STEP_SUMMARY
+            echo '```' >> $GITHUB_STEP_SUMMARY
+            echo "</details>" >> $GITHUB_STEP_SUMMARY
+          fi
+
+      # --------------------------------------------------------------------
+      # Upload Nancy scan results
+      # --------------------------------------------------------------------
+      - name: 📤 Upload Nancy scan results
+        if: always()
+        uses: ./.github/actions/upload-artifact-resilient
+        with:
+          artifact-name: nancy-scan-results
+          artifact-path: nancy-output.log
+          retention-days: "7"
+          if-no-files-found: ignore
 
       # --------------------------------------------------------------------
       # Collect cache statistics
@@ -185,6 +250,15 @@ jobs:
           artifact-name: cache-stats-security-nancy
           artifact-path: cache-stats-nancy-security.json
 
+      # --------------------------------------------------------------------
+      # Fail job if vulnerabilities found
+      # --------------------------------------------------------------------
+      - name: 🚨 Fail job if vulnerabilities found
+        if: always() && steps.run-nancy.outputs.nancy-status == 'failure'
+        run: |
+          echo "❌ Nancy detected vulnerabilities in dependencies"
+          exit 1
+
   # ----------------------------------------------------------------------------------
   # Govulncheck (Vulnerability Checks)
   # ----------------------------------------------------------------------------------
@@ -192,12 +266,14 @@ jobs:
     name: 🔐 Run govulncheck (Vulnerability Scan)
     runs-on: ${{ inputs.primary-runner }}
     if: ${{ inputs.enable-govulncheck }}
+    permissions:
+      contents: read
     steps:
       # --------------------------------------------------------------------
       # Checkout code (required for local actions)
       # --------------------------------------------------------------------
       - name: 📥 Checkout code
-        uses: actions/checkout@1af3b93b6815bc44a9784bd300feb67ff0d1eeb3 # v6.0.0
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
       # --------------------------------------------------------------------
       # Parse environment variables
@@ -222,6 +298,7 @@ jobs:
           go-secondary-version: ${{ inputs.go-primary-version }}
           go-sum-file: ${{ inputs.go-sum-file }}
           enable-multi-module: ${{ env.ENABLE_MULTI_MODULE_TESTING }}
+          github-token: ${{ secrets.github-token }}
 
       # --------------------------------------------------------------------
       # Extract Go module directory from GO_SUM_FILE path
@@ -247,7 +324,7 @@ jobs:
       # --------------------------------------------------------------------
       - name: 💾 Restore govulncheck binary cache
         id: govuln-cache
-        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5.0.3
         with:
           path: |
             ~/.cache/govulncheck-bin
@@ -285,29 +362,59 @@ jobs:
       # Run govulncheck
       # --------------------------------------------------------------------
       - name: 🔐 Run govulncheck
+        id: run-govulncheck
+        continue-on-error: true
         run: |
           echo "🔍 Running vulnerability analysis..."
           GO_MODULE_DIR="${{ env.GO_MODULE_DIR }}"
 
+          # Show CVE exclusions if configured
+          if [ -n "${MAGE_X_CVE_EXCLUDES:-}" ]; then
+            echo "🚫 CVE exclusions configured: $MAGE_X_CVE_EXCLUDES"
+          fi
+
+          set +e
           if [ "$ENABLE_MULTI_MODULE_TESTING" == "true" ]; then
             echo "🔧 Multi-module enabled - running magex deps:audit from repository root"
             echo "📦 magex will discover all Go modules"
-            magex deps:audit
+            magex deps:audit 2>&1 | tee govulncheck-output.log
+            GOVULN_EXIT_CODE=${PIPESTATUS[0]}
           elif [ -n "$GO_MODULE_DIR" ]; then
             echo "🔧 Running magex deps:audit from directory: $GO_MODULE_DIR"
-            (cd "$GO_MODULE_DIR" && magex deps:audit)
+            (cd "$GO_MODULE_DIR" && magex deps:audit 2>&1 | tee ../govulncheck-output.log)
+            GOVULN_EXIT_CODE=${PIPESTATUS[0]}
           else
             echo "🔧 Running magex deps:audit from repository root"
-            magex deps:audit
+            magex deps:audit 2>&1 | tee govulncheck-output.log
+            GOVULN_EXIT_CODE=${PIPESTATUS[0]}
+          fi
+          set -e
+
+          echo "govuln-exit-code=$GOVULN_EXIT_CODE" >> $GITHUB_OUTPUT
+          if [[ $GOVULN_EXIT_CODE -eq 0 ]]; then
+            echo "govuln-status=success" >> $GITHUB_OUTPUT
+            echo "✅ Vulnerability scan completed - no vulnerabilities found"
+          else
+            echo "govuln-status=failure" >> $GITHUB_OUTPUT
+            echo "❌ Vulnerability scan completed - vulnerabilities detected (exit code: $GOVULN_EXIT_CODE)"
           fi
 
-          echo "✅ Vulnerability scan completed"
+      # --------------------------------------------------------------------
+      # Create GitHub Annotations for failures
+      # --------------------------------------------------------------------
+      - name: 📋 Create GitHub Annotations
+        if: always() && steps.run-govulncheck.outputs.govuln-status == 'failure'
+        run: |
+          echo "::error title=Govulncheck Failed::Go vulnerabilities detected - see job summary for details"
 
       # --------------------------------------------------------------------
       # Summary of govulncheck results
       # --------------------------------------------------------------------
       - name: 📊 Job Summary
+        if: always()
         run: |
+          GOVULN_STATUS="${{ steps.run-govulncheck.outputs.govuln-status }}"
+
           echo "## 🔐 govulncheck Summary" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "| Analysis Details | Status |" >> $GITHUB_STEP_SUMMARY
@@ -315,10 +422,50 @@ jobs:
           echo "| **Tool** | govulncheck (Official Go Security Tool) |" >> $GITHUB_STEP_SUMMARY
           echo "| **Installation** | $( [[ '${{ steps.govuln-cache.outputs.cache-hit }}' == 'true' ]] && echo '💾 From cache' || echo '📥 Fresh install' ) |" >> $GITHUB_STEP_SUMMARY
           echo "| **Scope** | All packages in module |" >> $GITHUB_STEP_SUMMARY
-          echo "| **Result** | ✅ No vulnerabilities detected |" >> $GITHUB_STEP_SUMMARY
+
+          if [[ "$GOVULN_STATUS" == "success" ]]; then
+            echo "| **Result** | ✅ No vulnerabilities detected |" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "| **Result** | ❌ Vulnerabilities detected |" >> $GITHUB_STEP_SUMMARY
+          fi
+
           echo "| **Version** | ${{ env.GOVULNCHECK_VERSION }} |" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "🎯 **Analysis completed successfully with no security issues found.**" >> $GITHUB_STEP_SUMMARY
+
+          # Show excluded vulnerabilities if configured
+          if [ -n "${MAGE_X_CVE_EXCLUDES:-}" ]; then
+            echo "### 🚫 Excluded Vulnerabilities" >> $GITHUB_STEP_SUMMARY
+            echo "The following vulnerabilities were excluded from the scan:" >> $GITHUB_STEP_SUMMARY
+            echo "\`${MAGE_X_CVE_EXCLUDES}\`" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+          fi
+
+          # Show failure details if applicable
+          if [[ "$GOVULN_STATUS" != "success" ]] && [[ -f govulncheck-output.log ]]; then
+            echo "### 🚨 Vulnerability Details" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "<details>" >> $GITHUB_STEP_SUMMARY
+            echo "<summary>Click to expand full scan output</summary>" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo '```' >> $GITHUB_STEP_SUMMARY
+            head -200 govulncheck-output.log >> $GITHUB_STEP_SUMMARY
+            echo '```' >> $GITHUB_STEP_SUMMARY
+            echo "</details>" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "🎯 **Analysis completed successfully with no security issues found.**" >> $GITHUB_STEP_SUMMARY
+          fi
+
+      # --------------------------------------------------------------------
+      # Upload govulncheck results
+      # --------------------------------------------------------------------
+      - name: 📤 Upload govulncheck results
+        if: always()
+        uses: ./.github/actions/upload-artifact-resilient
+        with:
+          artifact-name: govulncheck-scan-results
+          artifact-path: govulncheck-output.log
+          retention-days: "7"
+          if-no-files-found: ignore
 
       # --------------------------------------------------------------------
       # Collect cache statistics
@@ -343,6 +490,15 @@ jobs:
           artifact-name: cache-stats-security-govulncheck
           artifact-path: cache-stats-govulncheck-security.json
 
+      # --------------------------------------------------------------------
+      # Fail job if vulnerabilities found
+      # --------------------------------------------------------------------
+      - name: 🚨 Fail job if vulnerabilities found
+        if: always() && steps.run-govulncheck.outputs.govuln-status == 'failure'
+        run: |
+          echo "❌ Govulncheck detected vulnerabilities in dependencies"
+          exit 1
+
   # ----------------------------------------------------------------------------------
   # Gitleaks (Secret Scanning)
   # ----------------------------------------------------------------------------------
@@ -350,12 +506,15 @@ jobs:
     name: 🕵️ Run Gitleaks (Secret Scan)
     runs-on: ${{ inputs.primary-runner }}
     if: ${{ inputs.enable-gitleaks }}
+    permissions:
+      contents: read
+      pull-requests: write
     steps:
       # --------------------------------------------------------------------
       # Checkout code (required for local actions)
       # --------------------------------------------------------------------
       - name: 📥 Checkout code
-        uses: actions/checkout@1af3b93b6815bc44a9784bd300feb67ff0d1eeb3 # v6.0.0
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           fetch-depth: 0 # Fetch all history so Gitleaks can scan commits
 
@@ -400,10 +559,12 @@ jobs:
           fi
 
       - name: 🔍 Run gitleaks scan
+        id: run-gitleaks
         if: steps.repo-check.outputs.is_same_repo == 'true'
+        continue-on-error: true
         uses: gitleaks/gitleaks-action@ff98106e4c7b2bc287b24eaf42907196329070c7 # v2.3.9
         env:
-          GITHUB_TOKEN: ${{ secrets.github-token }}
+          GITHUB_TOKEN: ${{ github.token }}
           GITLEAKS_LICENSE: ${{ secrets.gitleaks-license }}
           GITLEAKS_NOTIFY_USER_LIST: ${{ env.GITLEAKS_NOTIFY_USER_LIST }}
           GITLEAKS_ENABLE_COMMENTS: "true"
@@ -412,9 +573,19 @@ jobs:
           GITLEAKS_VERSION: ${{ env.GITLEAKS_VERSION }}
           GITLEAKS_CONFIG: ${{ env.GITLEAKS_CONFIG_FILE }}
 
-      - name: 📊 Job Summary
-        if: steps.repo-check.outputs.is_same_repo == 'true'
+      # --------------------------------------------------------------------
+      # Create GitHub Annotations for failures
+      # --------------------------------------------------------------------
+      - name: 📋 Create GitHub Annotations
+        if: always() && steps.repo-check.outputs.is_same_repo == 'true' && steps.run-gitleaks.outcome == 'failure'
         run: |
+          echo "::error title=Gitleaks Secret Scan Failed::Secrets detected in repository - see job summary for details"
+
+      - name: 📊 Job Summary
+        if: always() && steps.repo-check.outputs.is_same_repo == 'true'
+        run: |
+          GITLEAKS_OUTCOME="${{ steps.run-gitleaks.outcome }}"
+
           echo "## 🕵️ Gitleaks Secret Scan Summary" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "| Scan Details | Status |" >> $GITHUB_STEP_SUMMARY
@@ -423,9 +594,20 @@ jobs:
           echo "| **Version** | ${{ env.GITLEAKS_VERSION }} |" >> $GITHUB_STEP_SUMMARY
           echo "| **Scope** | All commits and files |" >> $GITHUB_STEP_SUMMARY
           echo "| **Config** | $([ -n "${{ env.GITLEAKS_CONFIG_FILE }}" ] && echo "Custom: \`${{ env.GITLEAKS_CONFIG_FILE }}\`" || echo "Default (built-in rules)") |" >> $GITHUB_STEP_SUMMARY
-          echo "| **Result** | ✅ No secrets detected (see logs for details) |" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "🎯 **Secret scan completed successfully.**" >> $GITHUB_STEP_SUMMARY
+
+          if [[ "$GITLEAKS_OUTCOME" == "success" ]]; then
+            echo "| **Result** | ✅ No secrets detected |" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "🎯 **Secret scan completed successfully.**" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "| **Result** | ❌ Secrets detected |" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "### 🚨 Action Required" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "Gitleaks has detected secrets in the repository. Please review the scan output and remove any exposed secrets." >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "**Note:** The detailed findings are available in the Gitleaks-generated summary above this section." >> $GITHUB_STEP_SUMMARY
+          fi
 
       - name: 📊 Fork Security Notice
         if: steps.repo-check.outputs.is_same_repo == 'false'
@@ -440,3 +622,12 @@ jobs:
           echo "| **Result** | ⚠️  Skipped for security (fork cannot access secrets) |" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "🔒 **Secret scanning was skipped because this PR comes from a fork. This is a security feature to prevent secret exposure.**" >> $GITHUB_STEP_SUMMARY
+
+      # --------------------------------------------------------------------
+      # Fail job if secrets found
+      # --------------------------------------------------------------------
+      - name: 🚨 Fail job if secrets found
+        if: always() && steps.repo-check.outputs.is_same_repo == 'true' && steps.run-gitleaks.outcome == 'failure'
+        run: |
+          echo "❌ Gitleaks detected secrets in the repository"
+          exit 1

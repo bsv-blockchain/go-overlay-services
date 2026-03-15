@@ -33,6 +33,10 @@ on:
         description: "Path to go.sum file for dependency verification"
         required: true
         type: string
+    secrets:
+      github-token:
+        description: "GitHub token for private module authentication (optional, only needed when GOPRIVATE is set)"
+        required: false
     outputs:
       pre-commit-version:
         description: "Version of go-pre-commit used"
@@ -41,9 +45,8 @@ on:
         description: "List of checks that were executed"
         value: ${{ jobs.pre-commit.outputs.checks-executed }}
 
-# Security: Restrictive default permissions with job-level overrides for least privilege access
-permissions:
-  contents: read
+# Security: Restrict default permissions (jobs must explicitly request what they need)
+permissions: {}
 
 jobs:
   # ----------------------------------------------------------------------------------
@@ -53,6 +56,8 @@ jobs:
     name: 🪝 Pre-commit Checks
     if: ${{ inputs.pre-commit-enabled == 'true' }}
     runs-on: ${{ inputs.primary-runner }}
+    permissions:
+      contents: read
     outputs:
       pre-commit-version: ${{ steps.pre-commit-version.outputs.version }}
       checks-executed: ${{ steps.run-checks.outputs.executed }}
@@ -61,7 +66,7 @@ jobs:
       # Checkout code (full checkout to ensure local actions are available)
       # --------------------------------------------------------------------
       - name: 📥 Checkout code
-        uses: actions/checkout@1af3b93b6815bc44a9784bd300feb67ff0d1eeb3 # v6.0.0
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           fetch-depth: 0 # Fetch full history to enable file change detection for all commit ranges
 
@@ -86,6 +91,7 @@ jobs:
           go-secondary-version: ${{ inputs.go-primary-version }}
           go-sum-file: ${{ env.GO_SUM_FILE }}
           enable-multi-module: ${{ env.ENABLE_MULTI_MODULE_TESTING }}
+          github-token: ${{ secrets.github-token }}
 
       # --------------------------------------------------------------------
       # Extract Go module directory from GO_SUM_FILE path
@@ -109,7 +115,7 @@ jobs:
       # --------------------------------------------------------------------
       - name: 💾 Restore golangci-lint analysis cache
         id: cache-golangci-lint-analysis
-        uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        uses: actions/cache/restore@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5.0.3
         with:
           path: ${{ env.GOLANGCI_LINT_CACHE }}
           key: ${{ inputs.primary-runner }}-golangci-lint-analysis-${{ hashFiles('.golangci.json', env.GO_SUM_FILE) }}-${{ env.GO_PRE_COMMIT_GOLANGCI_LINT_VERSION }}
@@ -124,7 +130,7 @@ jobs:
       - name: 💾 Restore go-pre-commit binary cache
         id: go-pre-commit-cache
         if: env.GO_PRE_COMMIT_USE_LOCAL != 'true'
-        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5.0.3
         with:
           path: |
             ~/.cache/go-pre-commit-bin
@@ -138,7 +144,7 @@ jobs:
       # --------------------------------------------------------------------
       - name: 💾 Restore go-pre-commit tools cache
         id: go-pre-commit-tools-cache
-        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5.0.3
         with:
           path: |
             ~/.cache/go-pre-commit-tools
@@ -618,9 +624,9 @@ jobs:
           if [[ "${{ env.GO_PRE_COMMIT_ALL_FILES }}" == "true" ]]; then
             echo "🔍 Mode: All Files"
             echo "  • Executing checks on all repository files"
-            echo "  • Command: go-pre-commit run --all-files"
+            echo "  • Command: go-pre-commit run --skip lint --all-files"
             echo ""
-            CHECKS_OUTPUT=$("${{ env.GO_PRE_COMMIT_BINARY }}" run --all-files 2>&1) || CHECKS_EXIT=$?
+            CHECKS_OUTPUT=$("${{ env.GO_PRE_COMMIT_BINARY }}" run --skip lint --all-files 2>&1) || CHECKS_EXIT=$?
           elif [[ "${{ steps.detect-files.outputs.files_found }}" == "true" ]]; then
             CHANGED_FILES="${{ steps.detect-files.outputs.changed_files }}"
             DETECTION_METHOD="${{ steps.detect-files.outputs.detection_method }}"
@@ -655,8 +661,8 @@ jobs:
             done < "$TEMP_FILE_LIST"
 
             if [[ -n "$SAFE_FILE_LIST" ]]; then
-              echo "  • Command: go-pre-commit run --files <escaped_file_list>"
-              CHECKS_OUTPUT=$("${{ env.GO_PRE_COMMIT_BINARY }}" run --files "$SAFE_FILE_LIST" 2>&1) || CHECKS_EXIT=$?
+              echo "  • Command: go-pre-commit run --skip lint --files <escaped_file_list>"
+              CHECKS_OUTPUT=$("${{ env.GO_PRE_COMMIT_BINARY }}" run --skip lint --files "$SAFE_FILE_LIST" 2>&1) || CHECKS_EXIT=$?
             else
               echo "  • No valid files to process, skipping"
               CHECKS_OUTPUT="No files to process"
@@ -669,9 +675,9 @@ jobs:
             echo "🔍 Mode: Staged Files (Fallback)"
             echo "  • No changed files detected, falling back to staged files"
             echo "  • This will likely result in 'No files to check' in CI"
-            echo "  • Command: go-pre-commit run"
+            echo "  • Command: go-pre-commit run --skip lint"
             echo ""
-            CHECKS_OUTPUT=$("${{ env.GO_PRE_COMMIT_BINARY }}" run 2>&1) || CHECKS_EXIT=$?
+            CHECKS_OUTPUT=$("${{ env.GO_PRE_COMMIT_BINARY }}" run --skip lint 2>&1) || CHECKS_EXIT=$?
           fi
 
           # Clean and filter output (colors should be disabled but handle any remaining codes)
@@ -689,6 +695,16 @@ jobs:
 
           if [ "${CHECKS_EXIT:-0}" -ne 0 ]; then
             echo "❌ Pre-commit checks failed with exit code: ${CHECKS_EXIT}"
+            # Persist cleaned output to log file for summary and artifact upload
+            # Use printf to avoid echo misinterpreting leading -n/-e in output
+            printf '%s\n' "$CHECKS_OUTPUT" | \
+              sed -E 's/\x1b\[[0-9;]*[mGKH]//g' | \
+              sed 's/\xc2\x9b\[[0-9;]*[mGKH]//g' | \
+              sed 's/�\[[0-9;]*[mGKH]//g' | \
+              sed 's/�//g' | \
+              tr -d '\033' > pre-commit-output.log
+            # Emit GitHub annotation for visibility at top of summary
+            echo "::error title=Pre-commit Checks Failed::Code quality issues detected - formatting, linting, or other pre-commit checks failed"
             exit ${CHECKS_EXIT}
           fi
 
@@ -840,15 +856,35 @@ jobs:
               fi
             done
             echo "" >> $GITHUB_STEP_SUMMARY
-            if [[ "${{ env.GO_PRE_COMMIT_ALL_FILES }}" == "true" ]]; then
-              echo "🎯 **All pre-commit checks passed successfully on all repository files.**" >> $GITHUB_STEP_SUMMARY
-            elif [[ "${{ steps.detect-files.outputs.files_found }}" == "true" ]]; then
-              FILE_COUNT=$(echo "${{ steps.detect-files.outputs.changed_files }}" | wc -l | tr -d ' ')
-              echo "🎯 **All pre-commit checks passed successfully on $FILE_COUNT changed files.**" >> $GITHUB_STEP_SUMMARY
+            # Show failure details or success summary based on run-checks outcome + log presence
+            if [[ -f pre-commit-output.log ]]; then
+              # Normal failure: log file was created, show full error details
+              echo "### 🚨 Error Details" >> $GITHUB_STEP_SUMMARY
               echo "" >> $GITHUB_STEP_SUMMARY
-              echo "⚡ **Performance**: Fast CI execution by checking only changed files instead of entire repository." >> $GITHUB_STEP_SUMMARY
+              echo "<details>" >> $GITHUB_STEP_SUMMARY
+              echo "<summary>Click to expand full output</summary>" >> $GITHUB_STEP_SUMMARY
+              echo "" >> $GITHUB_STEP_SUMMARY
+              echo '```' >> $GITHUB_STEP_SUMMARY
+              head -200 pre-commit-output.log >> $GITHUB_STEP_SUMMARY
+              echo '```' >> $GITHUB_STEP_SUMMARY
+              echo "</details>" >> $GITHUB_STEP_SUMMARY
+            elif [[ "${{ steps.run-checks.outcome }}" == "failure" ]]; then
+              # Early failure: step failed before the log file could be written
+              # (e.g. invalid binary path, mktemp failure, etc.)
+              echo "### 🚨 Error Details" >> $GITHUB_STEP_SUMMARY
+              echo "" >> $GITHUB_STEP_SUMMARY
+              echo "Pre-commit checks failed before an output log could be generated. Review the **Run pre-commit checks** step logs for details." >> $GITHUB_STEP_SUMMARY
             else
-              echo "🎯 **Pre-commit checks completed (no files required checking).**" >> $GITHUB_STEP_SUMMARY
+              if [[ "${{ env.GO_PRE_COMMIT_ALL_FILES }}" == "true" ]]; then
+                echo "🎯 **All pre-commit checks passed successfully on all repository files.**" >> $GITHUB_STEP_SUMMARY
+              elif [[ "${{ steps.detect-files.outputs.files_found }}" == "true" ]]; then
+                FILE_COUNT=$(echo "${{ steps.detect-files.outputs.changed_files }}" | wc -l | tr -d ' ')
+                echo "🎯 **All pre-commit checks passed successfully on $FILE_COUNT changed files.**" >> $GITHUB_STEP_SUMMARY
+                echo "" >> $GITHUB_STEP_SUMMARY
+                echo "⚡ **Performance**: Fast CI execution by checking only changed files instead of entire repository." >> $GITHUB_STEP_SUMMARY
+              else
+                echo "🎯 **Pre-commit checks completed (no files required checking).**" >> $GITHUB_STEP_SUMMARY
+              fi
             fi
           else
             echo "### ⚠️ Fallback Mode" >> $GITHUB_STEP_SUMMARY
@@ -856,6 +892,18 @@ jobs:
             echo "- ✅ magex lint" >> $GITHUB_STEP_SUMMARY
             echo "- ✅ magex tidy" >> $GITHUB_STEP_SUMMARY
           fi
+
+      # --------------------------------------------------------------------
+      # Upload pre-commit results (only present on failure)
+      # --------------------------------------------------------------------
+      - name: 📤 Upload pre-commit results
+        if: always()
+        uses: ./.github/actions/upload-artifact-resilient
+        with:
+          artifact-name: pre-commit-results
+          artifact-path: pre-commit-output.log
+          retention-days: "7"
+          if-no-files-found: ignore
 
       # --------------------------------------------------------------------
       # Collect cache statistics

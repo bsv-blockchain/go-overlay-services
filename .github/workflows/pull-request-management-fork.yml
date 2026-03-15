@@ -3,7 +3,7 @@
 #
 #  Purpose: Automate labeling, assignment, and welcoming of pull requests for forked PRs.
 #
-#  Configuration: All settings are loaded from .env.base and .env.custom files for
+#  Configuration: All settings are loaded from modular .github/env/*.env files for
 #  centralized management across all workflows.
 #
 #  Triggers: Pull request events (opened, reopened, ready for review, closed, synchronize)
@@ -27,25 +27,25 @@
 #
 #  ┌─────────────────────────────────────────────────────────────────────────────┐
 #  │ WHY pull_request_target IS SAFE HERE:                                       │
-#  │                                                                              │
+#  │                                                                             │
 #  │  ✅ Uses pull_request_target trigger for write permissions                  │
 #  │     (Required for: labels, comments, assignees)                             │
-#  │                                                                              │
+#  │                                                                             │
 #  │  ✅ CRITICAL: Only checks out BASE branch code, NEVER PR head               │
 #  │     (Prevents malicious code execution from untrusted forks)                │
-#  │                                                                              │
+#  │                                                                             │
 #  │  ✅ Fork detection uses full_name comparison for accuracy                   │
 #  │     (Not owner.login which fails for org members)                           │
-#  │                                                                              │
+#  │                                                                             │
 #  │  ✅ All code execution happens from trusted base repository                 │
 #  │     (No code from PR is ever executed)                                      │
-#  │                                                                              │
+#  │                                                                             │
 #  │  ✅ No secrets exposed to fork PRs (GITHUB_TOKEN only)                      │
 #  │     (No custom secrets accessible to malicious actors)                      │
-#  │                                                                              │
+#  │                                                                             │
 #  │  ✅ Sparse checkout minimizes attack surface                                │
 #  │     (Only config files checked out, no executable code)                     │
-#  │                                                                              │
+#  │                                                                             │
 #  │  ✅ Least-privilege permissions model                                       │
 #  │     (Jobs get elevated permissions only where absolutely needed)            │
 #  └─────────────────────────────────────────────────────────────────────────────┘
@@ -95,9 +95,8 @@ on:
   pull_request_target:
     types: [opened, reopened, ready_for_review, closed, synchronize]
 
-# Least privilege at the workflow level; jobs get bumps as needed
-permissions:
-  contents: read
+# Security: Restrict default permissions (jobs must explicitly request what they need)
+permissions: {}
 
 # --------------------------------------------------------------------
 # Concurrency Control
@@ -109,7 +108,7 @@ concurrency:
 # --------------------------------------------------------------------
 # Environment Variables
 # --------------------------------------------------------------------
-# Note: Configuration variables are loaded from .env.base and .env.custom files
+# Note: Configuration variables are loaded from modular .github/env/*.env files
 
 jobs:
   # ------------------------------------------------------------
@@ -118,6 +117,8 @@ jobs:
   load-env:
     name: 🌍 Load Environment (Base Repo)
     runs-on: ubuntu-latest
+    # Only run for fork PRs - same-repo PRs are handled by pull-request-management.yml
+    if: ${{ github.event.pull_request.head.repo && github.event.pull_request.head.repo.full_name != github.repository }}
     # No write perms here
     permissions:
       contents: read
@@ -141,7 +142,7 @@ jobs:
       # codeql:ignore GH001
       # checkov:skip=CKV_GHA_3:Base branch checkout is intentional and safe
       - name: 📥 Checkout base repo (sparse)
-        uses: actions/checkout@1af3b93b6815bc44a9784bd300feb67ff0d1eeb3 # v6.0.0
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
           # 🔒 CRITICAL SECURITY CONTROL: Base Branch Checkout Only
@@ -163,8 +164,7 @@ jobs:
           ref: ${{ github.base_ref }}
           fetch-depth: 1
           sparse-checkout: |
-            .github/.env.base
-            .github/.env.custom
+            .github/env
             .github/actions/load-env
 
       - name: 🌍 Load environment variables
@@ -177,6 +177,8 @@ jobs:
   detect-fork:
     name: 🔍 Detect Fork PR
     runs-on: ubuntu-latest
+    # Only run for fork PRs - same-repo PRs are handled by pull-request-management.yml
+    if: ${{ github.event.pull_request.head.repo && github.event.pull_request.head.repo.full_name != github.repository }}
     permissions:
       contents: read
     outputs:
@@ -478,7 +480,8 @@ jobs:
   summary:
     name: 📊 Summary
     runs-on: ubuntu-latest
-    if: always()
+    # Only run for fork PRs, but always show summary regardless of job status
+    if: always() && github.event.pull_request.head.repo && github.event.pull_request.head.repo.full_name != github.repository
     needs: [load-env, detect-fork, handle-fork, clean-cache]
     steps:
       - name: 📄 Write summary

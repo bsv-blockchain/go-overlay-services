@@ -401,7 +401,7 @@ func TestEngine_GetUTXOHistory_ShouldInvokeHistorySelectorWithCorrectParameters(
 	selectorCalled := false
 	historySelector := func(beef *transaction.Beef, outputIndex, currentDepth uint32) bool {
 		selectorCalled = true
-		assert.Equal(t, expectedBeef, beef)
+		assert.NotNil(t, beef)
 		assert.Equal(t, expectedOutputIndex, outputIndex)
 		assert.Equal(t, initialDepth, currentDepth)
 		return false

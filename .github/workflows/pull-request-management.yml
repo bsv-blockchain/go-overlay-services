@@ -5,7 +5,7 @@
 #           assignments, size analysis, welcomes for new contributors, and cleanup
 #           tasks when PRs are closed. All configuration is centralized and customizable.
 #
-#  Configuration: All settings are loaded from .env.base and .env.custom files for
+#  Configuration: All settings are loaded from modular .github/env/ files for
 #  centralized management across all workflows.
 #
 #  Triggers: Pull request events (opened, reopened, ready for review, closed, synchronize)
@@ -38,9 +38,8 @@ on:
   pull_request:
     types: [opened, reopened, ready_for_review, closed, synchronize]
 
-# Security: Restrictive default permissions with job-level overrides for least privilege access
-permissions:
-  contents: read
+# Security: Restrict default permissions (jobs must explicitly request what they need)
+permissions: {}
 
 # --------------------------------------------------------------------
 # Concurrency Control
@@ -52,7 +51,7 @@ concurrency:
 # --------------------------------------------------------------------
 # Environment Variables
 # --------------------------------------------------------------------
-# Note: Configuration variables are loaded from .env.base and .env.custom files
+# Note: Configuration variables are loaded from modular .github/env/ files
 
 jobs:
   # ----------------------------------------------------------------------------------
@@ -61,6 +60,10 @@ jobs:
   load-env:
     name: 🌍 Load Environment Variables
     runs-on: ubuntu-latest
+    # Early exit: Skip entire workflow for fork PRs (handled by fork workflow)
+    if: github.event.pull_request.head.repo.full_name == github.repository
+    permissions:
+      contents: read # Required: Read repository content for sparse checkout
     outputs:
       env-json: ${{ steps.load-env.outputs.env-json }}
     steps:
@@ -68,11 +71,10 @@ jobs:
       # Check out code to access env file
       # --------------------------------------------------------------------
       - name: 📥 Checkout code (sparse)
-        uses: actions/checkout@1af3b93b6815bc44a9784bd300feb67ff0d1eeb3 # v6.0.0
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           sparse-checkout: |
-            .github/.env.base
-            .github/.env.custom
+            .github/env
             .github/actions/load-env
 
       # --------------------------------------------------------------------

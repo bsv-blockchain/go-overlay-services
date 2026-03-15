@@ -5,14 +5,14 @@
 #           and readiness conditions are met. GitHub handles the actual merge
 #           when all status checks pass.
 #
-#  Configuration: All settings are loaded from .env.base and .env.custom files for
+#  Configuration: All settings are loaded from modular .github/env/ files for
 #  centralized management across all workflows.
 #
 #  Triggers:
 #  - Pull request reviews (submitted)
 #  - Pull request state changes (ready_for_review, review_request_removed)
 #
-#  Auto-merge Rules (configurable via .env.base/.env.custom):
+#  Auto-merge Rules (configurable via .github/env/):
 #  - Minimum number of approvals
 #  - No requested reviewers remaining (if configured)
 #  - No "Changes Requested" reviews
@@ -34,10 +34,8 @@ on:
   pull_request:
     types: [ready_for_review, review_request_removed]
 
-# Security: Restrictive default permissions with job-level overrides for least privilege access
-permissions:
-  contents: read # Default read-only access to repository contents
-  pull-requests: read # Default read access to pull requests
+# Security: Restrict default permissions (jobs must explicitly request what they need)
+permissions: {}
 
 # --------------------------------------------------------------------
 # Concurrency Control
@@ -49,7 +47,7 @@ concurrency:
 # --------------------------------------------------------------------
 # Environment Variables
 # --------------------------------------------------------------------
-# Note: Configuration variables are loaded from .env.base and .env.custom files
+# Note: Configuration variables are loaded from modular .github/env/ files
 
 jobs:
   # ----------------------------------------------------------------------------------
@@ -58,6 +56,8 @@ jobs:
   load-env:
     name: 🌍 Load Environment Variables
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     outputs:
       env-json: ${{ steps.load-env.outputs.env-json }}
     steps:
@@ -65,11 +65,10 @@ jobs:
       # Check out code to access env file
       # --------------------------------------------------------------------
       - name: 📥 Checkout code (sparse)
-        uses: actions/checkout@1af3b93b6815bc44a9784bd300feb67ff0d1eeb3 # v6.0.0
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           sparse-checkout: |
-            .github/.env.base
-            .github/.env.custom
+            .github/env
             .github/actions/load-env
 
       # --------------------------------------------------------------------

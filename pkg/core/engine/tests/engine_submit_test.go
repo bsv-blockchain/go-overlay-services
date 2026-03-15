@@ -154,7 +154,7 @@ func TestEngine_Submit_SPVFail_ShouldReturnError(t *testing.T) {
 
 	// then:
 	require.Error(t, err)
-	require.Equal(t, err.Error(), "input 0 has no source transaction") // temp fix for SPV failure Submit need to be fixed by wrapping the error to use ErrorIs
+	require.Equal(t, "missing source transaction: input 0", err.Error()) // temp fix for SPV failure Submit need to be fixed by wrapping the error to use ErrorIs
 	require.Nil(t, steak)
 }
 

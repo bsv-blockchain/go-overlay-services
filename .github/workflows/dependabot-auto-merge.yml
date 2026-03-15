@@ -5,12 +5,12 @@
 #           for different update types (patch, minor, major) and dependency types
 #           (development, production). Security updates get special handling.
 #
-#  Configuration: All settings are loaded from .env.base and .env.custom files for
+#  Configuration: All settings are loaded from modular .github/env/ files for
 #  centralized management across all workflows.
 #
 #  Triggers: Pull request events for immediate response to Dependabot PRs
 #
-#  Auto-merge Rules (configurable via .env.base/.env.custom):
+#  Auto-merge Rules (configurable via .github/env/):
 #  - Patch updates: Auto-merge by default
 #  - Minor dev dependencies: Auto-merge by default
 #  - Minor prod dependencies: Manual review by default
@@ -30,9 +30,8 @@ on:
   pull_request:
     types: [opened, synchronize, reopened, ready_for_review]
 
-# Security: Restrictive default permissions with job-level overrides for least privilege access
-permissions:
-  contents: read
+# Security: Restrict default permissions (jobs must explicitly request what they need)
+permissions: {}
 
 # --------------------------------------------------------------------
 # Concurrency Control
@@ -44,7 +43,7 @@ concurrency:
 # --------------------------------------------------------------------
 # Environment Variables
 # --------------------------------------------------------------------
-# Note: Configuration variables are loaded from .env.base and .env.custom files
+# Note: Configuration variables are loaded from modular .github/env/ files
 
 jobs:
   # ----------------------------------------------------------------------------------
@@ -53,6 +52,8 @@ jobs:
   load-env:
     name: 🌍 Load Environment Variables
     runs-on: ubuntu-latest
+    permissions:
+      contents: read # Required: Read repository content for sparse checkout
     # Only run on Dependabot PRs
     if: github.event.pull_request.user.login == 'dependabot[bot]'
     outputs:
@@ -62,11 +63,10 @@ jobs:
       # Check out code to access env file
       # --------------------------------------------------------------------
       - name: 📥 Checkout code (sparse)
-        uses: actions/checkout@1af3b93b6815bc44a9784bd300feb67ff0d1eeb3 # v6.0.0
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           sparse-checkout: |
-            .github/.env.base
-            .github/.env.custom
+            .github/env
             .github/actions/load-env
 
       # --------------------------------------------------------------------
@@ -163,7 +163,7 @@ jobs:
       # --------------------------------------------------------------------
       - name: 📊 Fetch Dependabot metadata
         id: metadata
-        uses: dependabot/fetch-metadata@08eff52bf64351f401fb50d4972fa95b9f2c2d1b # v2.4.0
+        uses: dependabot/fetch-metadata@21025c705c08248db411dc16f3619e6b5f9ea21a # v2.5.0
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
 

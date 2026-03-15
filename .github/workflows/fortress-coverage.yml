@@ -51,11 +51,12 @@ on:
       CODECOV_TOKEN:
         description: "Codecov token for uploading coverage (required when coverage-provider is codecov)"
         required: false
+      GH_PAT_TOKEN:
+        description: "Personal access token for enhanced GitHub API access (optional, falls back to github-token)"
+        required: false
 
-# Security: Restrictive default permissions with job-level overrides
-permissions:
-  contents: read
-  actions: read # Required for artifact downloads
+# Security: Restrict default permissions (jobs must explicitly request what they need)
+permissions: {}
 
 jobs:
   # ----------------------------------------------------------------------------------
@@ -158,7 +159,7 @@ jobs:
           echo "✅ Branch helper functions created"
 
       - name: 📥 Checkout code
-        uses: actions/checkout@1af3b93b6815bc44a9784bd300feb67ff0d1eeb3 # v6.0.0
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           fetch-depth: 0 # Fetch all history including tags for version display
 
@@ -175,6 +176,7 @@ jobs:
           go-secondary-version: ${{ env.GO_SECONDARY_VERSION }}
           go-sum-file: ${{ inputs.go-sum-file }}
           enable-multi-module: ${{ env.ENABLE_MULTI_MODULE_TESTING }}
+          github-token: ${{ secrets.github-token }}
 
       # --------------------------------------------------------------------
       # Extract Go module directory from GO_SUM_FILE path
@@ -191,7 +193,7 @@ jobs:
       - name: 💾 Restore go-coverage binary cache (production)
         id: go-coverage-cache
         if: env.GO_COVERAGE_USE_LOCAL != 'true'
-        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5.0.3
         with:
           path: |
             ~/.cache/go-coverage-bin
@@ -202,7 +204,7 @@ jobs:
       - name: 💾 Restore go-coverage binary cache (local)
         id: go-coverage-local-cache
         if: env.GO_COVERAGE_USE_LOCAL == 'true'
-        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5.0.3
         with:
           path: |
             ~/.cache/go-coverage-local
@@ -404,7 +406,7 @@ jobs:
             echo ""
             echo "🔍 Checking run $run_id for coverage history artifacts..."
 
-            ARTIFACTS=$(gh api repos/${{ github.repository }}/actions/runs/$run_id/artifacts \
+            ARTIFACTS=$(gh api repos/${{ github.repository }}/actions/runs/$run_id/artifacts --paginate \
               --jq '.artifacts[] | select(.name | startswith("coverage-history-")) | .archive_download_url' \
               2>/dev/null || echo "")
 
@@ -451,14 +453,14 @@ jobs:
                       # Validate extracted history files contain actual coverage data
                       EXTRACTED_FILES=$(find . -name "*.json" -type f 2>/dev/null | wc -l || echo "0")
                       VALID_FILES=0
-                      for json_file in $(find . -name "*.json" -type f 2>/dev/null); do
+                      while IFS= read -r -d '' json_file; do
                         if [[ -s "$json_file" ]] && grep -q "coverage" "$json_file" 2>/dev/null; then
                           VALID_FILES=$((VALID_FILES + 1))
                         else
                           echo "    ⚠️ Removing invalid history file: $(basename "$json_file")"
                           rm -f "$json_file"
                         fi
-                      done
+                      done < <(find . -name "*.json" -type f -print0 2>/dev/null)
                       echo "    📄 Extracted $EXTRACTED_FILES files, $VALID_FILES valid history entries"
                     else
                       echo "    ⚠️ Failed to extract history-$run_id.zip (possibly corrupted)"
@@ -695,6 +697,11 @@ jobs:
             --input "$COVERAGE_FILE" \
             --output "$OUTPUT_DIR"; then
             echo "✅ Main coverage processing completed successfully"
+
+            # Copy raw coverage file for main download
+            echo "📥 Copying coverage.out for main download..."
+            cp "$COVERAGE_FILE" "$OUTPUT_DIR/coverage.out"
+            echo "✅ coverage.out copied to main directory"
           else
             echo "❌ Main coverage processing failed"
             exit 1
@@ -739,7 +746,7 @@ jobs:
 
           # Count processed files from coverage output
           if [ -f "$COVERAGE_FILE" ]; then
-            FILES_PROCESSED=$(wc -l < "$COVERAGE_FILE" || echo "0")
+            FILES_PROCESSED=$(grep -v '^mode:' "$COVERAGE_FILE" | grep '^[^:]*:' | grep -o '^[^:]*' | sort -u | wc -l | tr -d ' ' || echo "0")
             echo "📁 Files processed: $FILES_PROCESSED"
           fi
 
@@ -790,6 +797,11 @@ jobs:
             --input "$COVERAGE_FILE" \
             --output "$BRANCH_OUTPUT_DIR"; then
             echo "✅ Branch-specific coverage processing completed successfully"
+
+            # Copy raw coverage file for branch download
+            echo "📥 Copying coverage.out for branch download..."
+            cp "$COVERAGE_FILE" "$BRANCH_OUTPUT_DIR/coverage.out"
+            echo "✅ coverage.out copied to branch directory"
           else
             echo "❌ Branch-specific coverage processing failed"
             exit 1
@@ -865,6 +877,78 @@ jobs:
               echo "   This indicates the deployment contains too many files"
               echo "   Expected size: <100KB for coverage files only"
             fi
+          fi
+
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+
+      # --------------------------------------------------------------------
+      # Enforce Coverage Threshold
+      # Fails the build if coverage drops below GO_COVERAGE_THRESHOLD
+      # Exclusions are already applied during coverage generation
+      # --------------------------------------------------------------------
+      - name: 🎯 Enforce Coverage Threshold
+        if: env.GO_COVERAGE_THRESHOLD != '' && env.GO_COVERAGE_THRESHOLD != '0' && env.GO_COVERAGE_THRESHOLD != '0.0'
+        run: |
+          echo "🎯 Enforcing coverage threshold..."
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+
+          THRESHOLD="${{ env.GO_COVERAGE_THRESHOLD }}"
+          echo "📊 Coverage threshold: ${THRESHOLD}%"
+
+          # Find coverage file
+          REPO_ROOT="$(pwd)"
+          COVERAGE_FILE=""
+          COVERAGE_LOCATIONS=(
+            "$REPO_ROOT/coverage-artifacts/coverage-data/${{ inputs.coverage-file }}"
+            "$REPO_ROOT/coverage-artifacts/${{ inputs.coverage-file }}"
+            "$REPO_ROOT/${{ inputs.coverage-file }}"
+          )
+
+          for location in "${COVERAGE_LOCATIONS[@]}"; do
+            if [[ -f "$location" ]]; then
+              COVERAGE_FILE="$location"
+              break
+            fi
+          done
+
+          if [[ -z "$COVERAGE_FILE" ]]; then
+            echo "⚠️ Coverage file not found for threshold check"
+            echo "🔍 Searched in:"
+            for location in "${COVERAGE_LOCATIONS[@]}"; do
+              echo "  - $location"
+            done
+            echo "❌ Cannot enforce threshold without coverage data"
+            exit 1
+          fi
+
+          echo "📄 Coverage file: $COVERAGE_FILE"
+          echo ""
+
+          # Use go-coverage parse to check threshold
+          # This command returns non-zero exit code if coverage is below threshold
+          echo "🔍 Checking coverage against threshold..."
+          if "$GO_COVERAGE_BINARY" parse \
+            --file "$COVERAGE_FILE" \
+            --threshold "$THRESHOLD"; then
+            echo ""
+            echo "✅ Coverage threshold check PASSED"
+          else
+            EXIT_CODE=$?
+            echo ""
+            echo "❌ Coverage threshold check FAILED"
+            echo ""
+            echo "🚨 BUILD FAILURE: Coverage is below the required threshold of ${THRESHOLD}%"
+            echo ""
+            echo "📝 To fix this:"
+            echo "  1. Add more tests to increase coverage"
+            echo "  2. Or adjust GO_COVERAGE_THRESHOLD in .github/env/10-coverage.env"
+            echo ""
+            echo "📊 Coverage exclusions (applied during test generation):"
+            echo "  - GO_COVERAGE_EXCLUDE_PATHS: ${{ env.GO_COVERAGE_EXCLUDE_PATHS }}"
+            echo "  - GO_COVERAGE_EXCLUDE_FILES: ${{ env.GO_COVERAGE_EXCLUDE_FILES }}"
+            echo "  - GO_COVERAGE_EXCLUDE_TESTS: ${{ env.GO_COVERAGE_EXCLUDE_TESTS }}"
+            echo "  - GO_COVERAGE_EXCLUDE_GENERATED: ${{ env.GO_COVERAGE_EXCLUDE_GENERATED }}"
+            exit $EXIT_CODE
           fi
 
           echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
@@ -995,7 +1079,7 @@ jobs:
                   echo "🔍 Checking run $run_id for coverage artifacts..."
 
                   # Look for coverage-data artifact
-                  COVERAGE_ARTIFACTS=$(gh api repos/${{ github.repository }}/actions/runs/$run_id/artifacts \
+                  COVERAGE_ARTIFACTS=$(gh api repos/${{ github.repository }}/actions/runs/$run_id/artifacts --paginate \
                     --jq '.artifacts[] | select(.name == "coverage-data") | .archive_download_url' \
                     2>/dev/null || echo "")
 
@@ -1011,6 +1095,7 @@ jobs:
                     if curl -L -H "Authorization: Bearer $GITHUB_TOKEN" \
                             -H "Accept: application/vnd.github+json" \
                             --connect-timeout 10 --max-time 30 \
+                            --retry 3 --retry-delay 5 --retry-all-errors \
                             "$COVERAGE_ARTIFACTS" -o "base-coverage-artifact.zip" 2>/dev/null; then
 
                       if [[ -s "base-coverage-artifact.zip" ]]; then
@@ -1141,6 +1226,7 @@ jobs:
             "coverage-flat.svg"
             "coverage-flat-square.svg"
             "coverage-for-the-badge.svg"
+            "coverage.out"
           )
 
           # Selectively copy coverage files to avoid nested directory structures
@@ -1196,6 +1282,7 @@ jobs:
               "coverage-flat-square.svg"
               "coverage-for-the-badge.svg"
               "coverage.html"
+              "coverage.out"
               "index.html"
               "dashboard.html"
               "coverage-data.json"
@@ -1664,7 +1751,7 @@ jobs:
             echo "📋 Updating root coverage files for main branch (with filtering)..."
 
             # Define allowed root files explicitly
-            ALLOWED_ROOT_FILES=("index.html" "coverage.html" "coverage.svg" "coverage-flat.svg" "coverage-flat-square.svg" "coverage-for-the-badge.svg" ".nojekyll" "data" "assets")
+            ALLOWED_ROOT_FILES=("index.html" "coverage.html" "coverage.svg" "coverage-flat.svg" "coverage-flat-square.svg" "coverage-for-the-badge.svg" "coverage.out" ".nojekyll" "data" "assets")
 
             # Copy only allowed root files
             for file in "${ALLOWED_ROOT_FILES[@]}"; do
@@ -1729,7 +1816,7 @@ jobs:
           rm -rf "$TEMP_STAGING"/*
 
           # Define allowed branch files
-          ALLOWED_BRANCH_FILES=("index.html" "coverage.html" "coverage.svg" "coverage-flat.svg" "coverage-flat-square.svg" "coverage-for-the-badge.svg" "data" "assets")
+          ALLOWED_BRANCH_FILES=("index.html" "coverage.html" "coverage.svg" "coverage-flat.svg" "coverage-flat-square.svg" "coverage-for-the-badge.svg" "coverage.out" "data" "assets")
 
           # Copy branch-specific files from deployment directory to staging first
           if [[ -d "$DEPLOY_DIR/coverage/branch/$BRANCH_NAME" ]]; then
@@ -2227,7 +2314,7 @@ jobs:
             if [[ "$FAIL_ON_ERRORS" == "true" ]]; then
               echo ""
               echo "💡 To allow the job to continue despite URL verification failures, set:"
-              echo "   GO_COVERAGE_FAIL_ON_URL_ERRORS=false in .github/.env.custom"
+              echo "   GO_COVERAGE_FAIL_ON_URL_ERRORS=false in .github/env/10-coverage.env"
               exit 1
             else
               echo ""
@@ -2281,22 +2368,22 @@ jobs:
       # --------------------------------------------------------------------
       - name: 📤 Upload performance cache statistics
         if: always()
-        uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5.0.0
+        uses: ./.github/actions/upload-artifact-resilient
         with:
-          name: cache-stats-coverage
-          path: cache-stats-coverage.json
-          retention-days: 1
+          artifact-name: cache-stats-coverage
+          artifact-path: cache-stats-coverage.json
+          retention-days: "1"
 
       # --------------------------------------------------------------------
       # Upload coverage statistics for completion report
       # --------------------------------------------------------------------
       - name: 📤 Upload coverage statistics
         if: always()
-        uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5.0.0
+        uses: ./.github/actions/upload-artifact-resilient
         with:
-          name: coverage-stats-internal
-          path: coverage-stats-internal-*.json
-          retention-days: 1
+          artifact-name: coverage-stats-internal
+          artifact-path: coverage-stats-internal-*.json
+          retention-days: "7"
 
       # --------------------------------------------------------------------
       # Upload coverage history for future runs (WORKING SYSTEM - PRESERVED)
@@ -2324,13 +2411,12 @@ jobs:
       - name: 📤 Upload coverage history artifacts
         # Upload history for all branches to preserve trend data
         if: github.event_name == 'push'
-        uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5.0.0
+        uses: ./.github/actions/upload-artifact-resilient
         with:
-          name: coverage-history-${{ inputs.commit-sha }}
-          path: .github/coverage/history/*.json
-          retention-days: 90
-          compression-level: 9
-        continue-on-error: true
+          artifact-name: coverage-history-${{ inputs.commit-sha }}
+          artifact-path: .github/coverage/history/*.json
+          retention-days: "90"
+          compression-level: "9"
   # ----------------------------------------------------------------------------------
   # Upload Coverage to Codecov (External Provider)
   # ----------------------------------------------------------------------------------
@@ -2356,7 +2442,7 @@ jobs:
           done
 
       - name: 📥 Checkout code
-        uses: actions/checkout@1af3b93b6815bc44a9784bd300feb67ff0d1eeb3 # v6.0.0
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           fetch-depth: 2 # Need history for codecov to detect changes
 
@@ -2399,7 +2485,7 @@ jobs:
       # Upload to Codecov
       # --------------------------------------------------------------------
       - name: 📈 Upload coverage to Codecov
-        uses: codecov/codecov-action@5a1091511ad55cbe89839c7260b706298ca349f7 # v5.5.1
+        uses: codecov/codecov-action@671740ac38dd9b0130fbe1cec585b89eea48d3de # v5.5.2
         with:
           #file: ./coverage.txt # This is the old format
           files: ./coverage-artifacts/coverage-data/coverage.txt
@@ -2426,12 +2512,51 @@ jobs:
 
           # Calculate coverage from coverage.txt file using go tool cover
           if [ -f "coverage-artifacts/coverage-data/coverage.txt" ]; then
-            COVERAGE_PERCENTAGE=$(go tool cover -func="coverage-artifacts/coverage-data/coverage.txt" | tail -1 | awk '{print $3}' | sed 's/%//' || echo "0")
-            FILES_PROCESSED=$(wc -l < "coverage-artifacts/coverage-data/coverage.txt" || echo "0")
+            # First, try direct calculation (suppress stderr to avoid module warnings)
+            COVERAGE_PERCENTAGE=$(go tool cover -func="coverage-artifacts/coverage-data/coverage.txt" 2>/dev/null | tail -1 | awk '{print $3}' | sed 's/%//' || true)
+
+            # Validate result - must be a number (handles empty output or errors)
+            if [[ -z "$COVERAGE_PERCENTAGE" ]] || ! [[ "$COVERAGE_PERCENTAGE" =~ ^[0-9]+\.?[0-9]*$ ]]; then
+              echo "⚠️ Could not calculate coverage percentage directly, trying manual calculation..."
+              COVERAGE_PERCENTAGE=""
+
+              # Fallback: Calculate from coverage file lines manually
+              # Coverage file format: path/file.go:startLine.startCol,endLine.endCol stmtCount hitCount
+              TOTAL_STATEMENTS=0
+              COVERED_STATEMENTS=0
+              while IFS= read -r line; do
+                # Skip header line (mode: ...)
+                [[ "$line" == mode:* ]] && continue
+                # Skip empty lines
+                [[ -z "$line" ]] && continue
+                # Extract statement count (first number) and hit count (second number)
+                # Format: path/file.go:startLine.startCol,endLine.endCol stmtCount hitCount
+                if [[ "$line" =~ [[:space:]]([0-9]+)[[:space:]]([0-9]+)$ ]]; then
+                  STMT_COUNT="${BASH_REMATCH[1]}"
+                  HIT_COUNT="${BASH_REMATCH[2]}"
+                  TOTAL_STATEMENTS=$((TOTAL_STATEMENTS + STMT_COUNT))
+                  if [[ $HIT_COUNT -gt 0 ]]; then
+                    COVERED_STATEMENTS=$((COVERED_STATEMENTS + STMT_COUNT))
+                  fi
+                fi
+              done < "coverage-artifacts/coverage-data/coverage.txt"
+
+              if [[ $TOTAL_STATEMENTS -gt 0 ]]; then
+                COVERAGE_PERCENTAGE=$(awk "BEGIN {printf \"%.1f\", ($COVERED_STATEMENTS / $TOTAL_STATEMENTS) * 100}")
+                echo "📈 Calculated coverage manually: ${COVERAGE_PERCENTAGE}% ($COVERED_STATEMENTS/$TOTAL_STATEMENTS statements)"
+              else
+                COVERAGE_PERCENTAGE="0"
+                echo "⚠️ No coverage data found, defaulting to 0%"
+              fi
+            fi
+
+            FILES_PROCESSED=$(grep -v '^mode:' "coverage-artifacts/coverage-data/coverage.txt" | grep '^[^:]*:' | grep -o '^[^:]*' | sort -u | wc -l | tr -d ' ' || echo "0")
             echo "📈 Calculated coverage percentage: ${COVERAGE_PERCENTAGE}%"
             echo "📁 Files processed: $FILES_PROCESSED"
           else
             echo "⚠️ Coverage file not found for statistics"
+            COVERAGE_PERCENTAGE="0"
+            FILES_PROCESSED="0"
           fi
 
           # Codecov job doesn't generate badges or deploy pages directly
@@ -2469,8 +2594,8 @@ jobs:
 
       - name: 📤 Upload coverage statistics (Codecov)
         if: always()
-        uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5.0.0
+        uses: ./.github/actions/upload-artifact-resilient
         with:
-          name: coverage-stats-codecov
-          path: coverage-stats-codecov-*.json
-          retention-days: 1
+          artifact-name: coverage-stats-codecov
+          artifact-path: coverage-stats-codecov-*.json
+          retention-days: "7"

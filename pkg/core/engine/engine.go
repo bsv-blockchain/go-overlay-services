@@ -598,6 +598,7 @@ func (e *Engine) Lookup(ctx context.Context, question *lookup.LookupQuestion) (*
 	}, nil
 }
 
+// GetUTXOHistory retrieves the history of a UTXO
 func (e *Engine) GetUTXOHistory(ctx context.Context, output *Output, historySelector func(beef *transaction.Beef, outputIndex uint32, currentDepth uint32) bool, currentDepth uint32) (*Output, error) {
 	if historySelector == nil {
 		return output, nil
@@ -657,7 +658,6 @@ func (e *Engine) GetUTXOHistory(ctx context.Context, output *Output, historySele
 			}
 		}
 	}
-	// Rebuild beef from the transaction with its now-populated source transactions
 	beefBytes, err := tx.BEEF()
 	if err != nil {
 		slog.Error("failed to get BEEF from transaction in GetUTXOHistory", "outpoint", output.Outpoint.String(), "error", err)

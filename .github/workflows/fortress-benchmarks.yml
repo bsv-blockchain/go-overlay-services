@@ -87,9 +87,8 @@ on:
         description: "GitHub token for API access"
         required: true
 
-# Security: Restrictive default permissions with job-level overrides for least privilege access
-permissions:
-  contents: read
+# Security: Restrict default permissions (jobs must explicitly request what they need)
+permissions: {}
 
 jobs:
   # ----------------------------------------------------------------------------------
@@ -98,6 +97,8 @@ jobs:
   benchmark-go:
     name: 🏃 Benchmark (${{ matrix.name }})
     timeout-minutes: ${{ inputs.benchmark-timeout }}
+    permissions:
+      contents: read
     strategy:
       fail-fast: false # Continue running other benchmarks if one fails
       matrix: ${{ fromJSON(inputs.benchmark-matrix) }}
@@ -128,7 +129,7 @@ jobs:
       # Checkout code and set up Go environment
       # --------------------------------------------------------------------
       - name: 📥 Checkout code
-        uses: actions/checkout@1af3b93b6815bc44a9784bd300feb67ff0d1eeb3 # v6.0.0
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
       # --------------------------------------------------------------------
       # Setup Go with caching and version management
@@ -143,6 +144,7 @@ jobs:
           go-secondary-version: ${{ inputs.go-secondary-version }}
           go-sum-file: ${{ inputs.go-sum-file }}
           enable-multi-module: ${{ env.ENABLE_MULTI_MODULE_TESTING }}
+          github-token: ${{ secrets.github-token }}
 
       # --------------------------------------------------------------------
       # Extract Go module directory from GO_SUM_FILE path
@@ -263,7 +265,7 @@ jobs:
 
           # Fail the step if benchmarks failed or contained errors
           if [ "$BENCH_STATUS" = "failure" ]; then
-            echo "::error::Benchmark execution failed or contained errors"
+            echo "::error title=Benchmark Failed::Benchmark execution failed or contained errors (panic, fatal, or timeout) - see job summary for details"
             exit 1
           fi
 
@@ -389,19 +391,19 @@ jobs:
       # --------------------------------------------------------------------
       - name: 📤 Upload benchmark statistics
         if: always()
-        uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5.0.0
+        uses: ./.github/actions/upload-artifact-resilient
         with:
-          name: bench-stats-${{ matrix.os }}-${{ matrix.go-version }}
-          path: bench-stats-${{ matrix.os }}-${{ matrix.go-version }}.json
-          retention-days: 1
+          artifact-name: bench-stats-${{ matrix.os }}-${{ matrix.go-version }}
+          artifact-path: bench-stats-${{ matrix.os }}-${{ matrix.go-version }}.json
+          retention-days: "7"
 
       # --------------------------------------------------------------------
       # Upload raw benchmark results
       # --------------------------------------------------------------------
       - name: 📤 Upload benchmark results
         if: always()
-        uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5.0.0
+        uses: ./.github/actions/upload-artifact-resilient
         with:
-          name: bench-results-${{ matrix.os }}-${{ matrix.go-version }}
-          path: bench-results-${{ matrix.os }}-${{ matrix.go-version }}.txt
-          retention-days: 7 # Keep raw results longer for analysis
+          artifact-name: bench-results-${{ matrix.os }}-${{ matrix.go-version }}
+          artifact-path: bench-results-${{ matrix.os }}-${{ matrix.go-version }}.txt
+          retention-days: "7"
