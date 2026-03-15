@@ -106,7 +106,7 @@ type Engine struct {
 	ErrorOnBroadcastFailure bool
 	BroadcastFacilitator    topic.Facilitator
 	LookupResolver          LookupResolverProvider
-	OnAdmission             func(txid *chainhash.Hash, steak *overlay.Steak)
+	OnAdmission             func(txid *chainhash.Hash, steak *overlay.Steak, beef []byte)
 
 	// mu protects managers and lookupServices maps for concurrent access
 	mu sync.RWMutex
@@ -451,7 +451,7 @@ func (e *Engine) SubmitParsedBeef(ctx context.Context, beef *transaction.Beef, t
 	}
 
 	if mode != SubmitModeHistorical && e.OnAdmission != nil {
-		e.OnAdmission(txid, &steak)
+		e.OnAdmission(txid, &steak, atomicBeef)
 	}
 
 	for _, topic := range topics {
