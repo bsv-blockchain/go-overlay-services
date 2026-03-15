@@ -279,7 +279,7 @@ func TestEngine_Submit_OutputInsertFails_ShouldReturnError(t *testing.T) {
 	// given:
 	ctx := context.Background()
 	taggedBEEF, prevTxID := createDummyValidTaggedBEEF(t)
-	expectedErr := errors.New("insert-failed")
+	expectedErr := errors.New("insert-failed") //nolint:err113 // test sentinel
 
 	sut := engine.NewEngine(&engine.EngineConfig{
 		Managers: map[string]engine.TopicManager{

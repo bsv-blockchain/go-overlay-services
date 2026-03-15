@@ -305,6 +305,8 @@ var (
 	ErrMissingTransaction = errors.New("missing transaction")
 	// ErrNoDocumentationFound is returned when no documentation is found
 	ErrNoDocumentationFound = errors.New("no documentation found")
+	// ErrInvalidMerkleProof is returned when a merkle proof is invalid
+	ErrInvalidMerkleProof = errors.New("invalid merkle proof")
 )
 
 // Submit submits a transaction to the overlay service
@@ -385,7 +387,9 @@ func (e *Engine) SubmitParsedBeef(ctx context.Context, beef *transaction.Beef, t
 		for vin, output := range outputs {
 			if output != nil {
 				if output.Beef != nil {
-					beef.MergeBeef(output.Beef)
+					if mergeErr := beef.MergeBeef(output.Beef); mergeErr != nil {
+						return nil, fmt.Errorf("failed to merge BEEF for input %d: %w", vin, mergeErr)
+					}
 				}
 				previousCoins = append(previousCoins, uint32(vin)) //nolint:gosec // index bounded by slice length
 				topicInputs[topic][uint32(vin)] = output           //nolint:gosec // index bounded by slice length
@@ -424,7 +428,7 @@ func (e *Engine) SubmitParsedBeef(ctx context.Context, beef *transaction.Beef, t
 					Outpoint:           &output.Outpoint,
 					Topic:              topic,
 					SpendingTxid:       txid,
-					InputIndex:         vin, //nolint:gosec // index bounded by slice length
+					InputIndex:         vin,
 					UnlockingScript:    tx.Inputs[vin].UnlockingScript,
 					SequenceNumber:     tx.Inputs[vin].SequenceNumber,
 					SpendingAtomicBEEF: atomicBeef,
@@ -926,8 +930,6 @@ func (e *Engine) StartGASPSync(ctx context.Context) error {
 
 			slog.Info(fmt.Sprintf("[GASP SYNC] Starting sync for topic \"%s\" with peer \"%s\"", topic, peer))
 
-			slog.Info(fmt.Sprintf("[GASP SYNC] Sync successful for topic \"%s\" with peer \"%s\"", topic, peer))
-
 			// Read the last interaction score from storage
 			lastInteraction, err := e.Storage.GetLastInteraction(ctx, peer, topic)
 			if err != nil {
@@ -936,7 +938,7 @@ func (e *Engine) StartGASPSync(ctx context.Context) error {
 			}
 
 			// Create a GASP provider for this peer
-			gaspProvider := gasp.NewGASP(gasp.Params{
+			gaspProvider := gasp.NewGASP(gasp.Params{ //nolint:contextcheck // NewGASP spawns a long-lived worker
 				Storage:         NewOverlayGASPStorage(topic, e, nil),
 				Remote:          NewOverlayGASPRemote(peer, topic, http.DefaultClient, 8),
 				LastInteraction: lastInteraction,
@@ -1293,7 +1295,6 @@ func (e *Engine) updateMerkleProof(ctx context.Context, output *Output, txid cha
 		}
 	}
 	return nil
-
 }
 
 // HandleNewMerkleProof handles a new Merkle proof
@@ -1306,9 +1307,8 @@ func (e *Engine) HandleNewMerkleProof(ctx context.Context, txid *chainhash.Hash,
 		slog.Error("error validating merkle root for height", "txid", txid, "blockHeight", proof.BlockHeight, "error", err)
 		return err
 	} else if !valid {
-		err := fmt.Errorf("invalid merkle proof for transaction %s at block height %d", txid, proof.BlockHeight)
-		slog.Error("merkle proof validation failed", "txid", txid, "blockHeight", proof.BlockHeight, "error", err)
-		return err
+		slog.Error("merkle proof validation failed", "txid", txid, "blockHeight", proof.BlockHeight)
+		return fmt.Errorf("%w: transaction %s at block height %d", ErrInvalidMerkleProof, txid, proof.BlockHeight)
 	}
 
 	if outputs, err := e.Storage.FindOutputsForTransaction(ctx, txid, true); err != nil {
@@ -1374,9 +1374,8 @@ func (e *Engine) ListLookupServiceProviders() map[string]*overlay.MetaData {
 func (e *Engine) GetDocumentationForTopicManager(manager string) (string, error) {
 	tm, ok := e.GetTopicManager(manager)
 	if !ok {
-		err := errors.New("no documentation found")
-		slog.Error("topic manager not found", "manager", manager, "error", err)
-		return "", err
+		slog.Error("topic manager not found", "manager", manager)
+		return "", ErrNoDocumentationFound
 	}
 	return tm.GetDocumentation(), nil
 }
@@ -1385,9 +1384,8 @@ func (e *Engine) GetDocumentationForTopicManager(manager string) (string, error)
 func (e *Engine) GetDocumentationForLookupServiceProvider(provider string) (string, error) {
 	l, ok := e.GetLookupService(provider)
 	if !ok {
-		err := errors.New("no documentation found")
-		slog.Error("lookup service provider not found", "provider", provider, "error", err)
-		return "", err
+		slog.Error("lookup service provider not found", "provider", provider)
+		return "", ErrNoDocumentationFound
 	}
 	return l.GetDocumentation(), nil
 }

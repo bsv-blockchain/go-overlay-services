@@ -2,7 +2,7 @@ package engine
 
 import (
 	"context"
-	"fmt"
+	"errors"
 
 	"github.com/bsv-blockchain/go-sdk/chainhash"
 	"github.com/bsv-blockchain/go-sdk/overlay"
@@ -10,7 +10,7 @@ import (
 )
 
 // ErrNotFound is returned when a requested item is not found in storage.
-var ErrNotFound = fmt.Errorf("not-found")
+var ErrNotFound = errors.New("not-found")
 
 // Storage defines the interface for persisting and retrieving overlay transaction data.
 type Storage interface {

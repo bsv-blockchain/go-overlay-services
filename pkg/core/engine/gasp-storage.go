@@ -34,6 +34,13 @@ var (
 	ErrUnableToFindRootNodeInGraph = errors.New("unable to find root node in graph for finalization")
 	// ErrRequiredInputNodeNotFoundInTempGraph indicates that a required input node was not found in the temporary graph store
 	ErrRequiredInputNodeNotFoundInTempGraph = errors.New("required input node for unproven parent not found in temporary graph store")
+
+	// ErrNoManagerForTopic is returned when no topic manager is registered for the requested topic
+	ErrNoManagerForTopic = errors.New("no manager for topic")
+	// ErrNoTransactionInBEEF is returned when a BEEF contains no transaction
+	ErrNoTransactionInBEEF = errors.New("no transaction in BEEF")
+	// ErrNilNode is returned when a nil graph node is passed to BEEF construction
+	ErrNilNode = errors.New("nil graph node")
 )
 
 // submissionState tracks the state of a transaction submission
@@ -194,7 +201,9 @@ func (s *OverlayGASPStorage) FindNeededInputs(ctx context.Context, gaspTx *gasp.
 		for vin, output := range outputs {
 			if output != nil {
 				if output.Beef != nil {
-					beef.MergeBeef(output.Beef)
+					if err := beef.MergeBeef(output.Beef); err != nil {
+						return nil, fmt.Errorf("failed to merge BEEF for input %d: %w", vin, err)
+					}
 				}
 				previousCoins = append(previousCoins, uint32(vin))
 			}
@@ -222,7 +231,7 @@ func (s *OverlayGASPStorage) FindNeededInputs(ctx context.Context, gaspTx *gasp.
 func (s *OverlayGASPStorage) IdentifyAdmissibleOutputs(ctx context.Context, beef *transaction.Beef, txid *chainhash.Hash, previousCoins []uint32) (overlay.AdmittanceInstructions, error) {
 	manager, ok := s.Engine.GetTopicManager(s.Topic)
 	if !ok {
-		return overlay.AdmittanceInstructions{}, errors.New("no manager for topic (identify admissible outputs): " + s.Topic)
+		return overlay.AdmittanceInstructions{}, fmt.Errorf("%w (identify admissible outputs): %s", ErrNoManagerForTopic, s.Topic)
 	}
 	return manager.IdentifyAdmissibleOutputs(ctx, beef, txid, previousCoins)
 }
@@ -230,7 +239,7 @@ func (s *OverlayGASPStorage) IdentifyAdmissibleOutputs(ctx context.Context, beef
 func (s *OverlayGASPStorage) IdentifyNeededInputs(ctx context.Context, beef *transaction.Beef, txid *chainhash.Hash) ([]*transaction.Outpoint, error) {
 	manager, ok := s.Engine.GetTopicManager(s.Topic)
 	if !ok {
-		return nil, errors.New("no manager for topic (identify needed inputs): " + s.Topic)
+		return nil, fmt.Errorf("%w (identify needed inputs): %s", ErrNoManagerForTopic, s.Topic)
 	}
 	return manager.IdentifyNeededInputs(ctx, beef, txid)
 }
@@ -327,7 +336,9 @@ func (s *OverlayGASPStorage) ValidateGraphAnchor(ctx context.Context, graphID *t
 				for vin, output := range outputs {
 					if output != nil {
 						if output.Beef != nil {
-							beef.MergeBeef(output.Beef)
+							if err := beef.MergeBeef(output.Beef); err != nil {
+								return fmt.Errorf("failed to merge BEEF for input %d: %w", vin, err)
+							}
 						}
 						previousCoins = append(previousCoins, uint32(vin))
 					}
@@ -390,7 +401,7 @@ func (s *OverlayGASPStorage) FinalizeGraph(ctx context.Context, graphID *transac
 			return err
 		}
 		if tx == nil {
-			return errors.New("no transaction in BEEF")
+			return ErrNoTransactionInBEEF
 		}
 
 		// Pre-initialize the submission state to avoid race conditions
@@ -469,13 +480,15 @@ func (s *OverlayGASPStorage) computeOrderedBEEFsForGraph(_ context.Context, grap
 
 func (s *OverlayGASPStorage) getBEEFForNode(node *GraphNode) ([]byte, error) {
 	if node == nil {
-		panic(fmt.Sprintf("GASP DEBUG: getBEEFForNode called with nil node. Total goroutines: %d", runtime.NumGoroutine()))
+		slog.Error("getBEEFForNode called with nil node", "goroutines", runtime.NumGoroutine())
+		return nil, ErrNilNode
 	}
 
 	var hydrator func(node *GraphNode) (*transaction.Transaction, error)
 	hydrator = func(node *GraphNode) (*transaction.Transaction, error) {
 		if node == nil {
-			panic(fmt.Sprintf("GASP DEBUG: hydrator called with nil node. Goroutine: %d", runtime.NumGoroutine()))
+			slog.Error("hydrator called with nil node", "goroutines", runtime.NumGoroutine())
+			return nil, ErrNilNode
 		}
 		tx, err := transaction.NewTransactionFromHex(node.RawTx)
 		if err != nil {

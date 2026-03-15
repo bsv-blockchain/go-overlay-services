@@ -80,7 +80,7 @@ func TestEngine_ProvideForeignGASPNode_CannotFindOutput_ShouldReturnError(t *tes
 	ctx := context.Background()
 	graphID := &transaction.Outpoint{}
 	outpoint := &transaction.Outpoint{}
-	expectedErr := errors.New("forced error")
+	expectedErr := errors.New("forced error") //nolint:err113 // test sentinel
 
 	sut := &engine.Engine{
 		Storage: fakeStorage{

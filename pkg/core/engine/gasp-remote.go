@@ -81,7 +81,7 @@ func (r *OverlayGASPRemote) GetInitialResponse(ctx context.Context, request *gas
 		}
 		return nil, &util.HTTPError{
 			StatusCode: resp.StatusCode,
-			Err:        fmt.Errorf("server error: %s", string(body)),
+			Err:        fmt.Errorf("server error: %s", string(body)), //nolint:err113 // dynamic HTTP response body
 		}
 	}
 
@@ -174,7 +174,7 @@ func (r *OverlayGASPRemote) doNodeRequest(ctx context.Context, graphID, outpoint
 			"topic", r.topic)
 		return nil, &util.HTTPError{
 			StatusCode: resp.StatusCode,
-			Err:        fmt.Errorf("server error: %s", string(body)),
+			Err:        fmt.Errorf("server error: %s", string(body)), //nolint:err113 // dynamic HTTP response body
 		}
 	}
 

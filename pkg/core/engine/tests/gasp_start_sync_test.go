@@ -67,7 +67,7 @@ func TestEngine_StartGASPSync_CallsSyncSuccessfully(t *testing.T) {
 
 func TestEngine_StartGASPSync_ResolverQueryFails(t *testing.T) {
 	// given:
-	expectedQueryCallErr := errors.New("internal query call failure")
+	expectedQueryCallErr := errors.New("internal query call failure") //nolint:err113 // test sentinel
 	resolver := LookupResolverMock{
 		ExpectQueryCall:       true,
 		ExpectSetTrackersCall: true,

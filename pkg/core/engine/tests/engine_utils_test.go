@@ -40,6 +40,7 @@ func (f fakeStorage) FindOutput(ctx context.Context, outpoint *transaction.Outpo
 	}
 	panic("func not defined")
 }
+
 func (f fakeStorage) DoesAppliedTransactionExist(ctx context.Context, tx *overlay.AppliedTransaction) (bool, error) {
 	if f.doesAppliedTransactionExistFunc != nil {
 		return f.doesAppliedTransactionExistFunc(ctx, tx)
@@ -53,18 +54,21 @@ func (f fakeStorage) InsertAppliedTransaction(ctx context.Context, tx *overlay.A
 	}
 	panic("func not defined")
 }
+
 func (f fakeStorage) UpdateConsumedBy(ctx context.Context, outpoint *transaction.Outpoint, topic string, consumedBy []*transaction.Outpoint) error {
 	if f.updateConsumedByFunc != nil {
 		return f.updateConsumedByFunc(ctx, outpoint, topic, consumedBy)
 	}
 	panic("func not defined")
 }
+
 func (f fakeStorage) DeleteOutput(ctx context.Context, outpoint *transaction.Outpoint, topic string) error {
 	if f.deleteOutputFunc != nil {
 		return f.deleteOutputFunc(ctx, outpoint, topic)
 	}
 	panic("func not defined")
 }
+
 func (f fakeStorage) FindOutputs(ctx context.Context, outpoints []*transaction.Outpoint, topic string, spent *bool, includeBEEF bool) ([]*engine.Output, error) {
 	if f.findOutputsFunc != nil {
 		return f.findOutputsFunc(ctx, outpoints, topic, spent, includeBEEF)
@@ -321,18 +325,21 @@ func (f fakeAdvertiser) FindAllAdvertisements(protocol overlay.Protocol) ([]*adv
 	}
 	return nil, nil
 }
+
 func (f fakeAdvertiser) CreateAdvertisements(data []*advertiser.AdvertisementData) (overlay.TaggedBEEF, error) {
 	if f.createAdvertisements != nil {
 		return f.createAdvertisements(data)
 	}
 	return overlay.TaggedBEEF{}, nil
 }
+
 func (f fakeAdvertiser) RevokeAdvertisements(data []*advertiser.Advertisement) (overlay.TaggedBEEF, error) {
 	if f.revokeAdvertisements != nil {
 		return f.revokeAdvertisements(data)
 	}
 	return overlay.TaggedBEEF{}, nil
 }
+
 func (f fakeAdvertiser) ParseAdvertisement(script *script.Script) (*advertiser.Advertisement, error) {
 	if f.parseAdvertisement != nil {
 		return f.parseAdvertisement(script)
@@ -345,12 +352,15 @@ type fakeTopicManager struct{}
 func (fakeTopicManager) IdentifyAdmissibleOutputs(ctx context.Context, beef *transaction.Beef, txid *chainhash.Hash, previousCoins []uint32) (overlay.AdmittanceInstructions, error) {
 	return overlay.AdmittanceInstructions{}, nil
 }
+
 func (fakeTopicManager) IdentifyNeededInputs(ctx context.Context, beef *transaction.Beef, txid *chainhash.Hash) ([]*transaction.Outpoint, error) {
 	return nil, nil
 }
+
 func (fakeTopicManager) GetMetaData() *overlay.MetaData {
 	return &overlay.MetaData{}
 }
+
 func (fakeTopicManager) GetDocumentation() string {
 	return ""
 }
@@ -373,14 +383,6 @@ func createDummyBEEF(t *testing.T) []byte {
 	bytes, err := BEEF.AtomicBytes(dummyTx.TxID())
 	require.NoError(t, err)
 	return bytes
-}
-
-func parseBEEFToTx(t *testing.T, bytes []byte) *transaction.Transaction {
-	t.Helper()
-
-	_, tx, _, err := transaction.ParseBeef(bytes)
-	require.NoError(t, err)
-	return tx
 }
 
 // createDummyValidTaggedBEEF creates a dummy valid tagged BEEF transaction for testing.

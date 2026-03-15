@@ -30,6 +30,10 @@ var (
 	ErrMaliciousVarInt = errors.New("malicious VarInt detected")
 	// ErrGraphNoTopicalAdmittance indicates that the graph did not result in topical admittance of the root node.
 	ErrGraphNoTopicalAdmittance = errors.New("graph did not result in topical admittance of the root node")
+	// ErrUnresolvedInputs is returned when dependency processing fails to resolve all required inputs
+	ErrUnresolvedInputs = errors.New("not all inputs could be resolved")
+	// ErrUTXOQueueFull is returned when the UTXO processing queue cannot accept more items
+	ErrUTXOQueueFull = errors.New("UTXO processing queue full")
 )
 
 // utxoProcessingState tracks the state of a UTXO processing operation with result sharing
@@ -168,7 +172,6 @@ func (g *GASP) Sync(ctx context.Context, _ string, limit uint32) error {
 
 	for _, utxo := range ingestQueue {
 		g.limiter <- struct{}{}
-		utxo := utxo // capture loop variable
 		processingGroup.Go(func() error {
 			outpoint := utxo.Outpoint()
 			defer func() {
@@ -371,7 +374,7 @@ func (g *GASP) processIncomingNode(ctx context.Context, node *Node, spentBy *tra
 			return err
 		}
 		if neededInputs != nil && len(neededInputs.RequestedInputs) > 0 {
-			return fmt.Errorf("not all inputs could be resolved for node %s after processing dependencies", nodeOutpoint.String())
+			return fmt.Errorf("%w for node %s after processing dependencies", ErrUnresolvedInputs, nodeOutpoint.String())
 		}
 	}
 	return nil
@@ -506,9 +509,8 @@ func (g *GASP) ProcessUTXO(ctx context.Context, outpoint *transaction.Outpoint) 
 	case g.utxoQueue <- outpoint:
 		return nil
 	default:
-		err := fmt.Errorf("UTXO processing queue full, dropping UTXO %s", outpoint.String())
-		slog.Warn(fmt.Sprintf("%s %v", g.LogPrefix, err))
-		return err
+		slog.Warn(fmt.Sprintf("%s UTXO processing queue full, dropping UTXO %s", g.LogPrefix, outpoint.String()))
+		return fmt.Errorf("%w: %s", ErrUTXOQueueFull, outpoint.String())
 	}
 }
 

@@ -2,6 +2,7 @@ package app
 
 import (
 	"context"
+	"errors"
 	"log/slog"
 
 	"github.com/bsv-blockchain/go-overlay-services/pkg/core/engine"
@@ -65,7 +66,7 @@ func (s *RequestForeignGASPNodeService) RequestForeignGASPNode(ctx context.Conte
 	}, dto.Topic)
 	if err != nil {
 		// Check if the error is due to missing output
-		if err == engine.ErrMissingOutput {
+		if errors.Is(err, engine.ErrMissingOutput) {
 			return nil, NewNotFoundError(
 				err.Error(),
 				"The requested output does not exist or is not available in this overlay.",

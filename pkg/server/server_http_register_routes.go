@@ -105,6 +105,7 @@ func RegisterRoutes(app *fiber.App, cfg *RegisterRoutesConfig) *fiber.App {
 			EnableStackTrace: true,
 			OctetStreamLimit: cfg.OctetStreamLimit,
 			IncludeLogger:    cfg.IncludeLogger,
+			BaseURL:          cfg.BaseURL,
 		}),
 	})
 

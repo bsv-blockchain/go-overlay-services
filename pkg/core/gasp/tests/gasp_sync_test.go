@@ -308,8 +308,8 @@ func createMockUTXO(txHex string, outputIndex, time uint32) *mockUTXO {
 		LockingScript: &script.Script{},
 	})
 	opReturn := &script.Script{}
-	opReturn.AppendOpcodes(script.OpFALSE, script.OpRETURN)
-	opReturn.AppendPushData([]byte(txHex))
+	_ = opReturn.AppendOpcodes(script.OpFALSE, script.OpRETURN)
+	_ = opReturn.AppendPushData([]byte(txHex))
 	tx.AddOutput(&transaction.TransactionOutput{
 		Satoshis:      0,
 		LockingScript: opReturn,
