@@ -508,7 +508,7 @@ func (g *GASP) computeTxID(rawtx string) (txID *chainhash.Hash, err error) {
 // is only submitted once, even if multiple outputs are queued concurrently.
 // This method is non-blocking - if the internal queue is full, the UTXO is dropped.
 // Does NOT update LastInteraction score.
-func (g *GASP) ProcessUTXO(ctx context.Context, outpoint *transaction.Outpoint) error {
+func (g *GASP) ProcessUTXO(_ context.Context, outpoint *transaction.Outpoint) error {
 	select {
 	case g.utxoQueue <- outpoint:
 		return nil
