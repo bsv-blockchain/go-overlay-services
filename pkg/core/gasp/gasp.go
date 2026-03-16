@@ -492,9 +492,9 @@ func (g *GASP) computeTxID(rawtx string) (txID *chainhash.Hash, err error) {
 	}
 
 	// Check hex string length before decoding to prevent memory exhaustion
-	// 2 hex chars = 1 byte, so 2M hex chars = 1MB decoded
-	if len(rawtx) > 2_000_000 {
-		return nil, fmt.Errorf("%w: %d characters (maximum 2,000,000)", ErrTransactionHexTooLong, len(rawtx))
+	// 2 hex chars = 1 byte, so 200M hex chars = 100MB decoded
+	if len(rawtx) > 200_000_000 {
+		return nil, fmt.Errorf("%w: %d characters (maximum 200,000,000)", ErrTransactionHexTooLong, len(rawtx))
 	}
 
 	// Decode hex to validate and check for malicious VarInt patterns
