@@ -439,7 +439,7 @@ func buildInpoints(tx *transaction.Transaction) []*transaction.Outpoint {
 // merge BEEFs from existing outputs, and identify admissible outputs via topic managers.
 func (e *Engine) identifyAdmissibleOutputsPerTopic(
 	ctx context.Context,
-	p *SubmitParsedBeefParams,
+	p *submitParsedBeefParams,
 	managers map[string]TopicManager,
 	inpoints []*transaction.Outpoint,
 	steak overlay.Steak,
@@ -577,7 +577,7 @@ func (e *Engine) broadcastIfNeeded(tx *transaction.Transaction, txid *chainhash.
 }
 
 // commitAdmittedOutputs persists admitted outputs, updates consumed-by references, and records applied transactions.
-func (e *Engine) commitAdmittedOutputs(ctx context.Context, p *SubmitParsedBeefParams, steak overlay.Steak, topicInputs map[string]map[uint32]*Output, dupeTopics map[string]struct{}) error {
+func (e *Engine) commitAdmittedOutputs(ctx context.Context, p *submitParsedBeefParams, steak overlay.Steak, topicInputs map[string]map[uint32]*Output, dupeTopics map[string]struct{}) error {
 	for _, t := range p.Topics {
 		if _, ok := dupeTopics[t]; ok {
 			continue

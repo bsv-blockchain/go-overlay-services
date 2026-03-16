@@ -400,7 +400,7 @@ func appendByteField(buf, data []byte) []byte {
 func readByteField(data []byte, offset int) ([]byte, int, error) {
 	length, n := binary.Uvarint(data[offset:])
 	if n <= 0 {
-		return nil, offset, fmt.Errorf("%w at offset %d", ErrWireInvalidVarint, offset)
+		return nil, offset, fmt.Errorf(fmtVarintAtOffset, ErrWireInvalidVarint, offset)
 	}
 	offset += n
 	if offset+int(length) > len(data) { //nolint:gosec // length bounded by data size
@@ -427,7 +427,7 @@ func appendOutputList(buf []byte, outputs []*Output) []byte {
 func readOutputList(data []byte, offset int) ([]*Output, int, error) { //nolint:unparam // offset return kept for consistency with readByteField
 	count, n := binary.Uvarint(data[offset:])
 	if n <= 0 {
-		return nil, offset, fmt.Errorf("%w at offset %d", ErrWireInvalidVarint, offset)
+		return nil, offset, fmt.Errorf(fmtVarintAtOffset, ErrWireInvalidVarint, offset)
 	}
 	offset += n
 
