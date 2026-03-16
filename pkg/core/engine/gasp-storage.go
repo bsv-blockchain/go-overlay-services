@@ -206,7 +206,7 @@ func (s *OverlayGASPStorage) FindNeededInputs(ctx context.Context, gaspTx *gasp.
 						return nil, fmt.Errorf("failed to merge BEEF for input %d: %w", vin, err)
 					}
 				}
-				previousCoins = append(previousCoins, uint32(vin)) //nolint:gosec // vin bounded by tx.Inputs length
+				previousCoins = append(previousCoins, uint32(vin))
 			}
 		}
 
@@ -348,7 +348,7 @@ func (s *OverlayGASPStorage) ValidateGraphAnchor(ctx context.Context, graphID *t
 						return fmt.Errorf("failed to merge BEEF for input %d: %w", vin, mergeErr)
 					}
 				}
-				previousCoins = append(previousCoins, uint32(vin)) //nolint:gosec // vin bounded by tx.Inputs length
+				previousCoins = append(previousCoins, uint32(vin))
 			}
 		}
 		admit, err := s.IdentifyAdmissibleOutputs(ctx, beef, txid, previousCoins)
