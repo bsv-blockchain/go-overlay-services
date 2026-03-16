@@ -299,7 +299,7 @@ func DeserializeNode(data []byte) (*Node, error) {
 
 	if inputCount > 0 {
 		n.Inputs = make(map[string]*Input, inputCount)
-		for i := 0; i < int(inputCount); i++ { //nolint:gosec // inputCount bounded by data length
+		for i := range int(inputCount) {
 			var hashBytes []byte
 			hashBytes, offset, err = readByteField(data, offset)
 			if err != nil {

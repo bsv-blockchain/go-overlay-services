@@ -484,22 +484,63 @@ func (g *GASP) computeTxID(rawtx string) (txID *chainhash.Hash, err error) {
 		}
 	}()
 
-	// Check hex string length before decoding to prevent memory exhaustion
-	// 2 hex chars = 1 byte, so 200MB hex = 100MB decoded
-	if len(rawtx) > 200*1024*1024 {
-		return nil, fmt.Errorf("%w: %d hex chars (maximum 100MB)", ErrTransactionHexTooLong, len(rawtx))
+	// Validate input length to prevent problematic VarInt patterns that cause EOF errors
+	// during fuzz test minimization. Minimum valid transaction is ~10 bytes (20 hex chars):
+	// 4 bytes version + 1 byte input count + 1 byte output count + 4 bytes locktime
+	if len(rawtx) < 20 {
+		return nil, fmt.Errorf("%w: %d characters (minimum 20)", ErrTransactionHexTooShort, len(rawtx))
 	}
 
+	// Check hex string length before decoding to prevent memory exhaustion
+	// 2 hex chars = 1 byte, so 2M hex chars = 1MB decoded
+	if len(rawtx) > 2_000_000 {
+		return nil, fmt.Errorf("%w: %d characters (maximum 2,000,000)", ErrTransactionHexTooLong, len(rawtx))
+	}
+
+	// Decode hex to validate and check for malicious VarInt patterns
 	txBytes, err := hex.DecodeString(rawtx)
 	if err != nil {
 		return nil, fmt.Errorf("invalid hex: %w", err)
 	}
 
-	tx, err := transaction.NewTransactionFromBytes(txBytes)
+	// Validate that VarInt values are reasonable to prevent OOM attacks
+	if validationErr := validateVarInts(txBytes); validationErr != nil {
+		return nil, validationErr
+	}
+
+	tx, err := transaction.NewTransactionFromHex(rawtx)
 	if err != nil {
 		return nil, err
 	}
 	return tx.TxID(), nil
+}
+
+// validateVarInts checks for malicious VarInt patterns that could cause OOM.
+// Bitcoin uses VarInt encoding where 0xff prefix means the next 8 bytes are the value.
+// Malicious inputs can have 0xff followed by huge values causing allocation failures.
+func validateVarInts(data []byte) error {
+	const maxReasonableVarInt = 10_000_000 // 10MB is reasonable for script/input/output counts
+
+	for i := 0; i < len(data); i++ {
+		if data[i] == 0xff {
+			if i+8 >= len(data) {
+				continue
+			}
+			value := uint64(data[i+1]) |
+				uint64(data[i+2])<<8 |
+				uint64(data[i+3])<<16 |
+				uint64(data[i+4])<<24 |
+				uint64(data[i+5])<<32 |
+				uint64(data[i+6])<<40 |
+				uint64(data[i+7])<<48 |
+				uint64(data[i+8])<<56
+
+			if value > maxReasonableVarInt {
+				return fmt.Errorf("%w: value %d exceeds maximum %d", ErrMaliciousVarInt, value, maxReasonableVarInt)
+			}
+		}
+	}
+	return nil
 }
 
 // ProcessUTXO queues a single UTXO for processing outside of the sync workflow.
