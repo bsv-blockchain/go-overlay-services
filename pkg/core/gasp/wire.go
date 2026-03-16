@@ -297,6 +297,9 @@ func DeserializeNode(data []byte) (*Node, error) {
 	}
 	offset += nn
 
+	if inputCount > math.MaxUint32 {
+		return nil, fmt.Errorf("%w: input count %d exceeds uint32", ErrWireTooShort, inputCount)
+	}
 	if inputCount > 0 {
 		n.Inputs = make(map[string]*Input, inputCount)
 		for i := range int(inputCount) {
