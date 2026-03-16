@@ -20,6 +20,9 @@ var (
 	ErrWireTrailingBytes  = errors.New("trailing bytes")
 )
 
+// fmtVarintErr formats a "invalid varint at offset" error message.
+const fmtVarintAtOffset = "%w at offset %d"
+
 // Binary wire format serialization for GASP types.
 // These are transport-agnostic and can be used over libp2p, WebSocket, or raw TCP.
 // Every serialized message starts with a version byte for forward compatibility.
@@ -291,31 +294,41 @@ func DeserializeNode(data []byte) (*Node, error) {
 	}
 	n.OutputMetadata = string(outMeta)
 
-	inputCount, nn := binary.Uvarint(data[offset:])
-	if nn <= 0 {
-		return nil, fmt.Errorf("%w at offset %d", ErrWireInvalidVarint, offset)
-	}
-	offset += nn
-
-	if inputCount > math.MaxUint32 {
-		return nil, fmt.Errorf("%w: input count %d exceeds uint32", ErrWireTooShort, inputCount)
-	}
-	if inputCount > 0 {
-		n.Inputs = make(map[string]*Input, inputCount)
-		for i := range int(inputCount) {
-			var hashBytes []byte
-			hashBytes, offset, err = readByteField(data, offset)
-			if err != nil {
-				return nil, fmt.Errorf("input[%d]: %w", i, err)
-			}
-			n.Inputs[string(hashBytes)] = &Input{Hash: string(hashBytes)}
-		}
+	n.Inputs, offset, err = deserializeNodeInputs(data, offset)
+	if err != nil {
+		return nil, err
 	}
 
 	if offset != len(data) {
 		return nil, fmt.Errorf("%w: consumed %d of %d", ErrWireTrailingBytes, offset, len(data))
 	}
 	return n, nil
+}
+
+// deserializeNodeInputs reads the input map from binary wire format.
+func deserializeNodeInputs(data []byte, offset int) (map[string]*Input, int, error) {
+	inputCount, nn := binary.Uvarint(data[offset:])
+	if nn <= 0 {
+		return nil, offset, fmt.Errorf(fmtVarintAtOffset, ErrWireInvalidVarint, offset)
+	}
+	offset += nn
+
+	if inputCount > math.MaxUint32 {
+		return nil, offset, fmt.Errorf("%w: input count %d exceeds uint32", ErrWireTooShort, inputCount)
+	}
+	if inputCount == 0 {
+		return nil, offset, nil
+	}
+	inputs := make(map[string]*Input, inputCount)
+	for i := range int(inputCount) {
+		hashBytes, newOffset, err := readByteField(data, offset)
+		if err != nil {
+			return nil, offset, fmt.Errorf("input[%d]: %w", i, err)
+		}
+		offset = newOffset
+		inputs[string(hashBytes)] = &Input{Hash: string(hashBytes)}
+	}
+	return inputs, offset, nil
 }
 
 // Serialize encodes a NodeResponse into binary wire format.
@@ -350,7 +363,7 @@ func DeserializeNodeResponse(data []byte) (*NodeResponse, error) {
 
 	count, n := binary.Uvarint(data[offset:])
 	if n <= 0 {
-		return nil, fmt.Errorf("%w at offset %d", ErrWireInvalidVarint, offset)
+		return nil, fmt.Errorf(fmtVarintAtOffset, ErrWireInvalidVarint, offset)
 	}
 	offset += n
 

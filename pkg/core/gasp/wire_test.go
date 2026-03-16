@@ -23,7 +23,7 @@ func randomHashPtr(t *testing.T) *chainhash.Hash {
 	return &h
 }
 
-func TestInitialRequest_Wire_RoundTrip(t *testing.T) {
+func TestInitialRequestWireRoundTrip(t *testing.T) {
 	req := &InitialRequest{Version: 1, Since: 1710460800.0, Limit: 100}
 	data := req.Serialize()
 	got, err := DeserializeInitialRequest(data)
@@ -41,7 +41,7 @@ func TestInitialRequest_Wire_RoundTrip(t *testing.T) {
 	}
 }
 
-func TestInitialResponse_Wire_RoundTrip(t *testing.T) {
+func TestInitialResponseWireRoundTrip(t *testing.T) {
 	resp := &InitialResponse{
 		Since: 1710460800.0,
 		UTXOList: []*Output{
@@ -74,7 +74,7 @@ func TestInitialResponse_Wire_RoundTrip(t *testing.T) {
 	}
 }
 
-func TestInitialResponse_Wire_Empty(t *testing.T) {
+func TestInitialResponseWireEmpty(t *testing.T) {
 	resp := &InitialResponse{Since: 0}
 	data := resp.Serialize()
 	got, err := DeserializeInitialResponse(data)
@@ -86,7 +86,7 @@ func TestInitialResponse_Wire_Empty(t *testing.T) {
 	}
 }
 
-func TestInitialReply_Wire_RoundTrip(t *testing.T) {
+func TestInitialReplyWireRoundTrip(t *testing.T) {
 	reply := &InitialReply{
 		UTXOList: []*Output{
 			{Txid: randomHash(t), OutputIndex: 0, Score: 50.0},
@@ -105,7 +105,7 @@ func TestInitialReply_Wire_RoundTrip(t *testing.T) {
 	}
 }
 
-func TestNodeRequest_Wire_RoundTrip(t *testing.T) {
+func TestNodeRequestWireRoundTrip(t *testing.T) {
 	graphID := &transaction.Outpoint{Txid: randomHash(t), Index: 0}
 	txid := randomHashPtr(t)
 	req := &NodeRequest{
@@ -136,7 +136,7 @@ func TestNodeRequest_Wire_RoundTrip(t *testing.T) {
 	}
 }
 
-func TestNode_Wire_RoundTrip(t *testing.T) {
+func TestNodeWireRoundTrip(t *testing.T) {
 	proof := "aabbccdd"
 	node := &Node{
 		GraphID:        &transaction.Outpoint{Txid: randomHash(t), Index: 0},
@@ -189,7 +189,7 @@ func TestNode_Wire_RoundTrip(t *testing.T) {
 	}
 }
 
-func TestNode_Wire_Empty(t *testing.T) {
+func TestNodeWireEmpty(t *testing.T) {
 	node := &Node{
 		GraphID:     &transaction.Outpoint{Txid: randomHash(t), Index: 0},
 		OutputIndex: 0,
@@ -216,7 +216,7 @@ func TestNode_Wire_Empty(t *testing.T) {
 	}
 }
 
-func TestNodeResponse_Wire_RoundTrip(t *testing.T) {
+func TestNodeResponseWireRoundTrip(t *testing.T) {
 	resp := &NodeResponse{
 		RequestedInputs: map[transaction.Outpoint]*NodeResponseData{
 			{Txid: randomHash(t), Index: 0}: {Metadata: true},
@@ -246,7 +246,7 @@ func TestNodeResponse_Wire_RoundTrip(t *testing.T) {
 	}
 }
 
-func TestNodeResponse_Wire_Empty(t *testing.T) {
+func TestNodeResponseWireEmpty(t *testing.T) {
 	resp := &NodeResponse{
 		RequestedInputs: map[transaction.Outpoint]*NodeResponseData{},
 	}
