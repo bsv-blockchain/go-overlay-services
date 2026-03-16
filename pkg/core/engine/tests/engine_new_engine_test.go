@@ -10,7 +10,7 @@ import (
 
 func TestEngine_NewEngine_ShouldInitializeFields_WhenNilProvided(t *testing.T) {
 	// given:
-	input := &engine.EngineConfig{}
+	input := &engine.Config{}
 
 	// when:
 	actual := engine.NewEngine(input)
@@ -26,7 +26,7 @@ func TestEngine_NewEngine_ShouldInitializeFields_WhenNilProvided(t *testing.T) {
 
 func TestEngine_NewEngine_ShouldMergeTrackers_WhenManagerIsShipType(t *testing.T) {
 	// given:
-	input := &engine.EngineConfig{
+	input := &engine.Config{
 		SHIPTrackers: []string{"http://tracker1.com"},
 		Managers: map[string]engine.TopicManager{
 			"tm_ship": fakeTopicManager{},
@@ -66,7 +66,7 @@ func TestEngine_NewEngine_ShouldMergeTrackers_WhenManagerIsShipType(t *testing.T
 
 func TestEngine_NewEngine_ShouldMergeTrackers_WhenManagerIsSlapType(t *testing.T) {
 	// given:
-	input := &engine.EngineConfig{
+	input := &engine.Config{
 		SLAPTrackers: []string{"http://slaptracker.com"},
 		Managers: map[string]engine.TopicManager{
 			"tm_slap": fakeTopicManager{},
@@ -88,7 +88,7 @@ func TestEngine_NewEngine_ShouldMergeTrackers_WhenManagerIsSlapType(t *testing.T
 
 func TestEngine_NewEngine_ShouldNotMergeTrackers_WhenTypeIsNotPeers(t *testing.T) {
 	// given:
-	input := &engine.EngineConfig{
+	input := &engine.Config{
 		SHIPTrackers: []string{"http://tracker-should-not-merge.com"},
 		Managers: map[string]engine.TopicManager{
 			"tm_ship": fakeTopicManager{},

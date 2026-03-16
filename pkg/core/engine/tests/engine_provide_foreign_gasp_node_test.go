@@ -36,7 +36,7 @@ func TestEngine_ProvideForeignGASPNode_Success(t *testing.T) {
 
 	sut := &engine.Engine{
 		Storage: fakeStorage{
-			findOutputFunc: func(ctx context.Context, op *transaction.Outpoint, topic *string, spent *bool, includeBEEF bool) (*engine.Output, error) {
+			findOutputFunc: func(_ context.Context, op *transaction.Outpoint, _ *string, _ *bool, _ bool) (*engine.Output, error) {
 				return &engine.Output{
 					Outpoint: *op,
 					Beef:     beef,
@@ -61,7 +61,7 @@ func TestEngine_ProvideForeignGASPNode_MissingBeef_ShouldReturnError(t *testing.
 
 	sut := &engine.Engine{
 		Storage: fakeStorage{
-			findOutputFunc: func(ctx context.Context, outpoint *transaction.Outpoint, topic *string, spent *bool, includeBEEF bool) (*engine.Output, error) {
+			findOutputFunc: func(_ context.Context, _ *transaction.Outpoint, _ *string, _ *bool, _ bool) (*engine.Output, error) {
 				return &engine.Output{}, nil // Missing Beef
 			},
 		},
@@ -84,7 +84,7 @@ func TestEngine_ProvideForeignGASPNode_CannotFindOutput_ShouldReturnError(t *tes
 
 	sut := &engine.Engine{
 		Storage: fakeStorage{
-			findOutputFunc: func(ctx context.Context, outpoint *transaction.Outpoint, topic *string, spent *bool, includeBEEF bool) (*engine.Output, error) {
+			findOutputFunc: func(_ context.Context, _ *transaction.Outpoint, _ *string, _ *bool, _ bool) (*engine.Output, error) {
 				return nil, expectedErr
 			},
 		},
@@ -112,7 +112,7 @@ func TestEngine_ProvideForeignGASPNode_TransactionNotFound_ShouldReturnError(t *
 
 	sut := &engine.Engine{
 		Storage: fakeStorage{
-			findOutputFunc: func(ctx context.Context, outpoint *transaction.Outpoint, topic *string, spent *bool, includeBEEF bool) (*engine.Output, error) {
+			findOutputFunc: func(_ context.Context, _ *transaction.Outpoint, _ *string, _ *bool, _ bool) (*engine.Output, error) {
 				return &engine.Output{Beef: emptyBeef}, nil
 			},
 		},

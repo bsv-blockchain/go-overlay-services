@@ -10,7 +10,7 @@ The `Engine` struct previously had `Managers` and `LookupServices` maps that wer
 
 ## Solution
 
-Make the maps private and provide thread-safe accessor methods. Use `EngineConfig` for initialization.
+Make the maps private and provide thread-safe accessor methods. Use `Config` for initialization.
 
 ## Implementation Summary
 
@@ -29,10 +29,10 @@ type Engine struct {
 }
 ```
 
-### EngineConfig for initialization:
+### Config for initialization:
 
 ```go
-type EngineConfig struct {
+type Config struct {
     Managers       map[string]TopicManager
     LookupServices map[string]LookupService
     Storage        Storage
@@ -41,7 +41,7 @@ type EngineConfig struct {
 }
 
 // Create a new engine:
-e := engine.NewEngine(&engine.EngineConfig{
+e := engine.NewEngine(&engine.Config{
     Managers: map[string]engine.TopicManager{
         "tm_example": myTopicManager,
     },
@@ -87,10 +87,10 @@ e := engine.NewEngine(&engine.EngineConfig{
 
 ### Files modified:
 
-1. **`pkg/core/engine/engine.go`** - main implementation with private fields and EngineConfig
+1. **`pkg/core/engine/engine.go`** - main implementation with private fields and Config
 2. **`pkg/core/engine/gasp-storage.go`** - updated to use thread-safe accessors
-3. **`pkg/core/engine/tests/*.go`** - updated tests to use `EngineConfig`
-4. **`examples/custom/main.go`** - updated to use `EngineConfig`
+3. **`pkg/core/engine/tests/*.go`** - updated tests to use `Config`
+4. **`examples/custom/main.go`** - updated to use `Config`
 
 ## Design Notes
 
@@ -116,7 +116,7 @@ e := &engine.Engine{
 }
 
 // New way:
-e := engine.NewEngine(&engine.EngineConfig{
+e := engine.NewEngine(&engine.Config{
     Managers: map[string]engine.TopicManager{...},
     LookupServices: map[string]engine.LookupService{...},
 })

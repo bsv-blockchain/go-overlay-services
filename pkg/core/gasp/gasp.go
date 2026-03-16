@@ -1,3 +1,4 @@
+// Package gasp implements the Graph Aware Sync Protocol for synchronizing transaction graphs.
 package gasp
 
 import (
@@ -309,28 +310,29 @@ func (g *GASP) SubmitNode(ctx context.Context, node *Node) (requestedInputs *Nod
 		return nil, err
 	} else if requestedInputs != nil {
 		slog.Debug(fmt.Sprintf("%s Requested inputs: %v", g.LogPrefix, requestedInputs))
-		if err := g.CompleteGraph(ctx, node.GraphID); err != nil {
-			return nil, err
+		if completeErr := g.CompleteGraph(ctx, node.GraphID); completeErr != nil {
+			return nil, completeErr
 		}
 	}
 	return requestedInputs, nil
 }
 
 // CompleteGraph finalizes a newly-synced graph by hydrating and storing outputs.
-func (g *GASP) CompleteGraph(ctx context.Context, graphID *transaction.Outpoint) (err error) {
-	if err = g.Storage.ValidateGraphAnchor(ctx, graphID); err == nil {
-		slog.Debug(fmt.Sprintf("%s Graph validated for node: %s", g.LogPrefix, graphID.String()))
-		if finalizeErr := g.Storage.FinalizeGraph(ctx, graphID); finalizeErr == nil {
-			slog.Debug(fmt.Sprintf("%s Graph finalized for node: %s", g.LogPrefix, graphID.String()))
-			_ = g.Storage.DiscardGraph(ctx, graphID)
-			return nil
-		} else {
-			err = finalizeErr
-		}
+func (g *GASP) CompleteGraph(ctx context.Context, graphID *transaction.Outpoint) error {
+	if err := g.Storage.ValidateGraphAnchor(ctx, graphID); err != nil {
+		slog.Warn(fmt.Sprintf("%s Error completing graph %s: %v", g.LogPrefix, graphID.String(), err))
+		_ = g.Storage.DiscardGraph(ctx, graphID)
+		return err
 	}
-	slog.Warn(fmt.Sprintf("%s Error completing graph %s: %v", g.LogPrefix, graphID.String(), err))
+	slog.Debug(fmt.Sprintf("%s Graph validated for node: %s", g.LogPrefix, graphID.String()))
+	if err := g.Storage.FinalizeGraph(ctx, graphID); err != nil {
+		slog.Warn(fmt.Sprintf("%s Error completing graph %s: %v", g.LogPrefix, graphID.String(), err))
+		_ = g.Storage.DiscardGraph(ctx, graphID)
+		return err
+	}
+	slog.Debug(fmt.Sprintf("%s Graph finalized for node: %s", g.LogPrefix, graphID.String()))
 	_ = g.Storage.DiscardGraph(ctx, graphID)
-	return err
+	return nil
 }
 
 func (g *GASP) processIncomingNode(ctx context.Context, node *Node, spentBy *transaction.Outpoint, seenNodes *sync.Map) error {
@@ -363,11 +365,11 @@ func (g *GASP) processIncomingNode(ctx context.Context, node *Node, spentBy *tra
 		slog.Debug(fmt.Sprintf("%s Needed inputs for node %s: %v", g.LogPrefix, nodeOutpoint.String(), neededInputs))
 		for outpoint, data := range neededInputs.RequestedInputs {
 			slog.Debug(fmt.Sprintf("%s Processing dependency for outpoint: %s, metadata: %v", g.LogPrefix, outpoint.String(), data.Metadata))
-			if err := g.ProcessUTXOToCompletion(ctx, &outpoint, nodeOutpoint, seenNodes); err != nil {
-				if errors.Is(err, ErrGraphNoTopicalAdmittance) {
-					return fmt.Errorf("dependency %s not admitted: %w", outpoint.String(), err)
+			if processErr := g.ProcessUTXOToCompletion(ctx, &outpoint, nodeOutpoint, seenNodes); processErr != nil {
+				if errors.Is(processErr, ErrGraphNoTopicalAdmittance) {
+					return fmt.Errorf("dependency %s not admitted: %w", outpoint.String(), processErr)
 				}
-				slog.Warn(fmt.Sprintf("%s Error processing dependency %s: %v", g.LogPrefix, outpoint.String(), err))
+				slog.Warn(fmt.Sprintf("%s Error processing dependency %s: %v", g.LogPrefix, outpoint.String(), processErr))
 			}
 		}
 		neededInputs, err = g.Storage.FindNeededInputs(ctx, node)
@@ -433,7 +435,7 @@ func (g *GASP) processOutgoingNode(ctx context.Context, node *Node, seenNodes *s
 	return nil
 }
 
-// processUTXOToCompletion handles the complete UTXO processing pipeline with result sharing deduplication
+// ProcessUTXOToCompletion handles the complete UTXO processing pipeline with result sharing deduplication.
 func (g *GASP) ProcessUTXOToCompletion(ctx context.Context, outpoint, spentBy *transaction.Outpoint, seenNodes *sync.Map) error {
 	// Pre-initialize the processing state to avoid race conditions
 	newState := &utxoProcessingState{}
@@ -444,36 +446,33 @@ func (g *GASP) ProcessUTXOToCompletion(ctx context.Context, outpoint, spentBy *t
 		state := inflight.(*utxoProcessingState)
 		state.wg.Wait()
 		return state.err
-	} else {
-		state := newState
-		defer func() {
-			state.wg.Done()
-			g.utxoProcessingMap.Delete(*outpoint)
-		}()
-
-		// We're the first to process this outpoint, do the complete processing
-
-		// Request node from remote
-		resolvedNode, err := g.Remote.RequestNode(ctx, spentBy, outpoint, true)
-		if err != nil {
-			state.err = fmt.Errorf("error with incoming UTXO %s: %w", outpoint, err)
-			return state.err
-		}
-		// Process dependencies
-		if err = g.processIncomingNode(ctx, resolvedNode, spentBy, seenNodes); err != nil {
-			state.err = fmt.Errorf("error processing incoming node %s: %w", outpoint, err)
-			return state.err
-		}
-
-		// Complete the graph (submit to engine) using the outpoint we requested
-		if err = g.CompleteGraph(ctx, outpoint); err != nil {
-			state.err = fmt.Errorf("error completing graph for %s: %w", outpoint, err)
-			return state.err
-		}
-
-		// Success - don't clean up immediately, handle externally
-		return nil
 	}
+
+	state := newState
+	defer func() {
+		state.wg.Done()
+		g.utxoProcessingMap.Delete(*outpoint)
+	}()
+
+	// Request node from remote
+	resolvedNode, err := g.Remote.RequestNode(ctx, spentBy, outpoint, true)
+	if err != nil {
+		state.err = fmt.Errorf("error with incoming UTXO %s: %w", outpoint, err)
+		return state.err
+	}
+	// Process dependencies
+	if err = g.processIncomingNode(ctx, resolvedNode, spentBy, seenNodes); err != nil {
+		state.err = fmt.Errorf("error processing incoming node %s: %w", outpoint, err)
+		return state.err
+	}
+
+	// Complete the graph (submit to engine) using the outpoint we requested
+	if err = g.CompleteGraph(ctx, outpoint); err != nil {
+		state.err = fmt.Errorf("error completing graph for %s: %w", outpoint, err)
+		return state.err
+	}
+
+	return nil
 }
 
 func (g *GASP) computeTxID(rawtx string) (txID *chainhash.Hash, err error) {

@@ -20,7 +20,7 @@ var (
 
 func TestEngine_SyncAdvertisements_ShouldReturnNil_WhenAdvertiserIsNil(t *testing.T) {
 	// given
-	sut := engine.NewEngine(&engine.EngineConfig{
+	sut := engine.NewEngine(&engine.Config{
 		Advertiser: nil,
 	})
 
@@ -33,7 +33,7 @@ func TestEngine_SyncAdvertisements_ShouldReturnNil_WhenAdvertiserIsNil(t *testin
 
 func TestEngine_SyncAdvertisements_ShouldNotFail_WhenCreateAdvertisementsFails(t *testing.T) {
 	// given
-	sut := engine.NewEngine(&engine.EngineConfig{
+	sut := engine.NewEngine(&engine.Config{
 		Advertiser: fakeAdvertiser{
 			findAllAdvertisementsFunc: func(_ overlay.Protocol) ([]*advertiser.Advertisement, error) {
 				return []*advertiser.Advertisement{}, nil
@@ -55,7 +55,7 @@ func TestEngine_SyncAdvertisements_ShouldNotFail_WhenCreateAdvertisementsFails(t
 
 func TestEngine_SyncAdvertisements_ShouldCompleteSuccessfully(t *testing.T) {
 	// given
-	sut := engine.NewEngine(&engine.EngineConfig{
+	sut := engine.NewEngine(&engine.Config{
 		Advertiser: fakeAdvertiser{
 			findAllAdvertisementsFunc: func(_ overlay.Protocol) ([]*advertiser.Advertisement, error) {
 				return []*advertiser.Advertisement{}, nil
@@ -81,7 +81,7 @@ func TestEngine_SyncAdvertisements_ShouldCompleteSuccessfully(t *testing.T) {
 
 func TestEngine_SyncAdvertisements_ShouldLogAndContinue_WhenCreateOrRevokeFails(t *testing.T) {
 	// given
-	sut := engine.NewEngine(&engine.EngineConfig{
+	sut := engine.NewEngine(&engine.Config{
 		Advertiser: fakeAdvertiser{
 			findAllAdvertisementsFunc: func(_ overlay.Protocol) ([]*advertiser.Advertisement, error) {
 				return []*advertiser.Advertisement{}, nil
@@ -124,7 +124,7 @@ func TestEngine_SyncAdvertisements_ShouldSkip_WhenHostingURLIsInvalid(t *testing
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			// given
-			sut := engine.NewEngine(&engine.EngineConfig{
+			sut := engine.NewEngine(&engine.Config{
 				Advertiser: fakeAdvertiser{
 					findAllAdvertisementsFunc: func(_ overlay.Protocol) ([]*advertiser.Advertisement, error) {
 						return []*advertiser.Advertisement{}, nil

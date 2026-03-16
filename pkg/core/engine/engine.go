@@ -112,9 +112,9 @@ type Engine struct {
 	mu sync.RWMutex
 }
 
-// EngineConfig holds configuration for creating a new Engine.
+// Config holds configuration for creating a new Engine.
 // Use NewEngine with this config to create an Engine instance.
-type EngineConfig struct {
+type Config struct {
 	Managers                map[string]TopicManager
 	LookupServices          map[string]LookupService
 	Storage                 Storage
@@ -133,9 +133,9 @@ type EngineConfig struct {
 }
 
 // NewEngine creates and returns a new Engine instance
-func NewEngine(cfg *EngineConfig) *Engine {
+func NewEngine(cfg *Config) *Engine {
 	if cfg == nil {
-		cfg = &EngineConfig{}
+		cfg = &Config{}
 	}
 
 	e := &Engine{
@@ -332,13 +332,13 @@ func (e *Engine) SubmitParsedBeef(ctx context.Context, beef *transaction.Beef, t
 	e.mu.RLock()
 	managers := make(map[string]TopicManager, len(topics))
 	for _, topic := range topics {
-		if manager, ok := e.managers[topic]; !ok {
+		manager, ok := e.managers[topic]
+		if !ok {
 			e.mu.RUnlock()
 			slog.Error("unknown topic in Submit", "topic", topic, "error", ErrUnknownTopic)
 			return nil, ErrUnknownTopic
-		} else {
-			managers[topic] = manager
 		}
+		managers[topic] = manager
 	}
 	e.mu.RUnlock()
 
@@ -391,8 +391,8 @@ func (e *Engine) SubmitParsedBeef(ctx context.Context, beef *transaction.Beef, t
 						return nil, fmt.Errorf("failed to merge BEEF for input %d: %w", vin, mergeErr)
 					}
 				}
-				previousCoins = append(previousCoins, uint32(vin))
-				topicInputs[topic][uint32(vin)] = output
+				previousCoins = append(previousCoins, uint32(vin)) //nolint:gosec // vin bounded by tx.Inputs length
+				topicInputs[topic][uint32(vin)] = output           //nolint:gosec // vin bounded by tx.Inputs length
 			}
 		}
 		// Clone beef so topic managers cannot modify the shared instance
@@ -686,16 +686,12 @@ func (e *Engine) SyncAdvertisements(ctx context.Context) error {
 	}
 	// Take snapshot of configured topics and services under read lock
 	e.mu.RLock()
-	configuredTopics := make([]string, 0, len(e.managers))
 	requiredSHIPAdvertisements := make(map[string]struct{}, len(e.managers))
 	for name := range e.managers {
-		configuredTopics = append(configuredTopics, name)
 		requiredSHIPAdvertisements[name] = struct{}{}
 	}
-	configuredServices := make([]string, 0, len(e.lookupServices))
 	requiredSLAPAdvertisements := make(map[string]struct{}, len(e.lookupServices))
 	for name := range e.lookupServices {
-		configuredServices = append(configuredServices, name)
 		requiredSLAPAdvertisements[name] = struct{}{}
 	}
 	e.mu.RUnlock()
@@ -820,26 +816,26 @@ func (e *Engine) StartGASPSync(ctx context.Context) error {
 			if lookupAnswer.Type == lookup.AnswerTypeOutputList {
 				endpointSet := make(map[string]struct{}, len(lookupAnswer.Outputs))
 				for _, output := range lookupAnswer.Outputs {
-					beef, _, txId, err := transaction.ParseBeef(output.Beef)
+					beef, _, txID, err := transaction.ParseBeef(output.Beef)
 					if err != nil {
 						slog.Error("failed to parse advertisement output BEEF", "topic", topic, "error", err)
 						continue
-					} else if txId == nil {
-						slog.Error("error parsing advertisement output BEEF, no txId", "topic", topic)
+					} else if txID == nil {
+						slog.Error("error parsing advertisement output BEEF, no txID", "topic", topic)
 						continue
 					}
-					slog.Info(fmt.Sprintf("[GASP SYNC] Successfully parsed BEEF for topic \"%s\", transaction count: %d, txId: %s\n", topic, len(beef.Transactions), txId.String()))
+					slog.Info(fmt.Sprintf("[GASP SYNC] Successfully parsed BEEF for topic \"%s\", transaction count: %d, txID: %s\n", topic, len(beef.Transactions), txID.String()))
 
 					// Find the transaction that matches the txid
-					tx := beef.FindTransactionByHash(txId)
+					tx := beef.FindTransactionByHash(txID)
 					if tx == nil {
-						slog.Error("failed to find transaction with matching txid in BEEF", "topic", topic, "txid", txId.String())
+						slog.Error("failed to find transaction with matching txid in BEEF", "topic", topic, "txid", txID.String())
 						continue
 					}
 
 					// Verify the output index exists
 					if tx.Outputs == nil || len(tx.Outputs) <= int(output.OutputIndex) {
-						slog.Error("transaction found but output index out of bounds", "topic", topic, "txid", txId.String(), "outputIndex", output.OutputIndex, "outputsLength", len(tx.Outputs))
+						slog.Error("transaction found but output index out of bounds", "topic", topic, "txid", txID.String(), "outputIndex", output.OutputIndex, "outputsLength", len(tx.Outputs))
 						continue
 					}
 
@@ -874,12 +870,12 @@ func (e *Engine) StartGASPSync(ctx context.Context) error {
 
 					// Determine expected protocol based on topic
 					var expectedProtocol overlay.Protocol
-					if topic == "tm_ship" {
+					switch topic {
+					case "tm_ship":
 						expectedProtocol = overlay.ProtocolSHIP
-					} else if topic == "tm_slap" {
+					case "tm_slap":
 						expectedProtocol = overlay.ProtocolSLAP
-					} else {
-						// For unknown topics, log a warning but continue
+					default:
 						slog.Warn("unknown topic, cannot determine expected protocol", "topic", topic)
 						continue
 					}
@@ -899,11 +895,14 @@ func (e *Engine) StartGASPSync(ctx context.Context) error {
 					}
 				}
 				// Determine protocol name for logging
-				protocolName := "UNKNOWN"
-				if topic == "tm_ship" {
+				var protocolName string
+				switch topic {
+				case "tm_ship":
 					protocolName = "SHIP"
-				} else if topic == "tm_slap" {
+				case "tm_slap":
 					protocolName = "SLAP"
+				default:
+					protocolName = "UNKNOWN"
 				}
 				slog.Info(fmt.Sprintf("[GASP SYNC] Discovered %d unique %s peer endpoint(s) for topic \"%s\"", len(syncEndpoints.Peers), protocolName, topic))
 			} else {
@@ -1084,9 +1083,9 @@ func (e *Engine) ProvideForeignSyncResponse(ctx context.Context, initialRequest 
 }
 
 // ProvideForeignGASPNode provides a GASP node for foreign peers
-func (e *Engine) ProvideForeignGASPNode(ctx context.Context, graphId *transaction.Outpoint, outpoint *transaction.Outpoint, topic string) (*gasp.Node, error) {
+func (e *Engine) ProvideForeignGASPNode(ctx context.Context, graphID *transaction.Outpoint, outpoint *transaction.Outpoint, topic string) (*gasp.Node, error) {
 	slog.Debug("ProvideForeignGASPNode called",
-		"graphID", graphId.String(),
+		"graphID", graphID.String(),
 		"outpoint", outpoint.String(),
 		"topic", topic)
 
@@ -1108,7 +1107,7 @@ func (e *Engine) ProvideForeignGASPNode(ctx context.Context, graphId *transactio
 		// If found in BEEF, return the node
 		if correctTx := output.Beef.FindTransactionByHash(&outpoint.Txid); correctTx != nil {
 			node := &gasp.Node{
-				GraphID:     graphId,
+				GraphID:     graphID,
 				RawTx:       correctTx.Hex(),
 				OutputIndex: outpoint.Index,
 			}
@@ -1134,10 +1133,10 @@ func (e *Engine) ProvideForeignGASPNode(ctx context.Context, graphId *transactio
 
 		return nil, ErrMissingOutput
 	}
-	output, err := e.Storage.FindOutput(ctx, graphId, &topic, nil, true)
+	output, err := e.Storage.FindOutput(ctx, graphID, &topic, nil, true)
 	if err != nil {
 		slog.Error("failed to find output in ProvideForeignGASPNode",
-			"graphID", graphId.String(),
+			"graphID", graphID.String(),
 			"outpoint", outpoint.String(),
 			"topic", topic,
 			"error", err)
@@ -1145,7 +1144,7 @@ func (e *Engine) ProvideForeignGASPNode(ctx context.Context, graphId *transactio
 	}
 	if output == nil {
 		slog.Warn("Output not found in storage",
-			"graphID", graphId.String(),
+			"graphID", graphID.String(),
 			"outpoint", outpoint.String(),
 			"topic", topic)
 		return nil, ErrMissingOutput
@@ -1201,7 +1200,7 @@ func (e *Engine) deleteUTXODeep(ctx context.Context, output *Output) error {
 	return nil
 }
 
-func (e *Engine) updateInputProofs(ctx context.Context, tx *transaction.Transaction, txid chainhash.Hash, proof *transaction.MerklePath) (err error) {
+func (e *Engine) updateInputProofs(ctx context.Context, tx *transaction.Transaction, txid chainhash.Hash, proof *transaction.MerklePath) (err error) { //nolint:unparam // ctx passed through recursive calls
 	if tx.MerklePath != nil {
 		tx.MerklePath = proof
 		return nil

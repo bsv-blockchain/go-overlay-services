@@ -219,7 +219,7 @@ func (m *mockGASPStorage) FinalizeGraph(ctx context.Context, graphID *transactio
 	return nil
 }
 
-func (m *mockGASPStorage) HasOutputs(ctx context.Context, outpoints []*transaction.Outpoint) ([]bool, error) {
+func (m *mockGASPStorage) HasOutputs(_ context.Context, outpoints []*transaction.Outpoint) ([]bool, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 

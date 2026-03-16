@@ -25,7 +25,8 @@ var (
 	ErrorTypeRawDataProcessing = ErrorType{"raw-data-processing"}
 	// ErrorTypeUnsupportedOperation indicates that the requested operation is not supported.
 	ErrorTypeUnsupportedOperation = ErrorType{"unsupported-operation"}
-	ErrorTypeNotFound             = ErrorType{"not-found"}
+	// ErrorTypeNotFound indicates that the requested resource was not found.
+	ErrorTypeNotFound = ErrorType{"not-found"}
 )
 
 // Error defines a generic application-layer error that should be translated

@@ -132,11 +132,11 @@ func (f fakeStorage) GetLastInteraction(ctx context.Context, host string, topic 
 	panic("func not defined")
 }
 
-func (f fakeStorage) FindOutpointsByMerkleState(ctx context.Context, topic string, state engine.MerkleState, limit uint32) ([]*transaction.Outpoint, error) {
+func (f fakeStorage) FindOutpointsByMerkleState(_ context.Context, _ string, _ engine.MerkleState, _ uint32) ([]*transaction.Outpoint, error) {
 	return nil, nil
 }
 
-func (f fakeStorage) ReconcileMerkleRoot(ctx context.Context, topic string, blockHeight uint32, merkleRoot *chainhash.Hash) error {
+func (f fakeStorage) ReconcileMerkleRoot(_ context.Context, _ string, _ uint32, _ *chainhash.Hash) error {
 	return nil
 }
 
@@ -147,7 +147,7 @@ func (f fakeStorage) InsertOutputs(ctx context.Context, topic string, txid *chai
 	panic("func not defined")
 }
 
-func (f fakeStorage) LoadAncillaryBeef(ctx context.Context, output *engine.Output) error {
+func (f fakeStorage) LoadAncillaryBeef(_ context.Context, _ *engine.Output) error {
 	return nil
 }
 
@@ -231,23 +231,23 @@ func (f fakeChainTracker) CurrentHeight(ctx context.Context) (uint32, error) {
 
 type fakeChainTrackerSPVFail struct{}
 
-func (f fakeChainTrackerSPVFail) Verify(tx *transaction.Transaction, options ...any) (bool, error) {
+func (f fakeChainTrackerSPVFail) Verify(_ *transaction.Transaction, _ ...any) (bool, error) {
 	panic("func not defined")
 }
 
-func (f fakeChainTrackerSPVFail) IsValidRootForHeight(ctx context.Context, root *chainhash.Hash, height uint32) (bool, error) {
+func (f fakeChainTrackerSPVFail) IsValidRootForHeight(_ context.Context, _ *chainhash.Hash, _ uint32) (bool, error) {
 	panic("func not defined")
 }
 
-func (f fakeChainTrackerSPVFail) FindHeader(height uint32) ([]byte, error) {
+func (f fakeChainTrackerSPVFail) FindHeader(_ uint32) ([]byte, error) {
 	panic("func not defined")
 }
 
-func (f fakeChainTrackerSPVFail) FindPreviousHeader(tx *transaction.Transaction) ([]byte, error) {
+func (f fakeChainTrackerSPVFail) FindPreviousHeader(_ *transaction.Transaction) ([]byte, error) {
 	panic("func not defined")
 }
 
-func (f fakeChainTrackerSPVFail) CurrentHeight(ctx context.Context) (uint32, error) {
+func (f fakeChainTrackerSPVFail) CurrentHeight(_ context.Context) (uint32, error) {
 	return 0, nil
 }
 
@@ -281,23 +281,23 @@ func (f fakeLookupService) Lookup(ctx context.Context, question *lookup.LookupQu
 	panic("func not defined")
 }
 
-func (f fakeLookupService) OutputAdmittedByTopic(ctx context.Context, payload *engine.OutputAdmittedByTopic) error {
+func (f fakeLookupService) OutputAdmittedByTopic(_ context.Context, _ *engine.OutputAdmittedByTopic) error {
 	panic("func not defined")
 }
 
-func (f fakeLookupService) OutputSpent(ctx context.Context, payload *engine.OutputSpent) error {
+func (f fakeLookupService) OutputSpent(_ context.Context, _ *engine.OutputSpent) error {
 	panic("func not defined")
 }
 
-func (f fakeLookupService) OutputNoLongerRetainedInHistory(ctx context.Context, outpoint *transaction.Outpoint, topic string) error {
+func (f fakeLookupService) OutputNoLongerRetainedInHistory(_ context.Context, _ *transaction.Outpoint, _ string) error {
 	panic("func not defined")
 }
 
-func (f fakeLookupService) OutputEvicted(ctx context.Context, outpoint *transaction.Outpoint) error {
+func (f fakeLookupService) OutputEvicted(_ context.Context, _ *transaction.Outpoint) error {
 	panic("func not defined")
 }
 
-func (f fakeLookupService) OutputBlockHeightUpdated(ctx context.Context, txid *chainhash.Hash, blockHeight uint32, blockIndex uint64) error {
+func (f fakeLookupService) OutputBlockHeightUpdated(_ context.Context, _ *chainhash.Hash, _ uint32, _ uint64) error {
 	panic("func not defined")
 }
 
@@ -344,16 +344,16 @@ func (f fakeAdvertiser) ParseAdvertisement(script *script.Script) (*advertiser.A
 	if f.parseAdvertisement != nil {
 		return f.parseAdvertisement(script)
 	}
-	return nil, nil
+	return nil, nil //nolint:nilnil // mock returns nil when not configured
 }
 
 type fakeTopicManager struct{}
 
-func (fakeTopicManager) IdentifyAdmissibleOutputs(ctx context.Context, beef *transaction.Beef, txid *chainhash.Hash, previousCoins []uint32) (overlay.AdmittanceInstructions, error) {
+func (fakeTopicManager) IdentifyAdmissibleOutputs(_ context.Context, _ *transaction.Beef, _ *chainhash.Hash, _ []uint32) (overlay.AdmittanceInstructions, error) {
 	return overlay.AdmittanceInstructions{}, nil
 }
 
-func (fakeTopicManager) IdentifyNeededInputs(ctx context.Context, beef *transaction.Beef, txid *chainhash.Hash) ([]*transaction.Outpoint, error) {
+func (fakeTopicManager) IdentifyNeededInputs(_ context.Context, _ *transaction.Beef, _ *chainhash.Hash) ([]*transaction.Outpoint, error) {
 	return nil, nil
 }
 

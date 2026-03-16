@@ -84,11 +84,11 @@ func TestEngine_HandleNewMerkleProof(t *testing.T) {
 			},
 		}
 
-		sut := engine.NewEngine(&engine.EngineConfig{
+		sut := engine.NewEngine(&engine.Config{
 			Storage:        mockStorage,
 			LookupServices: map[string]engine.LookupService{"test-service": mockLookupService},
 			ChainTracker: fakeChainTracker{
-				isValidRootForHeight: func(ctx context.Context, root *chainhash.Hash, height uint32) (bool, error) {
+				isValidRootForHeight: func(_ context.Context, _ *chainhash.Hash, _ uint32) (bool, error) {
 					return true, nil
 				},
 			},
@@ -137,10 +137,10 @@ func TestEngine_HandleNewMerkleProof(t *testing.T) {
 			},
 		}
 
-		sut := engine.NewEngine(&engine.EngineConfig{
+		sut := engine.NewEngine(&engine.Config{
 			Storage: mockStorage,
 			ChainTracker: fakeChainTracker{
-				isValidRootForHeight: func(ctx context.Context, root *chainhash.Hash, height uint32) (bool, error) {
+				isValidRootForHeight: func(_ context.Context, _ *chainhash.Hash, _ uint32) (bool, error) {
 					return true, nil
 				},
 			},
@@ -174,10 +174,10 @@ func TestEngine_HandleNewMerkleProof(t *testing.T) {
 			},
 		}
 
-		sut := engine.NewEngine(&engine.EngineConfig{
+		sut := engine.NewEngine(&engine.Config{
 			Storage: mockStorage,
 			ChainTracker: fakeChainTracker{
-				isValidRootForHeight: func(ctx context.Context, root *chainhash.Hash, height uint32) (bool, error) {
+				isValidRootForHeight: func(_ context.Context, _ *chainhash.Hash, _ uint32) (bool, error) {
 					return true, nil
 				},
 			},
@@ -210,10 +210,10 @@ func TestEngine_HandleNewMerkleProof(t *testing.T) {
 			},
 		}
 
-		sut := engine.NewEngine(&engine.EngineConfig{
+		sut := engine.NewEngine(&engine.Config{
 			Storage: mockStorage,
 			ChainTracker: fakeChainTracker{
-				isValidRootForHeight: func(ctx context.Context, root *chainhash.Hash, height uint32) (bool, error) {
+				isValidRootForHeight: func(_ context.Context, _ *chainhash.Hash, _ uint32) (bool, error) {
 					return true, nil
 				},
 			},
@@ -310,11 +310,11 @@ func TestEngine_HandleNewMerkleProof(t *testing.T) {
 			},
 		}
 
-		sut := engine.NewEngine(&engine.EngineConfig{
+		sut := engine.NewEngine(&engine.Config{
 			Storage:        mockStorage,
 			LookupServices: map[string]engine.LookupService{},
 			ChainTracker: fakeChainTracker{
-				isValidRootForHeight: func(ctx context.Context, root *chainhash.Hash, height uint32) (bool, error) {
+				isValidRootForHeight: func(_ context.Context, _ *chainhash.Hash, _ uint32) (bool, error) {
 					return true, nil
 				},
 			},

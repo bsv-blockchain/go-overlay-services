@@ -8,6 +8,7 @@ import (
 // MerkleState represents the validation state of an output's merkle proof
 type MerkleState uint8
 
+// MerkleState values for output validation states.
 const (
 	MerkleStateUnmined MerkleState = iota
 	MerkleStateValidated

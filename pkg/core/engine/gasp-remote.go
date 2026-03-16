@@ -35,13 +35,14 @@ type OverlayGASPRemote struct {
 	networkLimiter chan struct{} // Controls max concurrent network requests
 }
 
-func NewOverlayGASPRemote(endpointUrl, topic string, httpClient util.HTTPClient, maxConcurrency int) *OverlayGASPRemote {
+// NewOverlayGASPRemote creates a new OverlayGASPRemote with the given endpoint, topic, and HTTP client.
+func NewOverlayGASPRemote(endpointURL, topic string, httpClient util.HTTPClient, maxConcurrency int) *OverlayGASPRemote {
 	if maxConcurrency <= 0 {
 		maxConcurrency = 8 // Default network concurrency
 	}
 
 	return &OverlayGASPRemote{
-		endpointURL:    endpointUrl,
+		endpointURL:    endpointURL,
 		topic:          topic,
 		httpClient:     httpClient,
 		networkLimiter: make(chan struct{}, maxConcurrency),
@@ -92,6 +93,7 @@ func (r *OverlayGASPRemote) GetInitialResponse(ctx context.Context, request *gas
 	return result, nil
 }
 
+// RequestNode fetches a GASP node from the remote overlay endpoint.
 func (r *OverlayGASPRemote) RequestNode(ctx context.Context, graphID *transaction.Outpoint, outpoint *transaction.Outpoint, metadata bool) (*gasp.Node, error) {
 	// If graphID is nil, use outpoint (for root node requests)
 	if graphID == nil {
@@ -160,14 +162,14 @@ func (r *OverlayGASPRemote) doNodeRequest(ctx context.Context, graphID, outpoint
 			}
 		}
 		// Log the full request and response details on failure
-		var graphId string
+		var graphIDStr string
 		if graphID != nil {
-			graphId = graphID.String()
+			graphIDStr = graphID.String()
 		}
 		slog.Error("RequestNode failed",
 			"status", resp.StatusCode,
 			"body", string(body),
-			"graphID", graphId,
+			"graphID", graphIDStr,
 			"outpoint", outpoint.String(),
 			"metadata", metadata,
 			"endpoint", r.endpointURL,

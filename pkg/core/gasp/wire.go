@@ -11,6 +11,7 @@ import (
 	"github.com/bsv-blockchain/go-sdk/transaction"
 )
 
+// Wire format error sentinels.
 var (
 	ErrWireEmptyData      = errors.New("empty data")
 	ErrWireUnsupportedVer = errors.New("unsupported wire version")
@@ -23,6 +24,7 @@ var (
 // These are transport-agnostic and can be used over libp2p, WebSocket, or raw TCP.
 // Every serialized message starts with a version byte for forward compatibility.
 
+// WireVersion is the current binary wire format version byte.
 const WireVersion byte = 0
 
 func writeVersion(buf []byte) []byte {
@@ -39,7 +41,7 @@ func checkVersion(data []byte) (int, error) {
 	return 1, nil
 }
 
-// SerializeInitialRequest encodes an InitialRequest into binary wire format.
+// Serialize encodes an InitialRequest into binary wire format.
 //
 //	[1 byte version]
 //	[uint32 version][float64 since][uint32 limit]
@@ -68,7 +70,7 @@ func DeserializeInitialRequest(data []byte) (*InitialRequest, error) {
 	}, nil
 }
 
-// SerializeInitialResponse encodes an InitialResponse into binary wire format.
+// Serialize encodes an InitialResponse into binary wire format.
 //
 //	[1 byte version]
 //	[float64 since][varint count][32 bytes txid, uint32 index, float64 score]...
@@ -100,7 +102,7 @@ func DeserializeInitialResponse(data []byte) (*InitialResponse, error) {
 	return r, nil
 }
 
-// SerializeInitialReply encodes an InitialReply into binary wire format.
+// Serialize encodes an InitialReply into binary wire format.
 //
 //	[1 byte version]
 //	[varint count][32 bytes txid, uint32 index, float64 score]...
@@ -126,7 +128,7 @@ func DeserializeInitialReply(data []byte) (*InitialReply, error) {
 	return r, nil
 }
 
-// SerializeNodeRequest encodes a NodeRequest into binary wire format.
+// Serialize encodes a NodeRequest into binary wire format.
 //
 //	[1 byte version]
 //	[32 bytes graphID txid][uint32 graphID index]
@@ -179,7 +181,7 @@ func DeserializeNodeRequest(data []byte) (*NodeRequest, error) {
 	return r, nil
 }
 
-// SerializeNode encodes a Node into binary wire format.
+// Serialize encodes a Node into binary wire format.
 //
 //	[1 byte version]
 //	[32 bytes graphID txid][uint32 graphID index]
@@ -297,7 +299,7 @@ func DeserializeNode(data []byte) (*Node, error) {
 
 	if inputCount > 0 {
 		n.Inputs = make(map[string]*Input, inputCount)
-		for i := 0; i < int(inputCount); i++ { //nolint:gosec // inputCount bounded by data length
+		for i := 0; i < int(inputCount); i++ {
 			var hashBytes []byte
 			hashBytes, offset, err = readByteField(data, offset)
 			if err != nil {
@@ -313,7 +315,7 @@ func DeserializeNode(data []byte) (*Node, error) {
 	return n, nil
 }
 
-// SerializeNodeResponse encodes a NodeResponse into binary wire format.
+// Serialize encodes a NodeResponse into binary wire format.
 //
 //	[1 byte version]
 //	[varint count][32 bytes txid, uint32 index, 1 byte metadata]...
@@ -353,8 +355,8 @@ func DeserializeNodeResponse(data []byte) (*NodeResponse, error) {
 		return nil, fmt.Errorf("%w: need %d bytes for %d inputs, got %d", ErrWireTooShort, count*37, count, len(data)-offset)
 	}
 
-	r.RequestedInputs = make(map[transaction.Outpoint]*NodeResponseData, count) //nolint:gosec // count bounded above
-	for i := 0; i < int(count); i++ {                                           //nolint:gosec // count bounded above
+	r.RequestedInputs = make(map[transaction.Outpoint]*NodeResponseData, count)
+	for i := 0; i < int(count); i++ { //nolint:gosec // count bounded above
 		outpoint := transaction.Outpoint{}
 		copy(outpoint.Txid[:], data[offset:offset+32])
 		offset += 32
@@ -385,15 +387,15 @@ func readByteField(data []byte, offset int) ([]byte, int, error) {
 		return nil, offset, fmt.Errorf("%w at offset %d", ErrWireInvalidVarint, offset)
 	}
 	offset += n
-	if offset+int(length) > len(data) {
+	if offset+int(length) > len(data) { //nolint:gosec // length bounded by data size
 		return nil, offset, fmt.Errorf("%w: need %d bytes, got %d", ErrWireTooShort, length, len(data)-offset)
 	}
 	if length == 0 {
 		return nil, offset, nil
 	}
 	result := make([]byte, length)
-	copy(result, data[offset:offset+int(length)])
-	return result, offset + int(length), nil
+	copy(result, data[offset:offset+int(length)]) //nolint:gosec // length bounded by data size
+	return result, offset + int(length), nil      //nolint:gosec // length bounded by data size
 }
 
 func appendOutputList(buf []byte, outputs []*Output) []byte {
@@ -406,14 +408,14 @@ func appendOutputList(buf []byte, outputs []*Output) []byte {
 	return buf
 }
 
-func readOutputList(data []byte, offset int) ([]*Output, int, error) {
+func readOutputList(data []byte, offset int) ([]*Output, int, error) { //nolint:unparam // offset return kept for consistency with readByteField
 	count, n := binary.Uvarint(data[offset:])
 	if n <= 0 {
 		return nil, offset, fmt.Errorf("%w at offset %d", ErrWireInvalidVarint, offset)
 	}
 	offset += n
 
-	needed := int(count) * 44
+	needed := int(count) * 44 //nolint:gosec // count bounded by data length
 	if offset+needed > len(data) {
 		return nil, offset, fmt.Errorf("%w: need %d bytes for %d outputs, got %d", ErrWireTooShort, needed, count, len(data)-offset)
 	}

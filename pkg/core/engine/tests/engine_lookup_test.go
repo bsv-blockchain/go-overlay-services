@@ -19,7 +19,7 @@ func TestEngine_Lookup_ShouldReturnError_WhenServiceUnknown(t *testing.T) {
 	// given
 	expectedErr := engine.ErrUnknownTopic
 
-	sut := engine.NewEngine(&engine.EngineConfig{
+	sut := engine.NewEngine(&engine.Config{
 		LookupServices: make(map[string]engine.LookupService),
 	})
 
@@ -33,7 +33,7 @@ func TestEngine_Lookup_ShouldReturnError_WhenServiceUnknown(t *testing.T) {
 
 func TestEngine_Lookup_ShouldReturnError_WhenServiceLookupFails(t *testing.T) {
 	// given
-	sut := engine.NewEngine(&engine.EngineConfig{
+	sut := engine.NewEngine(&engine.Config{
 		LookupServices: map[string]engine.LookupService{
 			"test": fakeLookupService{
 				lookupFunc: func(_ context.Context, _ *lookup.LookupQuestion) (*lookup.LookupAnswer, error) {
@@ -60,7 +60,7 @@ func TestEngine_Lookup_ShouldReturnDirectResult_WhenAnswerTypeIsFreeform(t *test
 		},
 	}
 
-	sut := engine.NewEngine(&engine.EngineConfig{
+	sut := engine.NewEngine(&engine.Config{
 		LookupServices: map[string]engine.LookupService{
 			"test": fakeLookupService{
 				lookupFunc: func(_ context.Context, _ *lookup.LookupQuestion) (*lookup.LookupAnswer, error) {
@@ -90,7 +90,7 @@ func TestEngine_Lookup_ShouldReturnDirectResult_WhenAnswerTypeIsOutputList(t *te
 		},
 	}
 
-	sut := engine.NewEngine(&engine.EngineConfig{
+	sut := engine.NewEngine(&engine.Config{
 		LookupServices: map[string]engine.LookupService{
 			"test": fakeLookupService{
 				lookupFunc: func(_ context.Context, _ *lookup.LookupQuestion) (*lookup.LookupAnswer, error) {
@@ -119,7 +119,7 @@ func TestEngine_Lookup_ShouldHydrateOutputs_WhenFormulasProvided(t *testing.T) {
 		Transactions: make(map[chainhash.Hash]*transaction.BeefTx),
 	}
 
-	sut := engine.NewEngine(&engine.EngineConfig{
+	sut := engine.NewEngine(&engine.Config{
 		LookupServices: map[string]engine.LookupService{
 			"test": fakeLookupService{
 				lookupFunc: func(_ context.Context, _ *lookup.LookupQuestion) (*lookup.LookupAnswer, error) {

@@ -100,6 +100,7 @@ func (s *OverlayGASPStorage) FindKnownUTXOs(ctx context.Context, since float64, 
 	return gaspOutputs, nil
 }
 
+// HasOutputs checks whether the given outpoints exist in storage.
 func (s *OverlayGASPStorage) HasOutputs(ctx context.Context, outpoints []*transaction.Outpoint) ([]bool, error) {
 	// Use FindOutputs to check existence - don't need BEEF for existence check
 	outputs, err := s.Engine.Storage.FindOutputs(ctx, outpoints, s.Topic, nil, false)
@@ -205,7 +206,7 @@ func (s *OverlayGASPStorage) FindNeededInputs(ctx context.Context, gaspTx *gasp.
 						return nil, fmt.Errorf("failed to merge BEEF for input %d: %w", vin, err)
 					}
 				}
-				previousCoins = append(previousCoins, uint32(vin))
+				previousCoins = append(previousCoins, uint32(vin)) //nolint:gosec // vin bounded by tx.Inputs length
 			}
 		}
 
@@ -231,6 +232,7 @@ func (s *OverlayGASPStorage) FindNeededInputs(ctx context.Context, gaspTx *gasp.
 	return response, nil
 }
 
+// IdentifyAdmissibleOutputs delegates to the topic manager to determine which outputs are admissible.
 func (s *OverlayGASPStorage) IdentifyAdmissibleOutputs(ctx context.Context, beef *transaction.Beef, txid *chainhash.Hash, previousCoins []uint32) (overlay.AdmittanceInstructions, error) {
 	manager, ok := s.Engine.GetTopicManager(s.Topic)
 	if !ok {
@@ -239,6 +241,7 @@ func (s *OverlayGASPStorage) IdentifyAdmissibleOutputs(ctx context.Context, beef
 	return manager.IdentifyAdmissibleOutputs(ctx, beef, txid, previousCoins)
 }
 
+// IdentifyNeededInputs delegates to the topic manager to determine which inputs are needed.
 func (s *OverlayGASPStorage) IdentifyNeededInputs(ctx context.Context, beef *transaction.Beef, txid *chainhash.Hash) ([]*transaction.Outpoint, error) {
 	manager, ok := s.Engine.GetTopicManager(s.Topic)
 	if !ok {
@@ -292,13 +295,13 @@ func (s *OverlayGASPStorage) AppendToGraph(_ context.Context, gaspTx *gasp.Node,
 
 	// If this node has a parent, link them together
 	if spentBy != nil {
-		if parentNode, ok := s.tempGraphNodeRefs.Load(*spentBy); !ok {
+		parentNode, ok := s.tempGraphNodeRefs.Load(*spentBy)
+		if !ok {
 			return ErrMissingInput
-		} else {
-			parent := parentNode.(*GraphNode)
-			parent.Children.Store(*newGraphOutpoint, newGraphNode)
-			newGraphNode.Parent = parentNode.(*GraphNode)
 		}
+		parent := parentNode.(*GraphNode)
+		parent.Children.Store(*newGraphOutpoint, newGraphNode)
+		newGraphNode.Parent = parentNode.(*GraphNode)
 	}
 	return nil
 }
@@ -322,43 +325,43 @@ func (s *OverlayGASPStorage) ValidateGraphAnchor(ctx context.Context, graphID *t
 	}
 	coins := make(map[transaction.Outpoint]struct{})
 	for _, beefBytes := range beefs {
-		if beef, tx, txid, err := transaction.ParseBeef(beefBytes); err != nil {
+		beef, tx, txid, err := transaction.ParseBeef(beefBytes)
+		if err != nil {
 			return err
-		} else {
-			inpoints := make([]*transaction.Outpoint, len(tx.Inputs))
-			for vin, input := range tx.Inputs {
-				inpoints[vin] = &transaction.Outpoint{
-					Txid:  *input.SourceTXID,
-					Index: input.SourceTxOutIndex,
-				}
+		}
+		inpoints := make([]*transaction.Outpoint, len(tx.Inputs))
+		for vin, input := range tx.Inputs {
+			inpoints[vin] = &transaction.Outpoint{
+				Txid:  *input.SourceTXID,
+				Index: input.SourceTxOutIndex,
 			}
-			previousCoins := make([]uint32, 0, len(tx.Inputs))
-			if outputs, err := s.Engine.Storage.FindOutputs(ctx, inpoints, s.Topic, nil, true); err != nil {
-				return err
-			} else {
-				for vin, output := range outputs {
-					if output != nil {
-						if output.Beef != nil {
-							if err := beef.MergeBeef(output.Beef); err != nil {
-								return fmt.Errorf("failed to merge BEEF for input %d: %w", vin, err)
-							}
-						}
-						previousCoins = append(previousCoins, uint32(vin))
+		}
+		previousCoins := make([]uint32, 0, len(tx.Inputs))
+		outputs, err := s.Engine.Storage.FindOutputs(ctx, inpoints, s.Topic, nil, true)
+		if err != nil {
+			return err
+		}
+		for vin, output := range outputs {
+			if output != nil {
+				if output.Beef != nil {
+					if mergeErr := beef.MergeBeef(output.Beef); mergeErr != nil {
+						return fmt.Errorf("failed to merge BEEF for input %d: %w", vin, mergeErr)
 					}
 				}
+				previousCoins = append(previousCoins, uint32(vin)) //nolint:gosec // vin bounded by tx.Inputs length
 			}
-			if admit, err := s.IdentifyAdmissibleOutputs(ctx, beef, txid, previousCoins); err != nil {
-				slog.Error("[GASP] ValidateGraphAnchor failed to identify admissible outputs", "error", err)
-				return err
-			} else {
-				for _, vout := range admit.OutputsToAdmit {
-					outpoint := &transaction.Outpoint{
-						Txid:  *txid,
-						Index: vout,
-					}
-					coins[*outpoint] = struct{}{}
-				}
+		}
+		admit, err := s.IdentifyAdmissibleOutputs(ctx, beef, txid, previousCoins)
+		if err != nil {
+			slog.Error("[GASP] ValidateGraphAnchor failed to identify admissible outputs", "error", err)
+			return err
+		}
+		for _, vout := range admit.OutputsToAdmit {
+			outpoint := &transaction.Outpoint{
+				Txid:  *txid,
+				Index: vout,
 			}
+			coins[*outpoint] = struct{}{}
 		}
 	}
 	if _, ok := coins[*graphID]; !ok {
@@ -457,7 +460,7 @@ func (s *OverlayGASPStorage) computeOrderedBEEFsForGraph(_ context.Context, grap
 			beefs = append([][]byte{currentBeef}, beefs...)
 		}
 		var childErr error
-		node.Children.Range(func(key, value any) bool {
+		node.Children.Range(func(_, value any) bool {
 			child := value.(*GraphNode)
 			if err := hydrator(child); err != nil {
 				childErr = err
