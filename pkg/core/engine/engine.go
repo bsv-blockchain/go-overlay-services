@@ -1084,8 +1084,12 @@ func (e *Engine) extractPeerEndpoints(topic string, outputs []*lookup.OutputList
 // parseAdvertisementDomain extracts the domain from a single advertisement output, returning "" if invalid.
 func (e *Engine) parseAdvertisementDomain(topic string, output *lookup.OutputListItem, expectedProto overlay.Protocol) string {
 	beef, _, txID, err := transaction.ParseBeef(output.Beef)
-	if err != nil || txID == nil {
+	if err != nil {
 		slog.Error("failed to parse advertisement output BEEF", "topic", topic, "error", err)
+		return ""
+	}
+	if txID == nil {
+		slog.Error("missing transaction ID in advertisement output BEEF", "topic", topic)
 		return ""
 	}
 
