@@ -582,35 +582,43 @@ func (e *Engine) commitAdmittedOutputs(ctx context.Context, p *submitParsedBeefP
 		if _, ok := dupeTopics[t]; ok {
 			continue
 		}
-		admit := steak[t]
-		outputsConsumed, outpointsConsumed := e.separateRetainedCoins(topicInputs[t], admit.CoinsToRetain)
-
-		for vin, output := range topicInputs[t] {
-			if err := e.deleteUTXODeep(ctx, output); err != nil {
-				slog.Error("failed to delete UTXO deep", "topic", t, "outpoint", output.Outpoint.String(), "error", err)
-				return err
-			}
-			admit.CoinsRemoved = append(admit.CoinsRemoved, vin)
-		}
-
-		if err := e.Storage.InsertOutputs(ctx, t, p.Txid, admit.OutputsToAdmit, outpointsConsumed, p.Beef, admit.AncillaryTxids); err != nil {
-			slog.Error("failed to insert outputs", "topic", t, "txid", p.Txid.String(), "error", err)
+		if err := e.commitTopicOutputs(ctx, t, p, steak[t], topicInputs[t]); err != nil {
 			return err
 		}
+	}
+	return nil
+}
 
-		newOutpoints, err := e.notifyAdmittedOutputs(ctx, t, p.Txid, admit.OutputsToAdmit, p.AtomicBeef, p.OffChainValues)
-		if err != nil {
+// commitTopicOutputs handles the per-topic commit logic: delete spent UTXOs, insert new outputs,
+// notify lookup services, update consumed-by references, and record the applied transaction.
+func (e *Engine) commitTopicOutputs(ctx context.Context, topic string, p *submitParsedBeefParams, admit *overlay.AdmittanceInstructions, inputs map[uint32]*Output) error {
+	outputsConsumed, outpointsConsumed := e.separateRetainedCoins(inputs, admit.CoinsToRetain)
+
+	for vin, output := range inputs {
+		if err := e.deleteUTXODeep(ctx, output); err != nil {
+			slog.Error("failed to delete UTXO deep", "topic", topic, "outpoint", output.Outpoint.String(), "error", err)
 			return err
 		}
+		admit.CoinsRemoved = append(admit.CoinsRemoved, vin)
+	}
 
-		if err := e.updateConsumedByReferences(ctx, outputsConsumed, newOutpoints); err != nil {
-			return err
-		}
+	if err := e.Storage.InsertOutputs(ctx, topic, p.Txid, admit.OutputsToAdmit, outpointsConsumed, p.Beef, admit.AncillaryTxids); err != nil {
+		slog.Error("failed to insert outputs", "topic", topic, "txid", p.Txid.String(), "error", err)
+		return err
+	}
 
-		if err := e.Storage.InsertAppliedTransaction(ctx, &overlay.AppliedTransaction{Txid: p.Txid, Topic: t}); err != nil {
-			slog.Error("failed to insert applied transaction", "topic", t, "txid", p.Txid, "error", err)
-			return err
-		}
+	newOutpoints, err := e.notifyAdmittedOutputs(ctx, topic, p.Txid, admit.OutputsToAdmit, p.AtomicBeef, p.OffChainValues)
+	if err != nil {
+		return err
+	}
+
+	if err := e.updateConsumedByReferences(ctx, outputsConsumed, newOutpoints); err != nil {
+		return err
+	}
+
+	if err := e.Storage.InsertAppliedTransaction(ctx, &overlay.AppliedTransaction{Txid: p.Txid, Topic: topic}); err != nil {
+		slog.Error("failed to insert applied transaction", "topic", topic, "txid", p.Txid, "error", err)
+		return err
 	}
 	return nil
 }
