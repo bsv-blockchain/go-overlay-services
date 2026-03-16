@@ -324,7 +324,7 @@ func (e *Engine) Submit(ctx context.Context, taggedBEEF overlay.TaggedBEEF, mode
 }
 
 // SubmitParsedBeefParams holds the parameters for SubmitParsedBeef to reduce function arity.
-type SubmitParsedBeefParams struct {
+type submitParsedBeefParams struct {
 	Beef           *transaction.Beef
 	Txid           *chainhash.Hash
 	Topics         []string
@@ -338,7 +338,7 @@ type SubmitParsedBeefParams struct {
 // This is the core submission logic; Submit() is a convenience wrapper that parses TaggedBEEF first.
 // The AtomicBeef parameter is the original serialized bytes for use in lookup service notifications.
 func (e *Engine) SubmitParsedBeef(ctx context.Context, beef *transaction.Beef, txid *chainhash.Hash, topics []string, atomicBeef []byte, offChainValues []byte, mode SumbitMode, onSteakReady OnSteakReady) (overlay.Steak, error) {
-	return e.submitParsedBeefInternal(ctx, &SubmitParsedBeefParams{
+	return e.submitParsedBeefInternal(ctx, &submitParsedBeefParams{
 		Beef: beef, Txid: txid, Topics: topics,
 		AtomicBeef: atomicBeef, OffChainValues: offChainValues,
 		Mode: mode, OnSteakReady: onSteakReady,
@@ -346,7 +346,7 @@ func (e *Engine) SubmitParsedBeef(ctx context.Context, beef *transaction.Beef, t
 }
 
 // submitParsedBeefInternal is the core implementation of SubmitParsedBeef.
-func (e *Engine) submitParsedBeefInternal(ctx context.Context, p *SubmitParsedBeefParams) (overlay.Steak, error) {
+func (e *Engine) submitParsedBeefInternal(ctx context.Context, p *submitParsedBeefParams) (overlay.Steak, error) {
 	managers, err := e.validateTopicsAndGetManagers(p.Topics)
 	if err != nil {
 		return nil, err
