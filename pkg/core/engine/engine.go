@@ -769,9 +769,9 @@ func (e *Engine) hydrateOneFormula(ctx context.Context, formula *lookup.LookupFo
 	if output == nil || output.Beef == nil {
 		return nil, nil //nolint:nilnil // nil output with no error is valid when output is missing
 	}
-	if err := e.Storage.LoadAncillaryBeef(ctx, output); err != nil {
-		slog.Error("failed to load ancillary beef in Lookup", "outpoint", formula.Outpoint.String(), "error", err)
-		return nil, err
+	if loadErr := e.Storage.LoadAncillaryBeef(ctx, output); loadErr != nil {
+		slog.Error("failed to load ancillary beef in Lookup", "outpoint", formula.Outpoint.String(), "error", loadErr)
+		return nil, loadErr
 	}
 	hydratedOutput, err := e.GetUTXOHistory(ctx, output, formula.History, 0)
 	if err != nil {
@@ -815,8 +815,8 @@ func (e *Engine) GetUTXOHistory(ctx context.Context, output *Output, historySele
 		return nil, ErrMissingBeef
 	}
 
-	if err := stitchSourceTransactions(tx, childHistories); err != nil {
-		return nil, err
+	if stitchErr := stitchSourceTransactions(tx, childHistories); stitchErr != nil {
+		return nil, stitchErr
 	}
 
 	beefBytes, err := tx.BEEF()
@@ -849,9 +849,9 @@ func (e *Engine) collectChildHistories(
 		if childOutput == nil {
 			continue
 		}
-		if err := e.Storage.LoadAncillaryBeef(ctx, childOutput); err != nil {
-			slog.Error("failed to load ancillary beef in GetUTXOHistory", "outpoint", outpoint.String(), "error", err)
-			return nil, err
+		if loadErr := e.Storage.LoadAncillaryBeef(ctx, childOutput); loadErr != nil {
+			slog.Error("failed to load ancillary beef in GetUTXOHistory", "outpoint", outpoint.String(), "error", loadErr)
+			return nil, loadErr
 		}
 		child, err := e.GetUTXOHistory(ctx, childOutput, historySelector, currentDepth+1)
 		if err != nil {
@@ -1036,7 +1036,7 @@ func (e *Engine) discoverSHIPPeers(ctx context.Context, topic string) ([]string,
 
 	if lookupAnswer.Type != lookup.AnswerTypeOutputList {
 		slog.Warn(fmt.Sprintf("[GASP SYNC] Unexpected answer type \"%s\" for topic \"%s\"", lookupAnswer.Type, topic))
-		return nil, nil //nolint:nilnil // nil peers with no error means no peers discovered
+		return nil, nil // nil peers with no error means no peers discovered
 	}
 
 	endpointSet := e.extractPeerEndpoints(topic, lookupAnswer.Outputs)
