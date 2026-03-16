@@ -684,16 +684,16 @@ func (e *Engine) propagateToNetwork(ctx context.Context, tx *transaction.Transac
 		return
 	}
 
-	releventTopics := make([]string, 0, len(steak))
+	relevantTopics := make([]string, 0, len(steak))
 	for t, s := range steak {
 		if s.OutputsToAdmit == nil && s.CoinsToRetain == nil {
 			continue
 		}
 		if _, ok := dupeTopics[t]; !ok {
-			releventTopics = append(releventTopics, t)
+			relevantTopics = append(relevantTopics, t)
 		}
 	}
-	if len(releventTopics) == 0 {
+	if len(relevantTopics) == 0 {
 		return
 	}
 
@@ -704,8 +704,8 @@ func (e *Engine) propagateToNetwork(ctx context.Context, tx *transaction.Transac
 		})
 	}
 
-	if broadcaster, err := topic.NewBroadcaster(releventTopics, broadcasterCfg); err != nil {
-		slog.Error("failed to create broadcaster for propagation", "topics", releventTopics, "error", err)
+	if broadcaster, err := topic.NewBroadcaster(relevantTopics, broadcasterCfg); err != nil {
+		slog.Error("failed to create broadcaster for propagation", "topics", relevantTopics, "error", err)
 	} else if _, failure := broadcaster.BroadcastCtx(ctx, tx); failure != nil {
 		slog.Error("failed to propagate transaction to other nodes", "txid", txid, "error", failure)
 	}
