@@ -20,7 +20,7 @@ var (
 	ErrWireTrailingBytes  = errors.New("trailing bytes")
 )
 
-// fmtVarintErr formats a "invalid varint at offset" error message.
+// fmtVarintAtOffset formats a "invalid varint at offset" error message.
 const fmtVarintAtOffset = "%w at offset %d"
 
 // Binary wire format serialization for GASP types.
