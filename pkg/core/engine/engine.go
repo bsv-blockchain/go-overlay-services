@@ -620,16 +620,27 @@ func (e *Engine) commitAdmittedOutputs(ctx context.Context, p *SubmitParsedBeefP
 func (e *Engine) separateRetainedCoins(topicInputs map[uint32]*Output, coinsToRetain []uint32) ([]*Output, []*transaction.Outpoint) {
 	outputsConsumed := make([]*Output, 0, len(coinsToRetain))
 	outpointsConsumed := make([]*transaction.Outpoint, 0, len(coinsToRetain))
-	for vin, output := range topicInputs {
-		for _, coin := range coinsToRetain {
-			if vin == coin {
-				outputsConsumed = append(outputsConsumed, output)
-				outpointsConsumed = append(outpointsConsumed, &output.Outpoint)
-				delete(topicInputs, vin)
-				break
-			}
-		}
+
+	// Fast path: nothing to do if there are no topic inputs or no coins to retain.
+	if len(topicInputs) == 0 || len(coinsToRetain) == 0 {
+		return outputsConsumed, outpointsConsumed
 	}
+
+	// Build a set of coins to retain for O(1) membership checks.
+	retainSet := make(map[uint32]struct{}, len(coinsToRetain))
+	for _, coin := range coinsToRetain {
+		retainSet[coin] = struct{}{}
+	}
+
+	for vin, output := range topicInputs {
+		if _, ok := retainSet[vin]; !ok {
+			continue
+		}
+		outputsConsumed = append(outputsConsumed, output)
+		outpointsConsumed = append(outpointsConsumed, &output.Outpoint)
+		delete(topicInputs, vin)
+	}
+
 	return outputsConsumed, outpointsConsumed
 }
 
