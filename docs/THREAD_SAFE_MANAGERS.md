@@ -23,7 +23,7 @@ type Engine struct {
     // lookupServices holds the registered lookup services (access via thread-safe methods)
     lookupServices map[string]LookupService
     // ... other fields ...
-    
+
     // mu protects managers and lookupServices maps for concurrent access
     mu sync.RWMutex
 }
