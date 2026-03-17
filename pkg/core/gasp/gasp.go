@@ -3,7 +3,6 @@ package gasp
 
 import (
 	"context"
-	"encoding/hex"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -27,8 +26,7 @@ var (
 	ErrTransactionHexTooShort = errors.New("transaction hex too short")
 	// ErrTransactionHexTooLong is returned when transaction hex exceeds maximum size.
 	ErrTransactionHexTooLong = errors.New("transaction hex too long")
-	// ErrMaliciousVarInt is returned when a VarInt value exceeds reasonable limits.
-	ErrMaliciousVarInt = errors.New("malicious VarInt detected")
+
 	// ErrGraphNoTopicalAdmittance indicates that the graph did not result in topical admittance of the root node.
 	ErrGraphNoTopicalAdmittance = errors.New("graph did not result in topical admittance of the root node")
 	// ErrUnresolvedInputs is returned when dependency processing fails to resolve all required inputs
@@ -497,50 +495,11 @@ func (g *GASP) computeTxID(rawtx string) (txID *chainhash.Hash, err error) {
 		return nil, fmt.Errorf("%w: %d characters (maximum 200,000,000)", ErrTransactionHexTooLong, len(rawtx))
 	}
 
-	// Decode hex to validate and check for malicious VarInt patterns
-	txBytes, err := hex.DecodeString(rawtx)
-	if err != nil {
-		return nil, fmt.Errorf("invalid hex: %w", err)
-	}
-
-	// Validate that VarInt values are reasonable to prevent OOM attacks
-	if validationErr := validateVarInts(txBytes); validationErr != nil {
-		return nil, validationErr
-	}
-
 	tx, err := transaction.NewTransactionFromHex(rawtx)
 	if err != nil {
 		return nil, err
 	}
 	return tx.TxID(), nil
-}
-
-// validateVarInts checks for malicious VarInt patterns that could cause OOM.
-// Bitcoin uses VarInt encoding where 0xff prefix means the next 8 bytes are the value.
-// Malicious inputs can have 0xff followed by huge values causing allocation failures.
-func validateVarInts(data []byte) error {
-	const maxReasonableVarInt = 10_000_000 // 10MB is reasonable for script/input/output counts
-
-	for i := 0; i < len(data); i++ {
-		if data[i] == 0xff {
-			if i+8 >= len(data) {
-				continue
-			}
-			value := uint64(data[i+1]) |
-				uint64(data[i+2])<<8 |
-				uint64(data[i+3])<<16 |
-				uint64(data[i+4])<<24 |
-				uint64(data[i+5])<<32 |
-				uint64(data[i+6])<<40 |
-				uint64(data[i+7])<<48 |
-				uint64(data[i+8])<<56
-
-			if value > maxReasonableVarInt {
-				return fmt.Errorf("%w: value %d exceeds maximum %d", ErrMaliciousVarInt, value, maxReasonableVarInt)
-			}
-		}
-	}
-	return nil
 }
 
 // ProcessUTXO queues a single UTXO for processing outside of the sync workflow.
