@@ -365,7 +365,8 @@ func (g *GASP) processIncomingNode(ctx context.Context, node *Node, spentBy *tra
 			slog.Debug(fmt.Sprintf("%s Processing dependency for outpoint: %s, metadata: %v", g.LogPrefix, outpoint.String(), data.Metadata))
 			if processErr := g.ProcessUTXOToCompletion(ctx, &outpoint, nodeOutpoint, seenNodes); processErr != nil {
 				if errors.Is(processErr, ErrGraphNoTopicalAdmittance) {
-					return fmt.Errorf("dependency %s not admitted: %w", outpoint.String(), processErr)
+					slog.Debug(fmt.Sprintf("%s Dependency %s not topically admissible, continuing", g.LogPrefix, outpoint.String()))
+					continue
 				}
 				slog.Warn(fmt.Sprintf("%s Error processing dependency %s: %v", g.LogPrefix, outpoint.String(), processErr))
 			}
