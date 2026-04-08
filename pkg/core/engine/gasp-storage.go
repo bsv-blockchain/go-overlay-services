@@ -213,9 +213,9 @@ func (s *OverlayGASPStorage) FindNeededInputs(ctx context.Context, gaspTx *gasp.
 		txid := tx.TxID()
 		admit, admitErr := s.IdentifyAdmissibleOutputs(ctx, beef, txid, previousCoins)
 		if admitErr != nil {
-			return nil, fmt.Errorf("failed to identify admissible outputs: %w", admitErr)
+			slog.Debug("[GASP] FindNeededInputs: IdentifyAdmissibleOutputs returned error, falling through to IdentifyNeededInputs", "error", admitErr)
 		}
-		if !slices.Contains(admit.OutputsToAdmit, gaspTx.OutputIndex) {
+		if admitErr != nil || !slices.Contains(admit.OutputsToAdmit, gaspTx.OutputIndex) {
 			neededInputs, err := s.IdentifyNeededInputs(ctx, beef, txid)
 			if err != nil {
 				return nil, err
