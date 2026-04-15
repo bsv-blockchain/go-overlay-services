@@ -371,14 +371,6 @@ func (g *GASP) processIncomingNode(ctx context.Context, node *Node, spentBy *tra
 				slog.Warn(fmt.Sprintf("%s Error processing dependency %s: %v", g.LogPrefix, outpoint.String(), processErr))
 			}
 		}
-		neededInputs, err = g.Storage.FindNeededInputs(ctx, node)
-		if err != nil {
-			slog.Error(fmt.Sprintf("%s Error re-checking needed inputs for node %s: %v", g.LogPrefix, nodeOutpoint.String(), err))
-			return err
-		}
-		if neededInputs != nil && len(neededInputs.RequestedInputs) > 0 {
-			return fmt.Errorf("%w for node %s after processing dependencies", ErrUnresolvedInputs, nodeOutpoint.String())
-		}
 	}
 	return nil
 }
