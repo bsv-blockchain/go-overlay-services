@@ -20,6 +20,11 @@ type fiberRoundTripper struct {
 // It returns the response or fails the test if an error occurs.
 func (f *fiberRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
 	f.t.Helper()
+	// fasthttp v1.70+ requires a Host header per HTTP/1.1 spec (CVE-2026-5160).
+	// Test requests built from relative URLs have no host, so we inject one.
+	if req.Host == "" {
+		req.Host = "localhost"
+	}
 	return f.srv.app.Test(req, f.timeout)
 }
 
