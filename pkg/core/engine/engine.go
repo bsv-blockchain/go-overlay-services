@@ -337,7 +337,7 @@ type submitParsedBeefParams struct {
 // SubmitParsedBeef processes a pre-parsed BEEF transaction for submission to overlay topics.
 // This is the core submission logic; Submit() is a convenience wrapper that parses TaggedBEEF first.
 // The AtomicBeef parameter is the original serialized bytes for use in lookup service notifications.
-func (e *Engine) SubmitParsedBeef(ctx context.Context, beef *transaction.Beef, txid *chainhash.Hash, topics []string, atomicBeef []byte, offChainValues []byte, mode SumbitMode, onSteakReady OnSteakReady) (overlay.Steak, error) {
+func (e *Engine) SubmitParsedBeef(ctx context.Context, beef *transaction.Beef, txid *chainhash.Hash, topics []string, atomicBeef, offChainValues []byte, mode SumbitMode, onSteakReady OnSteakReady) (overlay.Steak, error) {
 	return e.submitParsedBeefInternal(ctx, &submitParsedBeefParams{
 		Beef: beef, Txid: txid, Topics: topics,
 		AtomicBeef: atomicBeef, OffChainValues: offChainValues,
@@ -793,7 +793,7 @@ func (e *Engine) hydrateOneFormula(ctx context.Context, formula *lookup.LookupFo
 }
 
 // GetUTXOHistory retrieves the history of a UTXO
-func (e *Engine) GetUTXOHistory(ctx context.Context, output *Output, historySelector func(beef *transaction.Beef, outputIndex uint32, currentDepth uint32) bool, currentDepth uint32) (*Output, error) {
+func (e *Engine) GetUTXOHistory(ctx context.Context, output *Output, historySelector func(beef *transaction.Beef, outputIndex, currentDepth uint32) bool, currentDepth uint32) (*Output, error) {
 	if historySelector == nil {
 		return output, nil
 	}
@@ -836,7 +836,7 @@ func (e *Engine) GetUTXOHistory(ctx context.Context, output *Output, historySele
 func (e *Engine) collectChildHistories(
 	ctx context.Context,
 	outputsConsumed []*transaction.Outpoint,
-	historySelector func(beef *transaction.Beef, outputIndex uint32, currentDepth uint32) bool,
+	historySelector func(beef *transaction.Beef, outputIndex, currentDepth uint32) bool,
 	currentDepth uint32,
 ) (map[string]*Output, error) {
 	childHistories := make(map[string]*Output, len(outputsConsumed))
@@ -1250,7 +1250,7 @@ func (e *Engine) ProvideForeignSyncResponse(ctx context.Context, initialRequest 
 }
 
 // ProvideForeignGASPNode provides a GASP node for foreign peers
-func (e *Engine) ProvideForeignGASPNode(ctx context.Context, graphID *transaction.Outpoint, outpoint *transaction.Outpoint, topic string) (*gasp.Node, error) {
+func (e *Engine) ProvideForeignGASPNode(ctx context.Context, graphID, outpoint *transaction.Outpoint, topic string) (*gasp.Node, error) {
 	slog.Debug("ProvideForeignGASPNode called",
 		"graphID", graphID.String(),
 		"outpoint", outpoint.String(),

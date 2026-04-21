@@ -94,7 +94,7 @@ func (r *OverlayGASPRemote) GetInitialResponse(ctx context.Context, request *gas
 }
 
 // RequestNode fetches a GASP node from the remote overlay endpoint.
-func (r *OverlayGASPRemote) RequestNode(ctx context.Context, graphID *transaction.Outpoint, outpoint *transaction.Outpoint, metadata bool) (*gasp.Node, error) {
+func (r *OverlayGASPRemote) RequestNode(ctx context.Context, graphID, outpoint *transaction.Outpoint, metadata bool) (*gasp.Node, error) {
 	// If graphID is nil, use outpoint (for root node requests)
 	if graphID == nil {
 		graphID = outpoint
