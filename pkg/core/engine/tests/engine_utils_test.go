@@ -30,8 +30,8 @@ type fakeStorage struct {
 	updateTransactionBEEF           func(ctx context.Context, txid *chainhash.Hash, beef *transaction.Beef) error
 	updateOutputBlockHeight         func(ctx context.Context, outpoint *transaction.Outpoint, topic string, blockHeight uint32, blockIndex uint64) error
 	findOutputsForTransaction       func(ctx context.Context, txid *chainhash.Hash, includeBEEF bool) ([]*engine.Output, error)
-	updateLastInteractionFunc       func(ctx context.Context, host string, topic string, since float64) error
-	getLastInteractionFunc          func(ctx context.Context, host string, topic string) (float64, error)
+	updateLastInteractionFunc       func(ctx context.Context, host, topic string, since float64) error
+	getLastInteractionFunc          func(ctx context.Context, host, topic string) (float64, error)
 }
 
 func (f fakeStorage) FindOutput(ctx context.Context, outpoint *transaction.Outpoint, topic *string, spent *bool, includeBEEF bool) (*engine.Output, error) {
@@ -118,14 +118,14 @@ func (f fakeStorage) UpdateOutputBlockHeight(ctx context.Context, outpoint *tran
 	panic("func not defined")
 }
 
-func (f fakeStorage) UpdateLastInteraction(ctx context.Context, host string, topic string, since float64) error {
+func (f fakeStorage) UpdateLastInteraction(ctx context.Context, host, topic string, since float64) error {
 	if f.updateLastInteractionFunc != nil {
 		return f.updateLastInteractionFunc(ctx, host, topic, since)
 	}
 	panic("func not defined")
 }
 
-func (f fakeStorage) GetLastInteraction(ctx context.Context, host string, topic string) (float64, error) {
+func (f fakeStorage) GetLastInteraction(ctx context.Context, host, topic string) (float64, error) {
 	if f.getLastInteractionFunc != nil {
 		return f.getLastInteractionFunc(ctx, host, topic)
 	}
