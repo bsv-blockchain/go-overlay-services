@@ -3,7 +3,7 @@ module github.com/bsv-blockchain/go-overlay-services
 go 1.25.4
 
 require (
-	github.com/bsv-blockchain/go-sdk v1.2.21
+	github.com/bsv-blockchain/go-sdk v1.2.23
 	github.com/bsv-blockchain/universal-test-vectors v0.6.1
 	github.com/go-resty/resty/v2 v2.17.2
 	github.com/go-viper/mapstructure/v2 v2.5.0
