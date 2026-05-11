@@ -64,6 +64,7 @@ type OverlayGASPStorage struct {
 	Topic              string
 	Engine             *Engine
 	MaxNodesInGraph    *int
+	Logger             *slog.Logger // Optional; defaults to slog.Default() when nil.
 	tempGraphNodeRefs  sync.Map
 	tempGraphNodeCount int
 	submissionTracker  sync.Map // map[chainhash.Hash]*submissionState
@@ -76,6 +77,14 @@ func NewOverlayGASPStorage(topic string, engine *Engine, maxNodesInGraph *int) *
 		Engine:          engine,
 		MaxNodesInGraph: maxNodesInGraph,
 	}
+}
+
+// log returns the configured logger or slog.Default() when no logger has been set.
+func (s *OverlayGASPStorage) log() *slog.Logger {
+	if s.Logger != nil {
+		return s.Logger
+	}
+	return slog.Default()
 }
 
 // ErrNoKnownUTXOs is returned when no UTXOs are found
@@ -271,7 +280,7 @@ func (s *OverlayGASPStorage) AppendToGraph(_ context.Context, gaspTx *gasp.Node,
 	txid := tx.TxID()
 	if gaspTx.Proof != nil && *gaspTx.Proof != "" {
 		if tx.MerklePath, err = transaction.NewMerklePathFromHex(*gaspTx.Proof); err != nil {
-			slog.Error("Failed to parse merkle path", "error", err, "proofLength", len(*gaspTx.Proof))
+			s.log().Error("Failed to parse merkle path", "error", err, "proofLength", len(*gaspTx.Proof))
 			return err
 		}
 	}
@@ -350,7 +359,7 @@ func (s *OverlayGASPStorage) ValidateGraphAnchor(ctx context.Context, graphID *t
 		}
 		admit, err := s.IdentifyAdmissibleOutputs(ctx, beef, txid, previousCoins)
 		if err != nil {
-			slog.Error("[GASP] ValidateGraphAnchor failed to identify admissible outputs", "error", err)
+			s.log().Error("[GASP] ValidateGraphAnchor failed to identify admissible outputs", "error", err)
 			return err
 		}
 		for _, vout := range admit.OutputsToAdmit {
@@ -434,10 +443,10 @@ func (s *OverlayGASPStorage) FinalizeGraph(ctx context.Context, graphID *transac
 				nil,
 			)
 			if state.err != nil {
-				slog.Error("[GASP] Failed to submit transaction", "txid", txid.String(), "error", state.err)
+				s.log().Error("[GASP] Failed to submit transaction", "txid", txid.String(), "error", state.err)
 				return state.err
 			}
-			slog.Debug(fmt.Sprintf("[GASP] Transaction processed: %s", txid.String()))
+			s.log().Debug(fmt.Sprintf("[GASP] Transaction processed: %s", txid.String()))
 		}
 	}
 	return nil
@@ -483,14 +492,14 @@ func (s *OverlayGASPStorage) computeOrderedBEEFsForGraph(_ context.Context, grap
 
 func (s *OverlayGASPStorage) getBEEFForNode(node *GraphNode) ([]byte, error) {
 	if node == nil {
-		slog.Error("getBEEFForNode called with nil node", "goroutines", runtime.NumGoroutine())
+		s.log().Error("getBEEFForNode called with nil node", "goroutines", runtime.NumGoroutine())
 		return nil, ErrNilNode
 	}
 
 	var hydrator func(node *GraphNode) (*transaction.Transaction, error)
 	hydrator = func(node *GraphNode) (*transaction.Transaction, error) {
 		if node == nil {
-			slog.Error("hydrator called with nil node", "goroutines", runtime.NumGoroutine())
+			s.log().Error("hydrator called with nil node", "goroutines", runtime.NumGoroutine())
 			return nil, ErrNilNode
 		}
 		tx, err := transaction.NewTransactionFromHex(node.RawTx)
