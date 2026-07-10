@@ -53,12 +53,14 @@ func TestEngine_NewEngine_ShouldMergeTrackers_WhenManagerIsShipType(t *testing.T
 	// Verify lookup services are empty
 	require.Empty(t, actual.ListLookupServiceProviders())
 
-	require.ElementsMatch(t,
+	require.ElementsMatch(
+		t,
 		expectedPeers,
 		actual.SyncConfiguration[tmShip].Peers,
 	)
 
-	require.Equal(t,
+	require.Equal(
+		t,
 		engine.SyncConfigurationPeers,
 		actual.SyncConfiguration[tmShip].Type,
 	)
