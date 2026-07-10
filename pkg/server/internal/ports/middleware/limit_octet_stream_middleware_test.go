@@ -58,7 +58,8 @@ func TestLimitOctetStreamMiddleware_ValidCases(t *testing.T) {
 			t.Run(name, func(t *testing.T) {
 				// given:
 				stub := testabilities.NewTestOverlayEngineStub(t, path.expectedProviderToCall)
-				fixture := server.NewTestFixture(t,
+				fixture := server.NewTestFixture(
+					t,
 					server.WithOctetStreamLimit(octetStreamLimit),
 					server.WithEngine(stub),
 				)
@@ -117,7 +118,8 @@ func TestLimitOctetStreamMiddleware_InvalidCases(t *testing.T) {
 			t.Run(name, func(t *testing.T) {
 				// given:
 				stub := testabilities.NewTestOverlayEngineStub(t)
-				fixture := server.NewTestFixture(t,
+				fixture := server.NewTestFixture(
+					t,
 					server.WithOctetStreamLimit(octetStreamLimit),
 					server.WithEngine(stub),
 				)

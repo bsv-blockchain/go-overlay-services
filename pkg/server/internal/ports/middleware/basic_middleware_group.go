@@ -39,7 +39,8 @@ func BasicMiddlewareGroup(cfg BasicMiddlewareGroupConfig) []fiber.Handler {
 		}))
 	}
 
-	handlers = append(handlers,
+	handlers = append(
+		handlers,
 		healthcheck.New(),
 		pprof.New(pprof.Config{Prefix: cfg.BaseURL}),
 		LimitOctetStreamBodyMiddleware(cfg.OctetStreamLimit),
