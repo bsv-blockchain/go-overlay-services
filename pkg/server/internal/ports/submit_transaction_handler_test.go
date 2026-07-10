@@ -32,7 +32,8 @@ func TestSubmitTransactionHandler_InvalidCases(t *testing.T) {
 				fiber.HeaderContentType: fiber.MIMEOctetStream,
 				ports.XTopicsHeader:     "topics1,topics2",
 			},
-			expectedResponse: testabilities.NewTestOpenapiErrorResponse(t,
+			expectedResponse: testabilities.NewTestOpenapiErrorResponse(
+				t,
 				app.NewSubmitTransactionProviderError(
 					errSubmitTxHandlerTestError,
 				),

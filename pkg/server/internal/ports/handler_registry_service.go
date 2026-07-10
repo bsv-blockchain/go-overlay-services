@@ -90,7 +90,8 @@ func NewHandlerRegistryService(provider engine.OverlayEngineProvider, cfg *decor
 			app.NewMetadataService(
 				app.NewLookupListService(provider),
 				app.NewTopicManagersMetadataService(provider),
-			)),
+			),
+		),
 		lookupQuestion:            NewLookupQuestionHandler(provider),
 		topicManagerDocumentation: NewTopicManagerDocumentationHandler(provider),
 		submitTransaction:         NewSubmitTransactionHandler(provider),
