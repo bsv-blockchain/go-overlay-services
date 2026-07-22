@@ -55,11 +55,14 @@ func TestArcIngestHandler_InvalidCases(t *testing.T) {
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
 			// given:
-			stub := testabilities.NewTestOverlayEngineStub(t, testabilities.WithARCIngestProvider(
-				testabilities.NewARCIngestProviderMock(t, testabilities.ARCIngestProviderMockExpectations{HandleNewMerkleProofCall: false})),
+			stub := testabilities.NewTestOverlayEngineStub(
+				t, testabilities.WithARCIngestProvider(
+					testabilities.NewARCIngestProviderMock(t, testabilities.ARCIngestProviderMockExpectations{HandleNewMerkleProofCall: false}),
+				),
 			)
 
-			fixture := server.NewTestFixture(t,
+			fixture := server.NewTestFixture(
+				t,
 				server.WithEngine(stub),
 				server.WithARCCallbackToken(testabilities.DefaultARCCallbackToken),
 				server.WithARCAPIKey(testabilities.DefaultARCAPIKey),
@@ -99,7 +102,8 @@ func TestArcIngestHandler_ValidCase(t *testing.T) {
 
 	stub := testabilities.NewTestOverlayEngineStub(t, testabilities.WithARCIngestProvider(testabilities.NewARCIngestProviderMock(t, expectations)))
 
-	fixture := server.NewTestFixture(t,
+	fixture := server.NewTestFixture(
+		t,
 		server.WithEngine(stub),
 		server.WithARCCallbackToken(testabilities.DefaultARCCallbackToken),
 		server.WithARCAPIKey(testabilities.DefaultARCAPIKey),

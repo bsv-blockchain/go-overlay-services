@@ -80,7 +80,8 @@ func NewInvalidBearerTokenValueError() app.Error {
 func NewBearerAuthScopesAssertionError() app.Error {
 	return app.NewAuthorizationError(
 		fmt.Sprintf("Authorization scope assertion failure: expected to get string slice under %s user context key to properly extract the request scope.", openapi.BearerAuthScopes),
-		"Unable to process request to the endpoint. Please verify the request content and try again later.")
+		"Unable to process request to the endpoint. Please verify the request content and try again later.",
+	)
 }
 
 // NewEmptyAccessScopesAssertionError returns an app.Error indicating that the
@@ -91,5 +92,6 @@ func NewBearerAuthScopesAssertionError() app.Error {
 func NewEmptyAccessScopesAssertionError() app.Error {
 	return app.NewAuthorizationError(
 		fmt.Sprintf("Authorization scope assertion failure: expected to get non empty string slice under %s user context key.", openapi.BearerAuthScopes),
-		"Unable to process request to the endpoint. Please verify the request content and try again later.")
+		"Unable to process request to the endpoint. Please verify the request content and try again later.",
+	)
 }

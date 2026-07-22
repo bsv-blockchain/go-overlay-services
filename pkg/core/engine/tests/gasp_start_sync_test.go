@@ -36,19 +36,19 @@ func TestEngine_StartGASPSync_CallsSyncSuccessfully(t *testing.T) {
 	}
 
 	mockStorage := &fakeStorage{
-		getLastInteractionFunc: func(_ context.Context, _ string, _ string) (float64, error) {
+		getLastInteractionFunc: func(_ context.Context, _, _ string) (float64, error) {
 			return 0, nil
 		},
 		findUTXOsForTopicFunc: func(_ context.Context, _ string, _ float64, _ uint32, _ bool) ([]*engine.Output, error) {
 			return []*engine.Output{}, nil
 		},
-		updateLastInteractionFunc: func(_ context.Context, _ string, _ string, _ float64) error {
+		updateLastInteractionFunc: func(_ context.Context, _, _ string, _ float64) error {
 			return nil
 		},
 	}
 
 	sut := engine.NewEngine(&engine.Config{
-		SyncConfiguration: map[string]engine.SyncConfiguration{"test-topic": {Type: engine.SyncConfigurationSHIP}},
+		SyncConfiguration: map[string]engine.SyncConfiguration{testTopic: {Type: engine.SyncConfigurationSHIP}},
 		Advertiser:        &advertiser,
 		HostingURL:        "http://localhost",
 		SHIPTrackers:      []string{"http://localhost"},
@@ -91,19 +91,19 @@ func TestEngine_StartGASPSync_ResolverQueryFails(t *testing.T) {
 	}
 
 	mockStorage := &fakeStorage{
-		getLastInteractionFunc: func(_ context.Context, _ string, _ string) (float64, error) {
+		getLastInteractionFunc: func(_ context.Context, _, _ string) (float64, error) {
 			return 0, nil
 		},
 		findUTXOsForTopicFunc: func(_ context.Context, _ string, _ float64, _ uint32, _ bool) ([]*engine.Output, error) {
 			return []*engine.Output{}, nil
 		},
-		updateLastInteractionFunc: func(_ context.Context, _ string, _ string, _ float64) error {
+		updateLastInteractionFunc: func(_ context.Context, _, _ string, _ float64) error {
 			return nil
 		},
 	}
 
 	sut := engine.NewEngine(&engine.Config{
-		SyncConfiguration: map[string]engine.SyncConfiguration{"test-topic": {Type: engine.SyncConfigurationSHIP}},
+		SyncConfiguration: map[string]engine.SyncConfiguration{testTopic: {Type: engine.SyncConfigurationSHIP}},
 		Advertiser:        &advertiser,
 		HostingURL:        "http://localhost",
 		SHIPTrackers:      []string{"http://localhost"},
@@ -144,19 +144,19 @@ func TestEngine_StartGASPSync_GaspSyncFails(t *testing.T) {
 	}
 
 	mockStorage := &fakeStorage{
-		getLastInteractionFunc: func(_ context.Context, _ string, _ string) (float64, error) {
+		getLastInteractionFunc: func(_ context.Context, _, _ string) (float64, error) {
 			return 0, nil
 		},
 		findUTXOsForTopicFunc: func(_ context.Context, _ string, _ float64, _ uint32, _ bool) ([]*engine.Output, error) {
 			return []*engine.Output{}, nil
 		},
-		updateLastInteractionFunc: func(_ context.Context, _ string, _ string, _ float64) error {
+		updateLastInteractionFunc: func(_ context.Context, _, _ string, _ float64) error {
 			return nil
 		},
 	}
 
 	sut := engine.NewEngine(&engine.Config{
-		SyncConfiguration: map[string]engine.SyncConfiguration{"test-topic": {Type: engine.SyncConfigurationSHIP}},
+		SyncConfiguration: map[string]engine.SyncConfiguration{testTopic: {Type: engine.SyncConfigurationSHIP}},
 		Advertiser:        &advertiser,
 		HostingURL:        "http://localhost",
 		SHIPTrackers:      []string{"http://localhost"},

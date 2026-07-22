@@ -55,7 +55,7 @@ func TestEngine_HandleNewMerkleProof(t *testing.T) {
 				Txid:  *txid,
 				Index: 0,
 			},
-			Topic:       "test-topic",
+			Topic:       testTopic,
 			BlockHeight: 0,
 			BlockIdx:    0,
 			Beef:        beef,
@@ -276,7 +276,7 @@ func TestEngine_HandleNewMerkleProof(t *testing.T) {
 				Txid:  *txid1,
 				Index: 0,
 			},
-			Topic:      "test-topic",
+			Topic:      testTopic,
 			ConsumedBy: []*transaction.Outpoint{{Txid: *txid2, Index: 0}},
 		}
 
@@ -285,7 +285,7 @@ func TestEngine_HandleNewMerkleProof(t *testing.T) {
 				Txid:  *txid2,
 				Index: 0,
 			},
-			Topic:           "test-topic",
+			Topic:           testTopic,
 			OutputsConsumed: []*transaction.Outpoint{{Txid: *txid1, Index: 0}},
 			Beef:            beef,
 		}

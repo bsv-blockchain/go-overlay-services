@@ -42,7 +42,7 @@ func TestEngine_SyncAdvertisements_ShouldNotFail_WhenCreateAdvertisementsFails(t
 				return overlay.TaggedBEEF{}, errInvalidAtomicBeef
 			},
 		},
-		Managers:   map[string]engine.TopicManager{"test-topic": fakeTopicManager{}},
+		Managers:   map[string]engine.TopicManager{testTopic: fakeTopicManager{}},
 		HostingURL: "http://localhost",
 	})
 
@@ -67,7 +67,7 @@ func TestEngine_SyncAdvertisements_ShouldCompleteSuccessfully(t *testing.T) {
 				return overlay.TaggedBEEF{}, nil
 			},
 		},
-		Managers:       map[string]engine.TopicManager{"test-topic": fakeTopicManager{}},
+		Managers:       map[string]engine.TopicManager{testTopic: fakeTopicManager{}},
 		LookupServices: map[string]engine.LookupService{"test-service": fakeLookupService{}},
 		HostingURL:     "http://localhost",
 	})
@@ -93,7 +93,7 @@ func TestEngine_SyncAdvertisements_ShouldLogAndContinue_WhenCreateOrRevokeFails(
 				return overlay.TaggedBEEF{}, errRevokeFailed
 			},
 		},
-		Managers:       map[string]engine.TopicManager{"test-topic": fakeTopicManager{}},
+		Managers:       map[string]engine.TopicManager{testTopic: fakeTopicManager{}},
 		LookupServices: map[string]engine.LookupService{"test-service": fakeLookupService{}},
 		HostingURL:     "http://localhost",
 	})
@@ -133,7 +133,7 @@ func TestEngine_SyncAdvertisements_ShouldSkip_WhenHostingURLIsInvalid(t *testing
 						return overlay.TaggedBEEF{}, nil
 					},
 				},
-				Managers:   map[string]engine.TopicManager{"test-topic": fakeTopicManager{}},
+				Managers:   map[string]engine.TopicManager{testTopic: fakeTopicManager{}},
 				HostingURL: tt.hostingURL,
 			})
 

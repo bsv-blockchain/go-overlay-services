@@ -25,7 +25,7 @@ func TestEngine_Submit_Success(t *testing.T) {
 
 	sut := engine.NewEngine(&engine.Config{
 		Managers: map[string]engine.TopicManager{
-			"test-topic": fakeManager{
+			testTopic: fakeManager{
 				identifyAdmissibleOutputsFunc: func(_ context.Context, _ *transaction.Beef, _ *chainhash.Hash, _ []uint32) (overlay.AdmittanceInstructions, error) {
 					return overlay.AdmittanceInstructions{
 						OutputsToAdmit: []uint32{0},
@@ -64,12 +64,12 @@ func TestEngine_Submit_Success(t *testing.T) {
 	})
 
 	taggedBEEF := overlay.TaggedBEEF{
-		Topics: []string{"test-topic"},
+		Topics: []string{testTopic},
 		Beef:   createDummyBEEF(t),
 	}
 
 	expectedSteak := overlay.Steak{
-		"test-topic": &overlay.AdmittanceInstructions{
+		testTopic: &overlay.AdmittanceInstructions{
 			OutputsToAdmit: []uint32{0},
 			CoinsRemoved:   []uint32{0},
 		},
@@ -88,7 +88,7 @@ func TestEngine_Submit_InvalidBeef_ShouldReturnError(t *testing.T) {
 	ctx := context.Background()
 	sut := engine.NewEngine(&engine.Config{
 		Managers: map[string]engine.TopicManager{
-			"test-topic": fakeManager{
+			testTopic: fakeManager{
 				identifyAdmissibleOutputsFunc: func(_ context.Context, _ *transaction.Beef, _ *chainhash.Hash, _ []uint32) (overlay.AdmittanceInstructions, error) {
 					return overlay.AdmittanceInstructions{
 						OutputsToAdmit: []uint32{0},
@@ -101,7 +101,7 @@ func TestEngine_Submit_InvalidBeef_ShouldReturnError(t *testing.T) {
 	})
 
 	taggedBEEF := overlay.TaggedBEEF{
-		Topics: []string{"test-topic"},
+		Topics: []string{testTopic},
 		Beef:   []byte{0xFF}, // invalid beef
 	}
 
@@ -119,7 +119,7 @@ func TestEngine_Submit_SPVFail_ShouldReturnError(t *testing.T) {
 	ctx := context.Background()
 	sut := engine.NewEngine(&engine.Config{
 		Managers: map[string]engine.TopicManager{
-			"test-topic": fakeManager{
+			testTopic: fakeManager{
 				identifyAdmissibleOutputsFunc: func(_ context.Context, _ *transaction.Beef, _ *chainhash.Hash, _ []uint32) (overlay.AdmittanceInstructions, error) {
 					return overlay.AdmittanceInstructions{
 						OutputsToAdmit: []uint32{0},
@@ -145,7 +145,7 @@ func TestEngine_Submit_SPVFail_ShouldReturnError(t *testing.T) {
 	})
 
 	taggedBEEF := overlay.TaggedBEEF{
-		Topics: []string{"test-topic"},
+		Topics: []string{testTopic},
 		Beef:   createDummyBeefWithInputs(t),
 	}
 
@@ -163,7 +163,7 @@ func TestEngine_Submit_DuplicateTransaction_ShouldReturnEmptySteak(t *testing.T)
 	ctx := context.Background()
 	sut := engine.NewEngine(&engine.Config{
 		Managers: map[string]engine.TopicManager{
-			"test-topic": fakeManager{},
+			testTopic: fakeManager{},
 		},
 		Storage: fakeStorage{
 			doesAppliedTransactionExistFunc: func(_ context.Context, _ *overlay.AppliedTransaction) (bool, error) {
@@ -177,12 +177,12 @@ func TestEngine_Submit_DuplicateTransaction_ShouldReturnEmptySteak(t *testing.T)
 		},
 	})
 	taggedBEEF := overlay.TaggedBEEF{
-		Topics: []string{"test-topic"},
+		Topics: []string{testTopic},
 		Beef:   createDummyBEEF(t),
 	}
 
 	expectedSteak := overlay.Steak{
-		"test-topic": &overlay.AdmittanceInstructions{
+		testTopic: &overlay.AdmittanceInstructions{
 			OutputsToAdmit: nil,
 		},
 	}
@@ -221,7 +221,7 @@ func TestEngine_Submit_BroadcastFails_ShouldReturnError(t *testing.T) {
 	ctx := context.Background()
 	sut := engine.NewEngine(&engine.Config{
 		Managers: map[string]engine.TopicManager{
-			"test-topic": fakeManager{
+			testTopic: fakeManager{
 				identifyAdmissibleOutputsFunc: func(_ context.Context, _ *transaction.Beef, _ *chainhash.Hash, _ []uint32) (overlay.AdmittanceInstructions, error) {
 					return overlay.AdmittanceInstructions{
 						OutputsToAdmit: []uint32{0},
@@ -262,7 +262,7 @@ func TestEngine_Submit_BroadcastFails_ShouldReturnError(t *testing.T) {
 	})
 
 	taggedBEEF := overlay.TaggedBEEF{
-		Topics: []string{"test-topic"},
+		Topics: []string{testTopic},
 		Beef:   createDummyBEEF(t),
 	}
 
@@ -283,7 +283,7 @@ func TestEngine_Submit_OutputInsertFails_ShouldReturnError(t *testing.T) {
 
 	sut := engine.NewEngine(&engine.Config{
 		Managers: map[string]engine.TopicManager{
-			"test-topic": fakeManager{
+			testTopic: fakeManager{
 				identifyAdmissibleOutputsFunc: func(_ context.Context, _ *transaction.Beef, _ *chainhash.Hash, _ []uint32) (overlay.AdmittanceInstructions, error) {
 					return overlay.AdmittanceInstructions{
 						OutputsToAdmit: []uint32{0},
@@ -298,7 +298,7 @@ func TestEngine_Submit_OutputInsertFails_ShouldReturnError(t *testing.T) {
 						Txid:  *prevTxID,
 						Index: 0,
 					},
-					Topic: "test-topic",
+					Topic: testTopic,
 					Beef:  emptyBeef,
 				}, nil
 			},
@@ -309,7 +309,7 @@ func TestEngine_Submit_OutputInsertFails_ShouldReturnError(t *testing.T) {
 							Txid:  *prevTxID,
 							Index: 0,
 						},
-						Topic: "test-topic",
+						Topic: testTopic,
 						Beef:  emptyBeef,
 					},
 				}, nil
