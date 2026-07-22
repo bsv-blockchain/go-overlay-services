@@ -26,10 +26,11 @@ func (h HexBytes) MarshalJSON() ([]byte, error) {
 	return json.Marshal(hex.EncodeToString(h))
 }
 
-// UnmarshalJSON decodes a JSON hex string into bytes. JSON null leaves the
-// value unset, matching the previous *string field behavior.
+// UnmarshalJSON decodes a JSON hex string into bytes. JSON null clears the
+// value, matching the previous *string field behavior.
 func (h *HexBytes) UnmarshalJSON(data []byte) error {
 	if string(data) == "null" {
+		*h = nil
 		return nil
 	}
 	var s string
