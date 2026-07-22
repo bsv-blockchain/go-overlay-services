@@ -5,10 +5,11 @@ import (
 	"errors"
 	"log/slog"
 
-	"github.com/bsv-blockchain/go-overlay-services/pkg/core/engine"
-	"github.com/bsv-blockchain/go-overlay-services/pkg/core/gasp"
 	"github.com/bsv-blockchain/go-sdk/chainhash"
 	"github.com/bsv-blockchain/go-sdk/transaction"
+
+	"github.com/bsv-blockchain/go-overlay-services/pkg/core/engine"
+	"github.com/bsv-blockchain/go-overlay-services/pkg/core/gasp"
 )
 
 // RequestForeignGASPNodeDTO represents the data transfer object used to request a foreign GASP node.

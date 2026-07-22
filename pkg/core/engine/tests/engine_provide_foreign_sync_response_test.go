@@ -40,7 +40,7 @@ func TestEngine_ProvideForeignSyncResponse_ShouldReturnUTXOList(t *testing.T) {
 	}
 
 	// when
-	actualResponse, actualErr := sut.ProvideForeignSyncResponse(context.Background(), &gasp.InitialRequest{Since: 0}, "test-topic")
+	actualResponse, actualErr := sut.ProvideForeignSyncResponse(context.Background(), &gasp.InitialRequest{Since: 0}, testTopic)
 
 	// then
 	require.NoError(t, actualErr)
@@ -58,7 +58,7 @@ func TestEngine_ProvideForeignSyncResponse_ShouldReturnError_WhenStorageFails(t 
 	}
 
 	// when
-	resp, err := sut.ProvideForeignSyncResponse(context.Background(), &gasp.InitialRequest{Since: 0}, "test-topic")
+	resp, err := sut.ProvideForeignSyncResponse(context.Background(), &gasp.InitialRequest{Since: 0}, testTopic)
 
 	// then
 	require.Error(t, err)

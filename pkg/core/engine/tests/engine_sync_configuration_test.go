@@ -93,10 +93,10 @@ func TestEngine_SyncConfiguration_DefaultBehavior(t *testing.T) {
 		input := &engine.Config{
 			SHIPTrackers: []string{"tracker1", "tracker2"},
 			Managers: map[string]engine.TopicManager{
-				"tm_ship": &mockTopicManager{},
+				tmShip: &mockTopicManager{},
 			},
 			SyncConfiguration: map[string]engine.SyncConfiguration{
-				"tm_ship": {Type: engine.SyncConfigurationPeers, Peers: []string{"peer1", "tracker1"}}, // tracker1 is duplicate
+				tmShip: {Type: engine.SyncConfigurationPeers, Peers: []string{"peer1", "tracker1"}}, // tracker1 is duplicate
 			},
 		}
 
@@ -104,9 +104,9 @@ func TestEngine_SyncConfiguration_DefaultBehavior(t *testing.T) {
 		result := engine.NewEngine(input)
 
 		// then
-		require.Equal(t, engine.SyncConfigurationPeers, result.SyncConfiguration["tm_ship"].Type)
+		require.Equal(t, engine.SyncConfigurationPeers, result.SyncConfiguration[tmShip].Type)
 		// Should combine and deduplicate
-		require.ElementsMatch(t, []string{"tracker1", "tracker2", "peer1"}, result.SyncConfiguration["tm_ship"].Peers)
+		require.ElementsMatch(t, []string{"tracker1", "tracker2", "peer1"}, result.SyncConfiguration[tmShip].Peers)
 	})
 
 	t.Run("should combine slap trackers with existing peers for tm_slap", func(t *testing.T) {
@@ -135,10 +135,10 @@ func TestEngine_SyncConfiguration_DefaultBehavior(t *testing.T) {
 		input := &engine.Config{
 			SHIPTrackers: []string{"tracker1", "tracker2"},
 			Managers: map[string]engine.TopicManager{
-				"tm_ship": &mockTopicManager{},
+				tmShip: &mockTopicManager{},
 			},
 			SyncConfiguration: map[string]engine.SyncConfiguration{
-				"tm_ship": {Type: engine.SyncConfigurationSHIP}, // Not Peers type
+				tmShip: {Type: engine.SyncConfigurationSHIP}, // Not Peers type
 			},
 		}
 
@@ -146,8 +146,8 @@ func TestEngine_SyncConfiguration_DefaultBehavior(t *testing.T) {
 		result := engine.NewEngine(input)
 
 		// then
-		require.Equal(t, engine.SyncConfigurationSHIP, result.SyncConfiguration["tm_ship"].Type)
-		require.Empty(t, result.SyncConfiguration["tm_ship"].Peers) // Should not add trackers
+		require.Equal(t, engine.SyncConfigurationSHIP, result.SyncConfiguration[tmShip].Type)
+		require.Empty(t, result.SyncConfiguration[tmShip].Peers) // Should not add trackers
 	})
 
 	t.Run("should not modify tm_ship when it's set to None", func(t *testing.T) {
@@ -155,10 +155,10 @@ func TestEngine_SyncConfiguration_DefaultBehavior(t *testing.T) {
 		input := &engine.Config{
 			SHIPTrackers: []string{"tracker1", "tracker2"},
 			Managers: map[string]engine.TopicManager{
-				"tm_ship": &mockTopicManager{},
+				tmShip: &mockTopicManager{},
 			},
 			SyncConfiguration: map[string]engine.SyncConfiguration{
-				"tm_ship": {Type: engine.SyncConfigurationNone}, // Explicitly disabled
+				tmShip: {Type: engine.SyncConfigurationNone}, // Explicitly disabled
 			},
 		}
 
@@ -166,8 +166,8 @@ func TestEngine_SyncConfiguration_DefaultBehavior(t *testing.T) {
 		result := engine.NewEngine(input)
 
 		// then
-		require.Equal(t, engine.SyncConfigurationNone, result.SyncConfiguration["tm_ship"].Type)
-		require.Empty(t, result.SyncConfiguration["tm_ship"].Peers) // Should not add trackers
+		require.Equal(t, engine.SyncConfigurationNone, result.SyncConfiguration[tmShip].Type)
+		require.Empty(t, result.SyncConfiguration[tmShip].Peers) // Should not add trackers
 	})
 
 	t.Run("should handle empty managers gracefully", func(t *testing.T) {
@@ -266,11 +266,11 @@ func TestEngine_SyncConfiguration_TypeScriptParity(t *testing.T) {
 			SHIPTrackers: []string{"tracker1", "tracker2", "tracker1"}, // tracker1 appears twice
 			SLAPTrackers: []string{"slap1", "slap2", "slap1"},          // slap1 appears twice
 			Managers: map[string]engine.TopicManager{
-				"tm_ship": &mockTopicManager{},
+				tmShip:    &mockTopicManager{},
 				"tm_slap": &mockTopicManager{},
 			},
 			SyncConfiguration: map[string]engine.SyncConfiguration{
-				"tm_ship": {Type: engine.SyncConfigurationPeers, Peers: []string{"existingPeer", "tracker2"}}, // tracker2 is duplicate
+				tmShip:    {Type: engine.SyncConfigurationPeers, Peers: []string{"existingPeer", "tracker2"}}, // tracker2 is duplicate
 				"tm_slap": {Type: engine.SyncConfigurationPeers, Peers: []string{"existingPeer", "slap2"}},    // slap2 is duplicate
 			},
 		}
@@ -280,8 +280,8 @@ func TestEngine_SyncConfiguration_TypeScriptParity(t *testing.T) {
 
 		// then
 		// Verify deduplication for tm_ship
-		require.Equal(t, engine.SyncConfigurationPeers, result.SyncConfiguration["tm_ship"].Type)
-		shipPeers := result.SyncConfiguration["tm_ship"].Peers
+		require.Equal(t, engine.SyncConfigurationPeers, result.SyncConfiguration[tmShip].Type)
+		shipPeers := result.SyncConfiguration[tmShip].Peers
 		require.Len(t, shipPeers, 3) // Should have tracker1, tracker2, existingPeer (no duplicates)
 		require.ElementsMatch(t, []string{"tracker1", "tracker2", "existingPeer"}, shipPeers)
 

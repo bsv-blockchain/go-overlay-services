@@ -29,10 +29,10 @@ func TestEngine_NewEngine_ShouldMergeTrackers_WhenManagerIsShipType(t *testing.T
 	input := &engine.Config{
 		SHIPTrackers: []string{"http://tracker1.com"},
 		Managers: map[string]engine.TopicManager{
-			"tm_ship": fakeTopicManager{},
+			tmShip: fakeTopicManager{},
 		},
 		SyncConfiguration: map[string]engine.SyncConfiguration{
-			"tm_ship": {Type: engine.SyncConfigurationPeers, Peers: []string{"http://peer1.com"}},
+			tmShip: {Type: engine.SyncConfigurationPeers, Peers: []string{"http://peer1.com"}},
 		},
 	}
 
@@ -48,19 +48,21 @@ func TestEngine_NewEngine_ShouldMergeTrackers_WhenManagerIsShipType(t *testing.T
 	// Verify the topic manager was registered
 	managers := actual.ListTopicManagers()
 	require.Len(t, managers, 1)
-	require.Contains(t, managers, "tm_ship")
+	require.Contains(t, managers, tmShip)
 
 	// Verify lookup services are empty
 	require.Empty(t, actual.ListLookupServiceProviders())
 
-	require.ElementsMatch(t,
+	require.ElementsMatch(
+		t,
 		expectedPeers,
-		actual.SyncConfiguration["tm_ship"].Peers,
+		actual.SyncConfiguration[tmShip].Peers,
 	)
 
-	require.Equal(t,
+	require.Equal(
+		t,
 		engine.SyncConfigurationPeers,
-		actual.SyncConfiguration["tm_ship"].Type,
+		actual.SyncConfiguration[tmShip].Type,
 	)
 }
 
@@ -91,10 +93,10 @@ func TestEngine_NewEngine_ShouldNotMergeTrackers_WhenTypeIsNotPeers(t *testing.T
 	input := &engine.Config{
 		SHIPTrackers: []string{"http://tracker-should-not-merge.com"},
 		Managers: map[string]engine.TopicManager{
-			"tm_ship": fakeTopicManager{},
+			tmShip: fakeTopicManager{},
 		},
 		SyncConfiguration: map[string]engine.SyncConfiguration{
-			"tm_ship": {Type: engine.SyncConfigurationSHIP, Peers: []string{"http://peer1.com"}},
+			tmShip: {Type: engine.SyncConfigurationSHIP, Peers: []string{"http://peer1.com"}},
 		},
 	}
 
@@ -105,5 +107,5 @@ func TestEngine_NewEngine_ShouldNotMergeTrackers_WhenTypeIsNotPeers(t *testing.T
 	require.NotNil(t, result)
 
 	expectedPeers := []string{"http://peer1.com"}
-	require.ElementsMatch(t, result.SyncConfiguration["tm_ship"].Peers, expectedPeers, "Trackers should not be merged if type != Peers")
+	require.ElementsMatch(t, result.SyncConfiguration[tmShip].Peers, expectedPeers, "Trackers should not be merged if type != Peers")
 }
