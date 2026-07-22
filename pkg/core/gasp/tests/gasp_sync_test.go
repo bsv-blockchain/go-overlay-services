@@ -314,7 +314,6 @@ func createMockUTXO(txHex string, outputIndex, time uint32) *mockUTXO {
 		LockingScript: opReturn,
 	})
 
-
 	return &mockUTXO{
 		GraphID: &transaction.Outpoint{
 			Txid:  *tx.TxID(),
