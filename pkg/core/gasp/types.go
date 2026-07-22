@@ -14,10 +14,11 @@ import (
 // in-memory representation as bytes avoids retaining hex strings (2x the
 // raw size) in graph nodes for the lifetime of a sync.
 //
-// and String use value receivers so custom marshaling also applies to
-// non-addressable values — the same receiver split as time.Time.
+// UnmarshalJSON requires a pointer receiver, while MarshalJSON and String
+// use value receivers so custom marshaling also applies to non-addressable
+// values — the same receiver split as time.Time.
 //
-//nolint:recvcheck // UnmarshalJSON requires a pointer receiver; MarshalJSON
+//nolint:recvcheck // receiver split required by the JSON contract; see doc comment
 type HexBytes []byte
 
 // MarshalJSON encodes the bytes as a JSON hex string.
