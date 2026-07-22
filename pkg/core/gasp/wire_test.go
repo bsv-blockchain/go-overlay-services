@@ -1,6 +1,7 @@
 package gasp
 
 import (
+	"bytes"
 	"crypto/rand"
 	"testing"
 
@@ -137,12 +138,12 @@ func TestNodeRequestWireRoundTrip(t *testing.T) {
 }
 
 func TestNodeWireRoundTrip(t *testing.T) {
-	proof := "aabbccdd"
+	proof := HexBytes{0xaa, 0xbb, 0xcc, 0xdd}
 	node := &Node{
 		GraphID:        &transaction.Outpoint{Txid: randomHash(t), Index: 0},
-		RawTx:          "0100000001abcdef",
+		RawTx:          HexBytes{0x01, 0x00, 0x00, 0x00, 0x01, 0xab, 0xcd, 0xef},
 		OutputIndex:    1,
-		Proof:          &proof,
+		Proof:          proof,
 		TxMetadata:     "tx-meta",
 		OutputMetadata: "out-meta",
 		Inputs: map[string]*Input{
@@ -167,10 +168,10 @@ func TestNodeWireRoundTrip(t *testing.T) {
 	if got.OutputIndex != node.OutputIndex {
 		t.Errorf("outputIndex: want %d, got %d", node.OutputIndex, got.OutputIndex)
 	}
-	if got.RawTx != node.RawTx {
+	if !bytes.Equal(got.RawTx, node.RawTx) {
 		t.Errorf("rawTx: want %q, got %q", node.RawTx, got.RawTx)
 	}
-	if got.Proof == nil || *got.Proof != proof {
+	if !bytes.Equal(got.Proof, proof) {
 		t.Errorf("proof mismatch")
 	}
 	if got.TxMetadata != node.TxMetadata {
@@ -205,7 +206,7 @@ func TestNodeWireEmpty(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if got.RawTx != "" {
+	if len(got.RawTx) != 0 {
 		t.Errorf("expected empty rawTx")
 	}
 	if got.Proof != nil {

@@ -69,7 +69,7 @@ func SkipFuzzComputeTxIDFromHex(f *testing.F) {
 
 		// The function should never panic, regardless of input
 		// It may return an error, which is acceptable
-		txID, err := g.computeTxID(rawtx)
+		txID, err := g.computeTxID([]byte(rawtx))
 
 		// Invariant: if there's no error, txID should not be nil
 		if err == nil && txID == nil {

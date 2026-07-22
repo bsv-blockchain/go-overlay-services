@@ -42,7 +42,7 @@ func TestOverlayGASPStorage_AppendToGraph(t *testing.T) {
 		}
 
 		gaspNode := &gasp.Node{
-			RawTx:       tx.Hex(),
+			RawTx:       tx.Bytes(),
 			OutputIndex: 0,
 			GraphID:     graphID,
 		}
@@ -60,7 +60,7 @@ func TestOverlayGASPStorage_AppendToGraph(t *testing.T) {
 		})
 
 		childNode := &gasp.Node{
-			RawTx:       childTx.Hex(),
+			RawTx:       childTx.Bytes(),
 			OutputIndex: 0,
 			GraphID:     graphID,
 		}
@@ -97,7 +97,7 @@ func TestOverlayGASPStorage_AppendToGraph(t *testing.T) {
 			}
 
 			gaspNode := &gasp.Node{
-				RawTx:       tx.Hex(),
+				RawTx:       tx.Bytes(),
 				OutputIndex: uint32(i), // #nosec G115
 				GraphID:     graphID,
 			}
@@ -119,7 +119,7 @@ func TestOverlayGASPStorage_AppendToGraph(t *testing.T) {
 		}
 
 		gaspNode := &gasp.Node{
-			RawTx:       tx.Hex(),
+			RawTx:       tx.Bytes(),
 			OutputIndex: 99,
 			GraphID:     graphID,
 		}
@@ -141,7 +141,7 @@ func TestOverlayGASPStorage_AppendToGraph(t *testing.T) {
 		storage := engine.NewOverlayGASPStorage("test-topic", mockEngine, nil)
 
 		gaspNode := &gasp.Node{
-			RawTx:       "invalid-hex",
+			RawTx:       gasp.HexBytes("invalid-hex"),
 			OutputIndex: 0,
 			GraphID: &transaction.Outpoint{
 				Txid:  chainhash.Hash{},
@@ -320,7 +320,7 @@ func TestOverlayGASPStorage_DiscardGraph(t *testing.T) {
 		}
 
 		rootNode := &gasp.Node{
-			RawTx:       rootTx.Hex(),
+			RawTx:       rootTx.Bytes(),
 			OutputIndex: 0,
 			GraphID:     graphID,
 		}
@@ -337,7 +337,7 @@ func TestOverlayGASPStorage_DiscardGraph(t *testing.T) {
 		})
 
 		childNode := &gasp.Node{
-			RawTx:       childTx.Hex(),
+			RawTx:       childTx.Bytes(),
 			OutputIndex: 0,
 			GraphID:     graphID,
 		}
@@ -358,7 +358,7 @@ func TestOverlayGASPStorage_DiscardGraph(t *testing.T) {
 
 		// Verify graph is empty by trying to add to the discarded graph
 		newNode := &gasp.Node{
-			RawTx:       rootTx.Hex(),
+			RawTx:       rootTx.Bytes(),
 			OutputIndex: 1,
 			GraphID:     graphID,
 		}
@@ -477,7 +477,7 @@ func TestOverlayGASPStorage_HydrateGASPNode(t *testing.T) {
 		require.NotNil(t, result)
 		require.Equal(t, graphID, result.GraphID)
 		require.Equal(t, uint32(0), result.OutputIndex)
-		require.Equal(t, tx.Hex(), result.RawTx)
+		require.Equal(t, gasp.HexBytes(tx.Bytes()), result.RawTx)
 		require.NotNil(t, result.Proof)
 	})
 }

@@ -30,7 +30,7 @@ func TestEngine_ProvideForeignGASPNode_Success(t *testing.T) {
 
 	expectedNode := &gasp.Node{
 		GraphID:     graphID,
-		RawTx:       tx.Hex(),
+		RawTx:       tx.Bytes(),
 		OutputIndex: outpoint.Index,
 	}
 

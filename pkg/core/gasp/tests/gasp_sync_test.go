@@ -2,7 +2,6 @@ package gasp_test
 
 import (
 	"context"
-	"encoding/hex"
 	"errors"
 	"sync"
 	"testing"
@@ -20,7 +19,7 @@ var errInvalidGraphAnchor = errors.New("invalid graph anchor")
 // Mock types for testing
 type mockUTXO struct {
 	GraphID     *transaction.Outpoint
-	RawTx       string
+	RawTx       gasp.HexBytes
 	OutputIndex uint32
 	Time        uint32
 	Txid        *chainhash.Hash
@@ -150,7 +149,7 @@ func (m *mockGASPStorage) AppendToGraph(ctx context.Context, tx *gasp.Node, spen
 	defer m.mu.Unlock()
 
 	// Parse the transaction to get its ID
-	parsedTx, _ := transaction.NewTransactionFromHex(tx.RawTx)
+	parsedTx, _ := transaction.NewTransactionFromBytes(tx.RawTx)
 	var hash *chainhash.Hash
 	if parsedTx != nil {
 		hash = parsedTx.TxID()
@@ -315,15 +314,13 @@ func createMockUTXO(txHex string, outputIndex, time uint32) *mockUTXO {
 		LockingScript: opReturn,
 	})
 
-	// Use the actual transaction hex instead of the provided string
-	realTxHex := hex.EncodeToString(tx.Bytes())
 
 	return &mockUTXO{
 		GraphID: &transaction.Outpoint{
 			Txid:  *tx.TxID(),
 			Index: outputIndex,
 		},
-		RawTx:       realTxHex,
+		RawTx:       tx.Bytes(),
 		OutputIndex: outputIndex,
 		Time:        time,
 		Txid:        tx.TxID(),

@@ -1208,10 +1208,10 @@ func (e *Engine) syncMerkleProofFromPeers(ctx context.Context, topic string, txi
 		}
 		remote := NewOverlayGASPRemote(peer, topic, http.DefaultClient, 8)
 		node, err := remote.RequestNode(ctx, outpoint, outpoint, true)
-		if err != nil || node.Proof == nil {
+		if err != nil || len(node.Proof) == 0 {
 			continue
 		}
-		merklePath, err := transaction.NewMerklePathFromHex(*node.Proof)
+		merklePath, err := transaction.NewMerklePathFromBinary(node.Proof)
 		if err != nil {
 			slog.Error("Failed to parse merkle proof", "txid", txid.String(), "error", err)
 			continue
@@ -1313,12 +1313,11 @@ func (e *Engine) hydrateGASPNode(ctx context.Context, output *Output, graphID, o
 func buildGASPNode(graphID, outpoint *transaction.Outpoint, tx *transaction.Transaction) *gasp.Node {
 	node := &gasp.Node{
 		GraphID:     graphID,
-		RawTx:       tx.Hex(),
+		RawTx:       tx.Bytes(),
 		OutputIndex: outpoint.Index,
 	}
 	if tx.MerklePath != nil {
-		proof := tx.MerklePath.Hex()
-		node.Proof = &proof
+		node.Proof = tx.MerklePath.Bytes()
 	}
 	return node
 }

@@ -1,11 +1,47 @@
 package gasp
 
 import (
+	"encoding/hex"
+	"encoding/json"
 	"fmt"
 
 	"github.com/bsv-blockchain/go-sdk/chainhash"
 	"github.com/bsv-blockchain/go-sdk/transaction"
 )
+
+// HexBytes is a byte slice that marshals to and from a JSON hex string,
+// matching the GASP wire format for rawTx and proof fields. Keeping the
+// in-memory representation as bytes avoids retaining hex strings (2x the
+// raw size) in graph nodes for the lifetime of a sync.
+type HexBytes []byte
+
+// MarshalJSON encodes the bytes as a JSON hex string.
+func (h HexBytes) MarshalJSON() ([]byte, error) {
+	return json.Marshal(hex.EncodeToString(h))
+}
+
+// UnmarshalJSON decodes a JSON hex string into bytes. JSON null leaves the
+// value unset, matching the previous *string field behavior.
+func (h *HexBytes) UnmarshalJSON(data []byte) error {
+	if string(data) == "null" {
+		return nil
+	}
+	var s string
+	if err := json.Unmarshal(data, &s); err != nil {
+		return err
+	}
+	b, err := hex.DecodeString(s)
+	if err != nil {
+		return err
+	}
+	*h = b
+	return nil
+}
+
+// String returns the hex encoding of the bytes.
+func (h HexBytes) String() string {
+	return hex.EncodeToString(h)
+}
 
 // InitialRequest represents the initial GASP synchronization request containing version and timestamp information.
 type InitialRequest struct {
@@ -53,9 +89,9 @@ type Input struct {
 // Node represents a node in the GASP graph containing transaction data, metadata, and ancillary information.
 type Node struct {
 	GraphID        *transaction.Outpoint `json:"graphID"`
-	RawTx          string                `json:"rawTx"`
+	RawTx          HexBytes              `json:"rawTx"`
 	OutputIndex    uint32                `json:"outputIndex"`
-	Proof          *string               `json:"proof,omitempty"`
+	Proof          HexBytes              `json:"proof,omitempty"`
 	TxMetadata     string                `json:"txMetadata,omitempty"`
 	OutputMetadata string                `json:"outputMetadata,omitempty"`
 	Inputs         map[string]*Input     `json:"inputs,omitempty"`

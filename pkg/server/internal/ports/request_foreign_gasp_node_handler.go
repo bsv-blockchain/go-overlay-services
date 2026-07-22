@@ -75,13 +75,13 @@ func NewRequestForeignGASPNodeSuccessResponse(node *gasp.Node) openapi.GASPNode 
 	}
 
 	var proof string
-	if node.Proof != nil {
-		proof = *node.Proof
+	if len(node.Proof) > 0 {
+		proof = node.Proof.String()
 	}
 
 	return openapi.GASPNode{
 		GraphID:        graphID,
-		RawTx:          node.RawTx,
+		RawTx:          node.RawTx.String(),
 		OutputIndex:    node.OutputIndex,
 		Proof:          proof,
 		TxMetadata:     node.TxMetadata,

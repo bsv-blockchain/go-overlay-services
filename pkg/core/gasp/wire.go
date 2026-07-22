@@ -2,7 +2,6 @@ package gasp
 
 import (
 	"encoding/binary"
-	"encoding/hex"
 	"errors"
 	"fmt"
 	"math"
@@ -195,18 +194,8 @@ func DeserializeNodeRequest(data []byte) (*NodeRequest, error) {
 //	[varint len][outputMetadata bytes]
 //	[varint input count][varint len, hash bytes]...
 func (n *Node) Serialize() ([]byte, error) {
-	rawTxBytes, err := hex.DecodeString(n.RawTx)
-	if err != nil {
-		return nil, fmt.Errorf("decode rawTx hex: %w", err)
-	}
-
-	var proofBytes []byte
-	if n.Proof != nil {
-		proofBytes, err = hex.DecodeString(*n.Proof)
-		if err != nil {
-			return nil, fmt.Errorf("decode proof hex: %w", err)
-		}
-	}
+	rawTxBytes := []byte(n.RawTx)
+	proofBytes := []byte(n.Proof)
 
 	txMeta := []byte(n.TxMetadata)
 	outMeta := []byte(n.OutputMetadata)
@@ -271,15 +260,14 @@ func DeserializeNode(data []byte) (*Node, error) {
 	if err != nil {
 		return nil, fmt.Errorf("rawTx: %w", err)
 	}
-	n.RawTx = hex.EncodeToString(rawTxBytes)
+	n.RawTx = rawTxBytes
 
 	proofBytes, offset, err = readByteField(data, offset)
 	if err != nil {
 		return nil, fmt.Errorf("proof: %w", err)
 	}
 	if len(proofBytes) > 0 {
-		proofHex := hex.EncodeToString(proofBytes)
-		n.Proof = &proofHex
+		n.Proof = proofBytes
 	}
 
 	txMeta, offset, err = readByteField(data, offset)

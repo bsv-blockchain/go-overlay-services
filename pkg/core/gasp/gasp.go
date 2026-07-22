@@ -472,7 +472,7 @@ func (g *GASP) ProcessUTXOToCompletion(ctx context.Context, outpoint, spentBy *t
 	return nil
 }
 
-func (g *GASP) computeTxID(rawtx string) (txID *chainhash.Hash, err error) {
+func (g *GASP) computeTxID(rawtx []byte) (txID *chainhash.Hash, err error) {
 	// Recover from panics in transaction parsing (e.g., malformed VarInts in go-sdk)
 	defer func() {
 		if r := recover(); r != nil {
@@ -482,19 +482,18 @@ func (g *GASP) computeTxID(rawtx string) (txID *chainhash.Hash, err error) {
 	}()
 
 	// Validate input length to prevent problematic VarInt patterns that cause EOF errors
-	// during fuzz test minimization. Minimum valid transaction is ~10 bytes (20 hex chars):
+	// during fuzz test minimization. Minimum valid transaction is ~10 bytes:
 	// 4 bytes version + 1 byte input count + 1 byte output count + 4 bytes locktime
-	if len(rawtx) < 20 {
-		return nil, fmt.Errorf("%w: %d characters (minimum 20)", ErrTransactionHexTooShort, len(rawtx))
+	if len(rawtx) < 10 {
+		return nil, fmt.Errorf("%w: %d bytes (minimum 10)", ErrTransactionHexTooShort, len(rawtx))
 	}
 
-	// Check hex string length before decoding to prevent memory exhaustion
-	// 2 hex chars = 1 byte, so 200M hex chars = 100MB decoded
-	if len(rawtx) > 200_000_000 {
-		return nil, fmt.Errorf("%w: %d characters (maximum 200,000,000)", ErrTransactionHexTooLong, len(rawtx))
+	// Bound input size to prevent memory exhaustion (100MB decoded)
+	if len(rawtx) > 100_000_000 {
+		return nil, fmt.Errorf("%w: %d bytes (maximum 100,000,000)", ErrTransactionHexTooLong, len(rawtx))
 	}
 
-	tx, err := transaction.NewTransactionFromHex(rawtx)
+	tx, err := transaction.NewTransactionFromBytes(rawtx)
 	if err != nil {
 		return nil, err
 	}
