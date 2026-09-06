@@ -54,14 +54,6 @@ func TestLookupQuestionService_InvalidCases(t *testing.T) {
 			query:         nil,
 			expectedError: app.NewIncorrectInputWithFieldError("query"),
 		},
-		"LookupQuestion should return error when query is empty": {
-			expectations: testabilities.LookupQuestionProviderMockExpectations{
-				LookupQuestionCall: false,
-			},
-			service:       "test-service",
-			query:         map[string]any{},
-			expectedError: app.NewIncorrectInputWithFieldError("query"),
-		},
 		"LookupQuestion should return error from provider": {
 			expectations: testabilities.LookupQuestionProviderMockExpectations{
 				LookupQuestionCall: true,
@@ -93,4 +85,15 @@ func TestLookupQuestionService_InvalidCases(t *testing.T) {
 			mock.AssertCalled()
 		})
 	}
+}
+
+func TestLookupQuestionService_EmptyObjectDelegatesToProvider(t *testing.T) {
+	provider := testabilities.NewLookupQuestionProviderMock(t, testabilities.LookupQuestionProviderMockExpectations{
+		Answer:             &lookup.LookupAnswer{Type: lookup.AnswerTypeOutputList},
+		LookupQuestionCall: true,
+	})
+	answer, err := app.NewLookupQuestionService(provider).LookupQuestion(t.Context(), "ls_ecosystemalias", map[string]any{})
+	require.NoError(t, err)
+	require.Equal(t, string(lookup.AnswerTypeOutputList), answer.Type)
+	provider.AssertCalled()
 }

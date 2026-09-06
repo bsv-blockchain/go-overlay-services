@@ -45,7 +45,9 @@ func (s *LookupQuestionService) LookupQuestion(ctx context.Context, service stri
 	if len(service) == 0 {
 		return nil, NewIncorrectInputWithFieldError("service")
 	}
-	if len(query) == 0 {
+	// An explicit empty object is a valid provider-defined query.
+	// A missing or null query is still invalid.
+	if query == nil {
 		return nil, NewIncorrectInputWithFieldError("query")
 	}
 	bb, err := json.Marshal(query)
