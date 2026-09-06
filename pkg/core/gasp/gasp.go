@@ -173,9 +173,7 @@ func (g *GASP) Sync(ctx context.Context, _ string, limit uint32) error {
 		}
 	}
 
-	// Process all UTXOs from this batch with shared deduplication
 	processingGroup, processingCtx := errgroup.WithContext(ctx)
-	seenNodes := &sync.Map{} // Shared across all UTXOs in this batch
 
 	for _, utxo := range ingestQueue {
 		g.limiter <- struct{}{}
@@ -185,7 +183,7 @@ func (g *GASP) Sync(ctx context.Context, _ string, limit uint32) error {
 				<-g.limiter
 			}()
 
-			if err := g.ProcessUTXOToCompletion(processingCtx, outpoint, nil, seenNodes); err != nil {
+			if err := g.ProcessUTXOToCompletion(processingCtx, outpoint, nil, &sync.Map{}); err != nil {
 				g.logger.Error("error processing UTXO", "outpoint", outpoint, "error", err)
 				return fmt.Errorf("error processing UTXO %s: %w", outpoint, err)
 			}
@@ -369,11 +367,7 @@ func (g *GASP) processIncomingNode(ctx context.Context, node *Node, spentBy *tra
 		g.logger.Debug(fmt.Sprintf("%s Needed inputs for node %s: %v", g.LogPrefix, nodeOutpoint.String(), neededInputs))
 		for outpoint, data := range neededInputs.RequestedInputs {
 			g.logger.Debug(fmt.Sprintf("%s Processing dependency for outpoint: %s, metadata: %v", g.LogPrefix, outpoint.String(), data.Metadata))
-			if processErr := g.ProcessUTXOToCompletion(ctx, &outpoint, nodeOutpoint, seenNodes); processErr != nil {
-				if errors.Is(processErr, ErrGraphNoTopicalAdmittance) {
-					g.logger.Debug(fmt.Sprintf("%s Dependency %s not topically admissible, continuing", g.LogPrefix, outpoint.String()))
-					continue
-				}
+			if processErr := g.processUTXO(ctx, &outpoint, nodeOutpoint, node.GraphID, seenNodes); processErr != nil {
 				g.logger.Warn(fmt.Sprintf("%s Error processing dependency %s: %v", g.LogPrefix, outpoint.String(), processErr))
 			}
 		}
@@ -432,7 +426,10 @@ func (g *GASP) processOutgoingNode(ctx context.Context, node *Node, seenNodes *s
 	return nil
 }
 
-// ProcessUTXOToCompletion handles the complete UTXO processing pipeline with result sharing deduplication.
+// ProcessUTXOToCompletion processes a graph root: it builds the full dependency graph,
+// validates and submits it, and always discards the graph's temporary state on the way
+// out. Concurrent calls for the same outpoint share one result — safe here because a
+// root's completion is durable (admitted to the engine, or failed).
 func (g *GASP) ProcessUTXOToCompletion(ctx context.Context, outpoint, spentBy *transaction.Outpoint, seenNodes *sync.Map) error {
 	// Pre-initialize the processing state to avoid race conditions
 	newState := &utxoProcessingState{}
@@ -451,24 +448,30 @@ func (g *GASP) ProcessUTXOToCompletion(ctx context.Context, outpoint, spentBy *t
 		g.utxoProcessingMap.Delete(*outpoint)
 	}()
 
-	// Request node from remote
-	resolvedNode, err := g.Remote.RequestNode(ctx, spentBy, outpoint, true)
+	state.err = g.processUTXO(ctx, outpoint, spentBy, outpoint, seenNodes)
+	if state.err != nil {
+		// CompleteGraph discards on its own paths; this catches errors before it ran.
+		_ = g.Storage.DiscardGraph(ctx, outpoint)
+	}
+	return state.err
+}
+
+// processUTXO fetches one node into the traversal's graph and recurses into its needed
+// inputs. graphID is the traversal's root outpoint: every node is stored under it, and
+// only the root level (spentBy == nil) completes the graph.
+func (g *GASP) processUTXO(ctx context.Context, outpoint, spentBy, graphID *transaction.Outpoint, seenNodes *sync.Map) error {
+	resolvedNode, err := g.Remote.RequestNode(ctx, graphID, outpoint, true)
 	if err != nil {
-		state.err = fmt.Errorf("error with incoming UTXO %s: %w", outpoint, err)
-		return state.err
+		return fmt.Errorf("error with incoming UTXO %s: %w", outpoint, err)
 	}
-	// Process dependencies
 	if err = g.processIncomingNode(ctx, resolvedNode, spentBy, seenNodes); err != nil {
-		state.err = fmt.Errorf("error processing incoming node %s: %w", outpoint, err)
-		return state.err
+		return fmt.Errorf("error processing incoming node %s: %w", outpoint, err)
 	}
-
-	// Complete the graph (submit to engine) using the outpoint we requested
-	if err = g.CompleteGraph(ctx, outpoint); err != nil {
-		state.err = fmt.Errorf("error completing graph for %s: %w", outpoint, err)
-		return state.err
+	if spentBy == nil {
+		if err = g.CompleteGraph(ctx, graphID); err != nil {
+			return fmt.Errorf("error completing graph for %s: %w", outpoint, err)
+		}
 	}
-
 	return nil
 }
 
@@ -525,7 +528,6 @@ func (g *GASP) Close() {
 // It exits when utxoQueue is closed (via Close).
 func (g *GASP) runProcessingWorker() {
 	defer close(g.done)
-	seenNodes := &sync.Map{}
 
 	for outpoint := range g.utxoQueue {
 		g.limiter <- struct{}{}
@@ -535,15 +537,9 @@ func (g *GASP) runProcessingWorker() {
 			}()
 
 			ctx := context.Background()
-			if err := g.ProcessUTXOToCompletion(ctx, op, nil, seenNodes); err != nil {
+			if err := g.ProcessUTXOToCompletion(ctx, op, nil, &sync.Map{}); err != nil {
 				g.logger.Error(fmt.Sprintf("%s Error processing UTXO %s: %v", g.LogPrefix, op, err))
 			}
-
-			// Cleanup all seenNodes entries after processing completes
-			seenNodes.Range(func(key, _ any) bool {
-				seenNodes.Delete(key)
-				return true
-			})
 		}(outpoint)
 	}
 }

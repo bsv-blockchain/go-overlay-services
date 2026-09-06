@@ -83,7 +83,8 @@ func TestOverlayGASPStorage_AppendToGraph(t *testing.T) {
 		}
 		storage := engine.NewOverlayGASPStorage("test-topic", mockEngine, &maxNodes)
 
-		// Add nodes up to the limit
+		// Add nodes up to the limit, all within the same graph
+		var graphID *transaction.Outpoint
 		for i := 0; i < maxNodes; i++ {
 			tx := transaction.NewTransaction()
 			tx.AddOutput(&transaction.TransactionOutput{
@@ -91,9 +92,11 @@ func TestOverlayGASPStorage_AppendToGraph(t *testing.T) {
 				LockingScript: &script.Script{},
 			})
 
-			graphID := &transaction.Outpoint{
-				Txid:  *tx.TxID(),
-				Index: uint32(i), // #nosec G115
+			if graphID == nil {
+				graphID = &transaction.Outpoint{
+					Txid:  *tx.TxID(),
+					Index: 0,
+				}
 			}
 
 			gaspNode := &gasp.Node{
@@ -106,17 +109,12 @@ func TestOverlayGASPStorage_AppendToGraph(t *testing.T) {
 			require.NoError(t, err)
 		}
 
-		// Try to add one more node
+		// Try to add one more node to the same graph
 		tx := transaction.NewTransaction()
 		tx.AddOutput(&transaction.TransactionOutput{
 			Satoshis:      1000,
 			LockingScript: &script.Script{},
 		})
-
-		graphID := &transaction.Outpoint{
-			Txid:  *tx.TxID(),
-			Index: 99,
-		}
 
 		gaspNode := &gasp.Node{
 			RawTx:       tx.Bytes(),
