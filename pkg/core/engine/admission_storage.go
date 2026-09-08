@@ -22,6 +22,8 @@ const (
 var (
 	// ErrInvalidStorageUint64 is returned when a storage uint64 is not canonical unsigned decimal text.
 	ErrInvalidStorageUint64 = errors.New("invalid storage uint64")
+	// ErrInvalidStorageOutputIndex is returned when a canonical uint64 is outside the uint32 transaction outpoint index domain.
+	ErrInvalidStorageOutputIndex = errors.New("invalid storage output index")
 	// ErrInvalidAdmissionHash is returned when an admission identity has a non-canonical hash.
 	ErrInvalidAdmissionHash = errors.New("invalid admission hash")
 	// ErrInvalidAdmissionMode is returned when an admission identity has an unsupported mode.
@@ -104,7 +106,7 @@ const (
 	AdmissionPayloadOutboxData AdmissionPayloadKind = "outbox-data"
 )
 
-// AdmissionOutpoint identifies an output using canonical transaction and output identifiers.
+// AdmissionOutpoint identifies an output using a canonical transaction ID and a uint32 wire outpoint index.
 type AdmissionOutpoint struct {
 	TxID        string
 	OutputIndex StorageUint64
@@ -369,6 +371,18 @@ func ParseStorageUint64(value StorageUint64) (uint64, error) {
 		return 0, ErrInvalidStorageUint64
 	}
 	return parsed, nil
+}
+
+// ParseStorageOutputIndex parses a canonical uint64 and ensures it fits the uint32 transaction wire outpoint index domain.
+func ParseStorageOutputIndex(value StorageUint64) (uint32, error) {
+	parsed, err := ParseStorageUint64(value)
+	if err != nil {
+		return 0, err
+	}
+	if parsed > 1<<32-1 {
+		return 0, ErrInvalidStorageOutputIndex
+	}
+	return uint32(parsed), nil
 }
 
 func isNilCapability(value any) bool {

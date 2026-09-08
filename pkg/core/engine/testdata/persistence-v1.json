@@ -502,5 +502,35 @@
       "nowMs": "999",
       "valid": false
     }
+  ],
+  "outputIndices": [
+    {
+      "value": "0",
+      "valid": true
+    },
+    {
+      "value": "4294967295",
+      "valid": true
+    },
+    {
+      "value": "4294967296",
+      "valid": false
+    },
+    {
+      "value": "9007199254740992",
+      "valid": false
+    },
+    {
+      "value": "9007199254740993",
+      "valid": false
+    },
+    {
+      "value": "01",
+      "valid": false
+    },
+    {
+      "value": "-1",
+      "valid": false
+    }
   ]
 }

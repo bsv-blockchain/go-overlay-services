@@ -22,6 +22,10 @@ type persistenceFixture struct {
 		Value engine.StorageUint64 `json:"value"`
 		Valid bool                 `json:"valid"`
 	} `json:"uint64"`
+	OutputIndices []struct {
+		Value engine.StorageUint64 `json:"value"`
+		Valid bool                 `json:"valid"`
+	} `json:"outputIndices"`
 	Cursors []struct {
 		Name     string                    `json:"name"`
 		Evidence engine.GASPCursorEvidence `json:"evidence"`
@@ -311,6 +315,27 @@ func TestParseStorageUint64MatchesFixtureWithoutPrecisionLoss(t *testing.T) {
 
 	_, err := engine.ParseStorageUint64("100000000000000000000")
 	require.ErrorIs(t, err, engine.ErrInvalidStorageUint64)
+}
+
+func TestParseStorageOutputIndexMatchesFixture(t *testing.T) {
+	fixture := loadPersistenceFixture(t)
+	for _, tt := range fixture.OutputIndices {
+		t.Run(string(tt.Value), func(t *testing.T) {
+			actual, err := engine.ParseStorageOutputIndex(tt.Value)
+			if !tt.Valid {
+				if tt.Value == "4294967296" || tt.Value == "9007199254740992" || tt.Value == "9007199254740993" {
+					require.ErrorIs(t, err, engine.ErrInvalidStorageOutputIndex)
+					return
+				}
+				require.ErrorIs(t, err, engine.ErrInvalidStorageUint64)
+				return
+			}
+			require.NoError(t, err)
+			if tt.Value == "4294967295" {
+				require.Equal(t, uint32(4294967295), actual)
+			}
+		})
+	}
 }
 
 func TestRecoveryLeaseCurrentMatchesFixture(t *testing.T) {
