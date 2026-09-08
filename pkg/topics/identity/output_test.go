@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/base64"
 	"encoding/json"
+	"os"
 	"strings"
 	"testing"
 
@@ -14,6 +15,30 @@ import (
 	"github.com/bsv-blockchain/go-sdk/wallet"
 	"github.com/stretchr/testify/require"
 )
+
+func TestProjectOutputExactEnvelopePropertyNames(t *testing.T) {
+	data, err := os.ReadFile("testdata/data/envelope-cases.json")
+	require.NoError(t, err)
+	var fixtures struct {
+		Cases []topicFixture `json:"cases"`
+	}
+	require.NoError(t, json.Unmarshal(data, &fixtures))
+	for _, fixture := range fixtures.Cases {
+		t.Run(fixture.Name, func(t *testing.T) {
+			beef, txid := readTopicFixture(t, fixture)
+			result, topicErr := NewTopicManager().IdentifyAdmissibleOutputs(t.Context(), beef, txid, nil)
+			require.NoError(t, topicErr)
+			require.Equal(t, fixture.OutputsToAdmit, result.OutputsToAdmit)
+			record, projectionErr := ProjectOutput(t.Context(), transaction.Outpoint{Txid: *txid}, beef.FindTransactionByHash(txid).Outputs[0].LockingScript, DefaultAdmissionPolicy())
+			if len(fixture.OutputsToAdmit) == 0 {
+				require.Error(t, projectionErr)
+			} else {
+				require.NoError(t, projectionErr)
+				require.Equal(t, map[string]string{"name": "Alice"}, record.Certificate.Fields)
+			}
+		})
+	}
+}
 
 func TestProjectOutputTSPropertyEnumeration(t *testing.T) {
 	raw := loadTopicCorpus(t).SearchableProfile

@@ -33,6 +33,44 @@ type certificateEnvelope struct {
 	Signature          string        `json:"signature"`
 }
 
+// UnmarshalJSON deliberately avoids encoding/json's case-insensitive struct
+// matching. TS reads exact property names: an unknown TYPE must not overwrite
+// type, and SUBJECT cannot stand in for a missing subject. Map decoding retains
+// JSON's last-value behavior for repeated keys without changing signed bytes.
+func (e *certificateEnvelope) UnmarshalJSON(data []byte) error {
+	var properties map[string]json.RawMessage
+	if err := json.Unmarshal(data, &properties); err != nil {
+		return err
+	}
+	if properties == nil {
+		return ErrInvalidOutput
+	}
+	for _, property := range []struct {
+		name  string
+		value *string
+	}{
+		{"type", &e.Type},
+		{"serialNumber", &e.SerialNumber},
+		{"subject", &e.Subject},
+		{"certifier", &e.Certifier},
+		{"revocationOutpoint", &e.RevocationOutpoint},
+		{"signature", &e.Signature},
+	} {
+		raw, exists := properties[property.name]
+		trimmed := bytes.TrimSpace(raw)
+		if !exists || len(trimmed) == 0 || trimmed[0] != '"' {
+			return fmt.Errorf("%w: certificate %s must be a string", ErrInvalidOutput, property.name)
+		}
+		if err := json.Unmarshal(raw, property.value); err != nil {
+			return err
+		}
+	}
+	if err := json.Unmarshal(properties["fields"], &e.Fields); err != nil {
+		return err
+	}
+	return json.Unmarshal(properties["keyring"], &e.Keyring)
+}
+
 // orderedFields preserves JS property enumeration for the searchable text
 // concatenation, including numeric property names and duplicate-key last values.
 type orderedFields struct {
