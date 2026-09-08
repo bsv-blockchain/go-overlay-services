@@ -39,6 +39,9 @@ provider is supplied. The default Go route prefix remains `/api/v1`. Current
 TS `BASMRemote` constructs root-relative URLs and discards an endpoint path
 prefix: configure an empty Go `BaseURL` or a matching external proxy rewrite
 for that client. No prefix fallback or client mutation is introduced here.
+Nil and typed-nil optional providers are treated as absent. Typed-nil storage
+is rejected as unsupported; typed-nil headers preserve raw-only availability,
+and a typed-nil returned read view is rejected as not-ready before use or close.
 Public routes retain credential-free CORS; admin bearer authorization remains
 in place. OpenAPI source and its scoped header-validation template are
 regenerated with `go generate ./pkg/server`, not manually edited output.

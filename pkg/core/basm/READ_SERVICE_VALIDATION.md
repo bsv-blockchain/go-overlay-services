@@ -83,6 +83,16 @@ An agent that did not author the service/wire code independently audited the
 bounded parsers, proof validation/merge, read/recheck/close sequencing, and raw
 response accounting and found no remaining concrete issue.
 
+The subsequent external review of serving commit `e8ff6dd` identified typed-nil
+interfaces passing ordinary nil guards. A separate follow-up normalizes optional
+providers, rejects nilable storage implementations, normalizes headers, and
+checks returned views before invocation or deferred close. Regressions cover
+`*BASMReadService(nil)` through server options, route configuration, and direct
+handlers; pointer/function-nil storage; pointer-nil headers/views; and direct
+nil service calls. Unsupported/not-ready distinctions remain unchanged.
+The full repository suite and pinned linter pass for this correction, as do
+race tests selected by `(TypedNil|NilReceiver)` in engine, server, and ports.
+
 ## Acceptance boundary
 
 This slice provides optional serving interfaces, a validating read service,

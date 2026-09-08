@@ -105,8 +105,9 @@ func RegisterRoutes(app *fiber.App, cfg *RegisterRoutesConfig) *fiber.App {
 		Scheme:        "Bearer ",
 	})
 	basmProvider := cfg.BASMProvider
-	if basmProvider == nil {
-		if provider, ok := cfg.Engine.(engine.BASMProvider); ok {
+	if !engine.IsBASMProviderAvailable(basmProvider) {
+		basmProvider = nil
+		if provider, ok := cfg.Engine.(engine.BASMProvider); ok && engine.IsBASMProviderAvailable(provider) {
 			basmProvider = provider
 		}
 	}

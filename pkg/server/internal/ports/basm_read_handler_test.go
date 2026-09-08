@@ -12,7 +12,17 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/bsv-blockchain/go-overlay-services/pkg/core/basm"
+	"github.com/bsv-blockchain/go-overlay-services/pkg/core/engine"
 )
+
+func TestBASMReadHandlerTreatsTypedNilProviderAsUnsupported(t *testing.T) {
+	var provider *engine.BASMReadService
+	handler := NewBASMReadHandler(provider, basm.DefaultReadLimits())
+
+	status, code := callBASMHandler(t, handler, "tip", true, "tm", `{}`)
+	assert.Equal(t, fiber.StatusNotImplemented, status)
+	assert.Equal(t, "unsupported", code)
+}
 
 func TestBASMReadHandlerRejectsExplicitInvalidLimitsBeforeProvider(t *testing.T) {
 	provider := newHandlerProvider()

@@ -160,6 +160,35 @@ func TestBASMHTTPRoutesReturnRedactedBoundedErrors(t *testing.T) {
 	}
 }
 
+func TestBASMHTTPRoutesTreatTypedNilProviderAsUnsupported(t *testing.T) {
+	var provider *engine.BASMReadService
+	tests := []struct {
+		name string
+		app  *fiber.App
+		path string
+	}{
+		{
+			name: "register routes config",
+			app:  newBASMTestApp(t, provider, basm.DefaultReadLimits(), ""),
+			path: "/requestTopicAnchorTip",
+		},
+		{
+			name: "with BASM provider",
+			app:  New(WithBASMProvider(provider)).app,
+			path: "/api/v1/requestTopicAnchorTip",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			request := basmRequest(tt.path, `{}`)
+			addTopic(request)
+			response := testBASMRequest(t, tt.app, request)
+			assertBASMError(t, response, fiber.StatusNotImplemented)
+			require.NoError(t, response.Body.Close())
+		})
+	}
+}
+
 func TestBASMHTTPRoutesMapProviderFailures(t *testing.T) {
 	tests := []struct {
 		name   string

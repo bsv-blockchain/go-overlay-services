@@ -86,6 +86,50 @@ func TestBASMReadServiceCapabilityAndReadinessBoundaries(t *testing.T) {
 	assert.Equal(t, basm.TopicAnchorTip{Topic: fx.topic, BlockHeight: -1}, tip)
 }
 
+func TestBASMReadServiceRejectsTypedNilCapabilities(t *testing.T) {
+	fx := newReadFixture(t)
+	var storage *fakeBASMReadStorage
+	_, err := NewBASMReadService(storage, fx.headers, fx.limits)
+	require.ErrorIs(t, err, ErrBASMUnsupported)
+	var storageFunction basmStorageFunction
+	_, err = NewBASMReadService(storageFunction, fx.headers, fx.limits)
+	require.ErrorIs(t, err, ErrBASMUnsupported)
+
+	var headers *fakeBASMHeaders
+	service := newReadService(t, fx.storage(), headers, fx.limits)
+	_, err = service.ProvideTopicAnchorTip(context.Background(), fx.topic)
+	require.ErrorIs(t, err, ErrBASMNotReady)
+	_, err = service.ProvideRawTransactions(context.Background(), []basm.Hash{fx.genesisTXID})
+	require.NoError(t, err, "typed-nil headers keep raw-only service available")
+
+	service = newReadService(t, &fakeBASMReadStorage{opens: &fx.storageOpens}, fx.headers, fx.limits)
+	_, err = service.ProvideTopicAnchorTip(context.Background(), fx.topic)
+	require.ErrorIs(t, err, ErrBASMNotReady, "typed-nil returned views are never read or closed")
+	_, err = service.ProvideRawTransactions(context.Background(), nil)
+	require.ErrorIs(t, err, ErrBASMNotReady)
+}
+
+func TestBASMReadServiceNilReceiverIsUnsupported(t *testing.T) {
+	var service *BASMReadService
+	assert.False(t, IsBASMProviderAvailable(service))
+	_, err := service.ProvideTopicAnchorTip(context.Background(), "topic")
+	require.ErrorIs(t, err, ErrBASMUnsupported)
+	_, err = service.ProvideTopicAnchorRange(context.Background(), "topic", 0, 0)
+	require.ErrorIs(t, err, ErrBASMUnsupported)
+	_, err = service.ProvideAdmittedList(context.Background(), "topic", 0, nil)
+	require.ErrorIs(t, err, ErrBASMUnsupported)
+	_, err = service.ProvideCompoundMerklePath(context.Background(), "topic", 0, nil)
+	require.ErrorIs(t, err, ErrBASMUnsupported)
+	_, err = service.ProvideRawTransactions(context.Background(), nil)
+	require.ErrorIs(t, err, ErrBASMUnsupported)
+}
+
+type basmStorageFunction func(context.Context, string, basm.ReadLimits) (BASMReadView, error)
+
+func (f basmStorageFunction) OpenBASMRead(ctx context.Context, topic string, limits basm.ReadLimits) (BASMReadView, error) {
+	return f(ctx, topic, limits)
+}
+
 func TestBASMReadServiceRejectsInconsistentAnchorsAndLists(t *testing.T) {
 	tests := []struct {
 		name   string

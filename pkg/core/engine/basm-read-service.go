@@ -24,11 +24,14 @@ type BASMReadService struct {
 // Storage defaults. A nil header resolver permits raw reads only; confirmed
 // anchor/list/proof reads explicitly return ErrBASMNotReady.
 func NewBASMReadService(storage BASMReadStorage, headers BASMHeaderResolver, limits basm.ReadLimits) (*BASMReadService, error) {
-	if storage == nil {
+	if nilBASMCapability(storage) {
 		return nil, ErrBASMUnsupported
 	}
 	if err := limits.Validate(); err != nil {
 		return nil, err
+	}
+	if nilBASMCapability(headers) {
+		headers = nil
 	}
 	return &BASMReadService{storage: storage, headers: headers, limits: limits}, nil
 }
@@ -58,6 +61,9 @@ func (s *BASMReadService) ProvideTopicAnchorTip(ctx context.Context, topic strin
 // ProvideTopicAnchorRange returns every requested height in order. Missing,
 // reordered, or truncated storage pages are not reported as successful ranges.
 func (s *BASMReadService) ProvideTopicAnchorRange(ctx context.Context, topic string, from, to uint32) (basm.TopicAnchorRange, error) {
+	if s == nil {
+		return basm.TopicAnchorRange{}, ErrBASMUnsupported
+	}
 	count, err := basm.ValidateRange(from, to, s.limits.MaxRange)
 	if err != nil {
 		return basm.TopicAnchorRange{}, err
@@ -167,6 +173,9 @@ func (s *BASMReadService) checkResponseSize(base, perItem, count uint64) error {
 }
 
 func (s *BASMReadService) validateTxids(txids []basm.Hash, required bool) error {
+	if s == nil {
+		return ErrBASMUnsupported
+	}
 	if uint64(len(txids)) > uint64(s.limits.MaxRequestedTxIDs) {
 		return basm.ErrLimitExceeded
 	}
@@ -231,6 +240,9 @@ func (s *BASMReadService) readBlock(ctx context.Context, v BASMReadView, topic s
 // must cooperate with cancellation; no orphan goroutine is used for timeouts.
 func readBASM[T any](ctx context.Context, s *BASMReadService, topic string, needsHeaders bool, read func(context.Context, BASMReadView) (T, []BASMCanonicalHeader, error)) (output T, err error) {
 	var zero T
+	if s == nil || nilBASMCapability(s.storage) {
+		return zero, ErrBASMUnsupported
+	}
 	if ctx == nil {
 		return zero, basm.ErrInvalidInput
 	}
@@ -251,7 +263,7 @@ func readBASM[T any](ctx context.Context, s *BASMReadService, topic string, need
 	if err != nil {
 		return zero, err
 	}
-	if view == nil {
+	if nilBASMCapability(view) {
 		return zero, ErrBASMNotReady
 	}
 	defer func() {

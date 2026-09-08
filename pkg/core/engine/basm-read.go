@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"errors"
+	"reflect"
 
 	"github.com/bsv-blockchain/go-overlay-services/pkg/core/basm"
 )
@@ -25,6 +26,25 @@ type BASMProvider interface {
 	ProvideAdmittedList(ctx context.Context, topic string, height uint32, blockHash *basm.Hash) (basm.AdmittedList, error)
 	ProvideCompoundMerklePath(ctx context.Context, topic string, height uint32, txids []basm.Hash) (basm.CompoundMerklePath, error)
 	ProvideRawTransactions(ctx context.Context, txids []basm.Hash) (basm.RawTransactions, error)
+}
+
+// IsBASMProviderAvailable reports whether an optional provider has a non-nil
+// implementation. It treats typed-nil implementations as absent capabilities.
+func IsBASMProviderAvailable(provider BASMProvider) bool {
+	return !nilBASMCapability(provider)
+}
+
+func nilBASMCapability(capability any) bool {
+	if capability == nil {
+		return true
+	}
+	value := reflect.ValueOf(capability)
+	switch value.Kind() { //nolint:exhaustive // Only nilable kinds support IsNil; all other implementations are present.
+	case reflect.Chan, reflect.Func, reflect.Interface, reflect.Map, reflect.Pointer, reflect.Slice:
+		return value.IsNil()
+	default:
+		return false
+	}
 }
 
 // BASMReadStorage opens an immutable per-request read view. topic is empty only

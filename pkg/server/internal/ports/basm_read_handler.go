@@ -29,6 +29,9 @@ func NewBASMReadHandler(provider engine.BASMProvider, limits basm.ReadLimits) *B
 	if limits == (basm.ReadLimits{}) {
 		limits = basm.DefaultReadLimits()
 	}
+	if !engine.IsBASMProviderAvailable(provider) {
+		provider = nil
+	}
 	return &BASMReadHandler{provider: provider, limits: limits, configErr: limits.Validate()}
 }
 
