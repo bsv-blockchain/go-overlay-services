@@ -209,6 +209,9 @@ func (s *BASMReadService) validateAnchor(ctx context.Context, topic string, anch
 	if header.Height != anchor.BlockHeight || header.BlockHash != anchor.BlockHash || header.TransactionCount == 0 || header.TransactionCount > basm.MaxSafeJSONInteger {
 		return BASMCanonicalHeader{}, ErrBASMNotReady
 	}
+	if anchor.AdmittedCount > header.TransactionCount {
+		return BASMCanonicalHeader{}, ErrBASMInvalidData
+	}
 	return header, nil
 }
 

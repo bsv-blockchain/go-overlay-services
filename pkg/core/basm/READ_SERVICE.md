@@ -78,7 +78,10 @@ Proof serving verifies every requested admitted txid at its original position
 against the canonical header root. It bounds binary counts before SDK parsing
 and derives available parents iteratively, avoiding recursive exploration of
 missing subtrees. It accepts pruned internal levels, validates legitimate
-odd-width duplication, rejects conflicting nodes, and merges bounded paths.
+odd-width duplication, rejects conflicting or illegal internal offsets, and
+requires every supplied base hash to connect to the same root before merging
+bounded paths. Tip and range anchors cannot claim more admissions than the
+independently known full-block transaction count.
 Raw serving accepts one standard non-EF/non-BEEF transaction per record and
 checks SHA256d of the original fully consumed bytes against the requested ID.
 Neither check executes scripts, reruns local topic policy, or asserts that an

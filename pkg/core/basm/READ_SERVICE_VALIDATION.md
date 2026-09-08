@@ -93,6 +93,34 @@ nil service calls. Unsupported/not-ready distinctions remain unchanged.
 The full repository suite and pinned linter pass for this correction, as do
 race tests selected by `(TypedNil|NilReceiver)` in engine, server, and ports.
 
+External review also reproduced a consistent redundant own-parent BUMP node
+accepted by Go but rejected by the actual TS parser, and identified impossible
+anchor subset counts in tip/range reads. Follow-up validation rejects internal
+offsets that are not siblings of ancestors of supplied base hashes, and checks
+every supplied base hash's connectivity through already-derived parent maps.
+It preserves legitimate interior siblings and pruned paths without recursive
+search or repeated cryptographic hashing. A disconnected extra base hash is
+also rejected; the external reviewer independently reproduced that rejection.
+Shared anchor validation now checks admitted count against the independent
+full-block count. Tip/range regressions assert zero result, invalid-data error,
+and closed views for five claimed admissions in a four-transaction block.
+
+`TestBASMRemoteProofInterop` extends the actual localhost client/SDK test with
+synthetic four- and three-leaf blocks: a single requested txid in a two-level
+proof, independently fetched partial proofs combined in TS, a subset and all
+four requested txids merged by Go, odd-width duplication, and an invalid
+own-parent proof returning HTTP 500. TS parses each valid BUMP and verifies
+every requested root. Run both network tests with
+`BASM_TS_STACK=/path/to/ts-stack GOTOOLCHAIN=go1.26.8 go test ./pkg/server -run 'TestBASMRemote(Interop|ProofInterop)' -v`.
+The fixture roots are computed by Go's BASM primitive and cross-checked by the
+actual TS SDK; these synthetic headers are not asserted to be live blocks.
+The full repository suite with both TS tests enabled, focused engine/server
+race tests, pinned full lint, imports/formatting, and whitespace checks pass.
+The external reviewer independently passed these regressions and both real TS
+tests, then used a temporary Go overlay with pre-fix source to confirm the
+own-parent, disconnected-base, tip-count, and range-count regressions fail for
+the original erroneous acceptance. That probe did not edit the author worktree.
+
 ## Acceptance boundary
 
 This slice provides optional serving interfaces, a validating read service,

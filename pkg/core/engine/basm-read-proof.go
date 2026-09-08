@@ -1,6 +1,7 @@
 package engine
 
 import (
+	"cmp"
 	"context"
 	"encoding/hex"
 	"math/bits"
@@ -111,7 +112,7 @@ func sameProofNode(a, b *transaction.PathElement) bool {
 }
 
 // validateBASMProof derives only parents whose children are already available,
-// then follows the requested leaf iteratively. This avoids the SDK's recursive
+// then checks every supplied base path iteratively. This avoids the SDK's recursive
 // search through missing subtrees and its mixed-depth Combine assumptions.
 func validateBASMProof(ctx context.Context, path *transaction.MerklePath, txid basm.Hash, position uint64, header BASMCanonicalHeader) error {
 	depth := bits.Len64(header.TransactionCount - 1)
@@ -126,6 +127,7 @@ func validateBASMProof(ctx context.Context, path *transaction.MerklePath, txid b
 		levels[i] = make(map[uint64]*chainhash.Hash)
 	}
 	width := header.TransactionCount
+	baseOffsets := make([]uint64, 0, len(path.Path[0]))
 	for level, nodes := range path.Path {
 		if err := ctx.Err(); err != nil {
 			return err
@@ -142,10 +144,28 @@ func validateBASMProof(ctx context.Context, path *transaction.MerklePath, txid b
 			} else if node.Hash == nil || node.Offset >= width {
 				return ErrBASMInvalidData
 			}
+			if level == 0 {
+				if !duplicate {
+					baseOffsets = append(baseOffsets, node.Offset)
+				}
+			} else {
+				// BRC-74/TS internal offsets must be siblings of ancestors
+				// of a supplied base hash. A consistent own-parent node is
+				// still an invalid wire shape when no base leaf needs it.
+				_, legal := slices.BinarySearchFunc(baseOffsets, node.Offset^1, func(offset, ancestor uint64) int {
+					return cmp.Compare(offset>>level, ancestor)
+				})
+				if !legal {
+					return ErrBASMInvalidData
+				}
+			}
 			if _, exists := levels[level][node.Offset]; exists {
 				return ErrBASMInvalidData
 			}
 			levels[level][node.Offset] = node.Hash
+		}
+		if level == 0 {
+			slices.Sort(baseOffsets)
 		}
 		width = width/2 + width%2
 	}
@@ -182,23 +202,25 @@ func validateBASMProof(ctx context.Context, path *transaction.MerklePath, txid b
 			levels[level+1][offset/2] = parent
 		}
 	}
-	working := leaf
-	for level := 0; level < depth; level++ {
-		sibling, ok := levels[level][(position>>level)^1]
-		if !ok {
-			return ErrBASMInvalidData
-		}
-		if sibling == nil {
-			sibling = working
-		}
-		if (position>>level)%2 == 0 {
-			working = transaction.MerkleTreeParent(working, sibling)
-		} else {
-			working = transaction.MerkleTreeParent(sibling, working)
-		}
-	}
-	if working == nil || basm.Hash(*working) != header.MerkleRoot {
+	root := levels[depth][0]
+	if root == nil || basm.Hash(*root) != header.MerkleRoot {
 		return ErrBASMInvalidData
+	}
+	// TS validates every supplied base hash, including sibling txids that were
+	// not requested. Each must connect to the same resolved root. Parent hashes
+	// were already derived and checked above, so this walk never rehashes or
+	// recursively explores absent subtrees.
+	for i, offset := range baseOffsets {
+		if i%1024 == 0 {
+			if err := ctx.Err(); err != nil {
+				return err
+			}
+		}
+		for level := 0; level < depth; level++ {
+			if _, exists := levels[level][(offset>>level)^1]; !exists || levels[level+1][offset>>(level+1)] == nil {
+				return ErrBASMInvalidData
+			}
+		}
 	}
 	return nil
 }

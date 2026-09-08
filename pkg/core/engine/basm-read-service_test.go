@@ -205,6 +205,44 @@ func TestBASMReadServiceRejectsInconsistentAnchorsAndLists(t *testing.T) {
 	}
 }
 
+func TestBASMReadServiceRejectsAnchorCountAboveCanonicalBlockCount(t *testing.T) {
+	tests := []struct {
+		name string
+		run  func(*BASMReadService, *readFixture) error
+	}{
+		{
+			name: "tip",
+			run: func(service *BASMReadService, fixture *readFixture) error {
+				anchor := fixture.anchors[1]
+				anchor.AdmittedCount = 5 // the independent header at height 1 has four transactions
+				fixture.view.tip = &anchor
+				response, err := service.ProvideTopicAnchorTip(context.Background(), fixture.topic)
+				assert.Equal(t, basm.TopicAnchorTip{}, response)
+				return err
+			},
+		},
+		{
+			name: "range",
+			run: func(service *BASMReadService, fixture *readFixture) error {
+				anchor := fixture.anchors[1]
+				anchor.AdmittedCount = 5 // the independent header at height 1 has four transactions
+				fixture.view.anchorOverride = []basm.Anchor{anchor}
+				response, err := service.ProvideTopicAnchorRange(context.Background(), fixture.topic, 1, 1)
+				assert.Equal(t, basm.TopicAnchorRange{}, response)
+				return err
+			},
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			fixture := newReadFixture(t)
+			err := test.run(newReadService(t, fixture.storage(), fixture.headers, fixture.limits), fixture)
+			require.ErrorIs(t, err, ErrBASMInvalidData)
+			require.Equal(t, 1, fixture.view.closed)
+		})
+	}
+}
+
 func TestBASMReadServiceRejectsReorgAndHistoryChangesBeforeReturning(t *testing.T) {
 	fx := newReadFixture(t)
 	changed := fx.headers.headers[2]
