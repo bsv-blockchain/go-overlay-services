@@ -136,9 +136,10 @@ type AdmissionScriptRange struct {
 type AdmissionOutput struct {
 	AdmissionOutpoint
 
-	Satoshis StorageUint64
-	Score    StorageUint64
-	Script   AdmissionScriptRange
+	Satoshis  StorageUint64
+	Score     StorageUint64
+	Script    AdmissionScriptRange
+	Ancillary []string
 }
 
 // AdmissionSpend conditionally marks an outpoint spent by a transaction.

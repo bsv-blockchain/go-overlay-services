@@ -129,7 +129,7 @@ func (s *Store) upsertTransaction(ctx context.Context, txID string, beefRef *eng
 		doc.BeefLength = length
 		doc.BeefKind = string(beefRef.Kind)
 	}
-	_, err := s.db.Collection(transactionCollection).UpdateOne(ctx, bson.D{{Key: fieldID, Value: doc.ID}}, mongo.Pipeline{bson.D{{Key: "$replaceWith", Value: bson.D{{Key: "$mergeObjects", Value: bson.A{bson.D{{Key: "$literal", Value: doc}}, bson.D{{Key: fieldCreatedAt, Value: bson.D{{Key: "$ifNull", Value: bson.A{"$createdAt", now}}}}}}}}}}})
+	_, err := s.db.Collection(transactionCollection).UpdateOne(ctx, bson.D{{Key: fieldID, Value: doc.ID}}, mongo.Pipeline{bson.D{{Key: "$replaceWith", Value: bson.D{{Key: "$mergeObjects", Value: bson.A{bson.D{{Key: "$literal", Value: doc}}, bson.D{{Key: fieldCreatedAt, Value: bson.D{{Key: "$ifNull", Value: bson.A{"$createdAt", now}}}}}}}}}}}, options.UpdateOne().SetUpsert(true))
 	return err
 }
 

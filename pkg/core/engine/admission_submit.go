@@ -203,6 +203,13 @@ func (e *Engine) buildTopicDecision(ctx context.Context, host admissionHost, p *
 	}
 	outputs := make([]AdmissionOutput, 0, len(admit.OutputsToAdmit))
 	txid := hex.EncodeToString(p.Txid[:])
+	ancillary := make([]string, 0, len(admit.AncillaryTxids))
+	for _, hash := range admit.AncillaryTxids {
+		if hash == nil {
+			continue
+		}
+		ancillary = append(ancillary, hex.EncodeToString(hash[:]))
+	}
 	for _, vout := range admit.OutputsToAdmit {
 		scriptRef, ok := payloads.scripts[vout]
 		if !ok {
@@ -221,6 +228,7 @@ func (e *Engine) buildTopicDecision(ctx context.Context, host admissionHost, p *
 			Satoshis:          StorageUint64(satoshis),
 			Score:             "0",
 			Script:            AdmissionScriptRange{Payload: scriptRef, Offset: "0", ByteLength: scriptLen},
+			Ancillary:         append([]string(nil), ancillary...),
 		})
 	}
 	_, outpointsConsumed := e.separateRetainedCoins(copyTopicInputs(inputs), admit.CoinsToRetain)

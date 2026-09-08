@@ -310,6 +310,7 @@ func TestAdmissionStorage(t *testing.T) {
 		steak, submitErr := eng.Submit(ctx, tagged, engine.SubmitModeCurrent, nil)
 		require.NoError(t, submitErr)
 		require.Contains(t, steak, admissionTestTopic)
+		requireSubmittedOutputHydrated(ctx, t, engineStore, beef)
 		replay, replayErr := eng.Submit(ctx, tagged, engine.SubmitModeCurrent, nil)
 		require.NoError(t, replayErr)
 		require.Equal(t, steak, replay)
@@ -321,9 +322,11 @@ func TestAdmissionStorage(t *testing.T) {
 			Storage:      historicalStore,
 			ChainTracker: admitAllTracker{},
 		})
-		histSteak, histSubmitErr := histEngine.Submit(ctx, overlay.TaggedBEEF{Topics: []string{admissionTestTopic}, Beef: dummyAtomicBeef(t)}, engine.SubmitModeHistorical, nil)
+		histBeef := dummyAtomicBeef(t)
+		histSteak, histSubmitErr := histEngine.Submit(ctx, overlay.TaggedBEEF{Topics: []string{admissionTestTopic}, Beef: histBeef}, engine.SubmitModeHistorical, nil)
 		require.NoError(t, histSubmitErr)
 		require.Contains(t, histSteak, admissionTestTopic)
+		requireSubmittedOutputHydrated(ctx, t, historicalStore, histBeef)
 		cursor, cursorErr := historicalStore.db.Collection(outboxCollection).Find(ctx, bson.D{{Key: fieldKind, Value: engine.AdmissionOutboxPropagation}})
 		require.NoError(t, cursorErr)
 		var propagation []bson.M
@@ -520,6 +523,22 @@ func (admitAllTracker) IsValidRootForHeight(_ context.Context, _ *chainhash.Hash
 	return true, nil
 }
 func (admitAllTracker) CurrentHeight(_ context.Context) (uint32, error) { return 1, nil }
+
+func requireSubmittedOutputHydrated(ctx context.Context, t *testing.T, store *Store, beef []byte) {
+	t.Helper()
+	_, _, txid, err := transaction.ParseBeef(beef)
+	require.NoError(t, err)
+	require.NotNil(t, txid)
+	found, findErr := store.FindOutput(ctx, &transaction.Outpoint{Txid: *txid, Index: 0}, topicPtr(admissionTestTopic), boolPtr(false), true)
+	require.NoError(t, findErr)
+	require.NotNil(t, found)
+	require.NotNil(t, found.Beef)
+	utxos, utxoErr := store.FindUTXOsForTopic(ctx, admissionTestTopic, 0, 10, true)
+	require.NoError(t, utxoErr)
+	require.Len(t, utxos, 1)
+	require.Positive(t, utxos[0].Score)
+	require.NotNil(t, utxos[0].Beef)
+}
 
 func dummyAtomicBeef(t *testing.T) []byte {
 	t.Helper()

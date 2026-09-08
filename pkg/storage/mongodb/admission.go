@@ -471,6 +471,9 @@ func (s *Store) validateHandoff(ctx context.Context, topic string, expected engi
 
 func (s *Store) writeAdmissionEffects(ctx context.Context, plan engine.AdmissionCommit) error {
 	now := time.Now().UTC()
+	if err := s.writeAdmissionTransactions(ctx, plan, now); err != nil {
+		return err
+	}
 	for _, decision := range plan.Decisions {
 		if err := s.writeDecisionEffects(ctx, decision, now); err != nil {
 			return err
@@ -494,6 +497,46 @@ func (s *Store) writeAdmissionEffects(ctx context.Context, plan engine.Admission
 		}
 	}
 	return nil
+}
+
+func (s *Store) writeAdmissionTransactions(ctx context.Context, plan engine.AdmissionCommit, now time.Time) error {
+	var txRef *engine.AdmissionPayloadRef
+	for _, ref := range uniquePayloads(s.admissionReferences(plan)) {
+		if ref.Kind != engine.AdmissionPayloadBEEFManifest && ref.Kind != engine.AdmissionPayloadRawTransaction {
+			continue
+		}
+		if err := s.pinPayload(ctx, ref, ReferenceOwner{Kind: ReferenceTransaction, ID: plan.Identity.TxID}); err != nil {
+			return err
+		}
+		if txRef == nil || ref.Kind == engine.AdmissionPayloadBEEFManifest {
+			selected := ref
+			txRef = &selected
+		}
+	}
+	if txRef == nil {
+		return nil
+	}
+	return s.upsertTransaction(ctx, plan.Identity.TxID, txRef, planAncillaryTxids(plan), now)
+}
+
+func planAncillaryTxids(plan engine.AdmissionCommit) []string {
+	seen := make(map[string]struct{})
+	out := make([]string, 0)
+	for _, decision := range plan.Decisions {
+		for _, output := range decision.Outputs {
+			for _, txid := range output.Ancillary {
+				if !validHash(txid) {
+					continue
+				}
+				if _, exists := seen[txid]; exists {
+					continue
+				}
+				seen[txid] = struct{}{}
+				out = append(out, txid)
+			}
+		}
+	}
+	return out
 }
 
 func (s *Store) writeDecisionEffects(ctx context.Context, decision engine.AdmissionTopicDecision, now time.Time) error {
@@ -557,12 +600,21 @@ func (s *Store) insertAdmissionOutput(ctx context.Context, topic string, output 
 		return reject(engine.AdmissionRejectionInvalidPlan)
 	}
 	engineScore := engineScoreFromUint(output.Score)
+	if engineScore == 0 {
+		engineScore = float64(now.UnixMilli())
+	}
+	ancillary := make([]string, 0, len(output.Ancillary))
+	for _, txid := range output.Ancillary {
+		if validHash(txid) {
+			ancillary = append(ancillary, txid)
+		}
+	}
 	doc := outputDocument{
 		ID: s.outputID(topic, output.AdmissionOutpoint), Version: schemaVersion, Scope: s.scopeID, Topic: topic,
 		TxID: output.TxID, OutputIndex: index, Satoshis: satoshis, Score: score, EngineScore: engineScore,
 		Spent: false, Serving: true, SpendVersion: spendVersionInitial, MerkleState: merkleStateUnmined,
 		ScriptDigest: output.Script.Payload.Digest, ScriptKind: string(output.Script.Payload.Kind),
-		ScriptOffset: offset, ScriptLength: length, CreatedAt: now, UpdatedAt: now,
+		ScriptOffset: offset, ScriptLength: length, Ancillary: ancillary, CreatedAt: now, UpdatedAt: now,
 	}
 	if _, err = s.db.Collection(outputCollection).InsertOne(ctx, doc); err != nil {
 		if mongo.IsDuplicateKeyError(err) {
