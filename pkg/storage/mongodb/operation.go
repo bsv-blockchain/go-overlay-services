@@ -44,8 +44,7 @@ type operationDocument struct {
 type OperationBody func(context.Context) (engine.AdmissionReceipt, error)
 
 // ExecuteOperation atomically saves a body and its exact receipt under a scoped
-// semantic key. It is a persistence primitive, not AdmissionStorage: engine
-// integration must still validate the entire admission plan in the body.
+// semantic key. AdmissionStorage.CommitAdmission uses it after plan validation.
 // Unresolved attempts return pending and prohibit a fresh body until explicitly
 // reconciled. A digest mismatch rejects reuse of the same operation ID.
 func (s *Store) ExecuteOperation(ctx context.Context, key engine.AdmissionOperationKey, body OperationBody) (engine.AdmissionCommitResult, error) {

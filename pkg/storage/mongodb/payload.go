@@ -144,7 +144,7 @@ func (s *Store) PublishPayload(ctx context.Context, ref engine.AdmissionPayloadR
 	if err != nil {
 		return err
 	}
-	if payload.State == "ready" {
+	if payload.State == payloadStateReady {
 		return nil
 	}
 	var inline *bson.Binary
@@ -164,7 +164,7 @@ func (s *Store) PublishPayload(ctx context.Context, ref engine.AdmissionPayloadR
 		}
 	}
 	filter := append(bson.D{{Key: fieldID, Value: payload.ID}, {Key: fieldState, Value: "uploading"}, {Key: fieldOwner, Value: s.ownerID}, {Key: fieldToken, Value: payload.Token}}, leaseCurrent()...)
-	set := bson.D{{Key: fieldState, Value: "ready"}, {Key: fieldUpdatedAt, Value: serverNow}, {Key: fieldLeaseUntil, Value: serverLease(s.config.LeaseDuration)}, {Key: fieldGuard, Value: bson.NewObjectID()}}
+	set := bson.D{{Key: fieldState, Value: payloadStateReady}, {Key: fieldUpdatedAt, Value: serverNow}, {Key: fieldLeaseUntil, Value: serverLease(s.config.LeaseDuration)}, {Key: fieldGuard, Value: bson.NewObjectID()}}
 	if inline != nil {
 		set = append(set, bson.E{Key: "inlineData", Value: bson.D{{Key: "$literal", Value: inline}}})
 	}
@@ -213,7 +213,7 @@ func (s *Store) reservePayload(ctx context.Context, ref engine.AdmissionPayloadR
 		if existing.Length != encoded {
 			return payloadDocument{}, ErrInvalidPayload
 		}
-		if existing.State == "ready" {
+		if existing.State == payloadStateReady {
 			return existing, nil
 		}
 		if existing.State == "uploading" && existing.Owner == s.ownerID {
@@ -303,7 +303,7 @@ func (s *Store) touchReadyPayload(ctx context.Context, ref engine.AdmissionPaylo
 	if err != nil {
 		return err
 	}
-	result, err := s.db.Collection(payloadCollection).UpdateOne(ctx, bson.D{{Key: fieldID, Value: s.payloadID(ref)}, {Key: fieldChain, Value: s.chainID}, {Key: fieldDigest, Value: ref.Digest}, {Key: fieldLength, Value: length}, {Key: fieldState, Value: "ready"}}, bson.D{{Key: fieldSet, Value: bson.D{{Key: fieldGuard, Value: bson.NewObjectID()}}}})
+	result, err := s.db.Collection(payloadCollection).UpdateOne(ctx, bson.D{{Key: fieldID, Value: s.payloadID(ref)}, {Key: fieldChain, Value: s.chainID}, {Key: fieldDigest, Value: ref.Digest}, {Key: fieldLength, Value: length}, {Key: fieldState, Value: payloadStateReady}}, bson.D{{Key: fieldSet, Value: bson.D{{Key: fieldGuard, Value: bson.NewObjectID()}}}})
 	if err != nil {
 		return err
 	}
@@ -359,7 +359,7 @@ func (s *Store) CopyPayload(ctx context.Context, ref engine.AdmissionPayloadRef,
 		err = errors.Join(err, s.ReleasePayload(cleanupCtx, ref, owner))
 	}()
 	var payload payloadDocument
-	if err = s.db.Collection(payloadCollection).FindOne(ctx, bson.D{{Key: fieldID, Value: s.payloadID(ref)}, {Key: fieldState, Value: "ready"}}).Decode(&payload); err != nil {
+	if err = s.db.Collection(payloadCollection).FindOne(ctx, bson.D{{Key: fieldID, Value: s.payloadID(ref)}, {Key: fieldState, Value: payloadStateReady}}).Decode(&payload); err != nil {
 		return err
 	}
 	if payload.Inline != nil {
