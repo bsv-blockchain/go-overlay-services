@@ -13,31 +13,121 @@ import (
 )
 
 type persistenceFixture struct {
-	Identities []struct {
-		Name     string                   `json:"name"`
-		Identity engine.AdmissionIdentity `json:"identity"`
-		Digest   string                   `json:"digest"`
-	} `json:"identities"`
-	Uint64 []struct {
-		Value engine.StorageUint64 `json:"value"`
-		Valid bool                 `json:"valid"`
-	} `json:"uint64"`
-	OutputIndices []struct {
-		Value engine.StorageUint64 `json:"value"`
-		Valid bool                 `json:"valid"`
-	} `json:"outputIndices"`
-	Cursors []struct {
-		Name     string                    `json:"name"`
-		Evidence engine.GASPCursorEvidence `json:"evidence"`
-		Advance  bool                      `json:"advance"`
-	} `json:"cursors"`
-	Leases []struct {
-		Name     string               `json:"name"`
-		Expected engine.RecoveryLease `json:"expected"`
-		Current  engine.RecoveryLease `json:"current"`
-		NowMS    engine.StorageUint64 `json:"nowMs"`
-		Valid    bool                 `json:"valid"`
-	} `json:"leases"`
+	Identities    []persistenceIdentityCase `json:"identities"`
+	Uint64        []persistenceUint64Case   `json:"uint64"`
+	OutputIndices []persistenceUint64Case   `json:"outputIndices"`
+	Cursors       []persistenceCursorCase   `json:"cursors"`
+	Leases        []persistenceLeaseCase    `json:"leases"`
+}
+
+type persistenceIdentityCase struct {
+	Name     string              `json:"name"`
+	Identity persistenceIdentity `json:"identity"`
+	Digest   string              `json:"digest"`
+}
+
+type persistenceIdentity struct {
+	Scope         persistenceScope   `json:"scope"`
+	TxID          string             `json:"txid"`
+	Mode          string             `json:"mode"`
+	ContextDigest string             `json:"contextDigest"`
+	Topics        []persistenceTopic `json:"topics"`
+}
+
+type persistenceScope struct {
+	Network     string `json:"network"`
+	GenesisHash string `json:"genesisHash"`
+	NodeID      string `json:"nodeId"`
+}
+
+type persistenceTopic struct {
+	Topic    string `json:"topic"`
+	PolicyID string `json:"policyId"`
+}
+
+type persistenceUint64Case struct {
+	Value string `json:"value"`
+	Valid bool   `json:"valid"`
+}
+
+type persistenceCursorCase struct {
+	Name     string                    `json:"name"`
+	Evidence persistenceCursorEvidence `json:"evidence"`
+	Advance  bool                      `json:"advance"`
+}
+
+type persistenceCursorEvidence struct {
+	Mode                     string `json:"mode"`
+	Negotiated               bool   `json:"negotiated"`
+	InclusiveSemanticsProven bool   `json:"inclusiveSemanticsProven"`
+	EqualScoreDrained        bool   `json:"equalScoreDrained"`
+	NoSkipSemanticsProven    bool   `json:"noSkipSemanticsProven"`
+	ResyncCompleted          bool   `json:"resyncCompleted"`
+	PageFinalized            bool   `json:"pageFinalized"`
+}
+
+type persistenceLeaseCase struct {
+	Name     string           `json:"name"`
+	Expected persistenceLease `json:"expected"`
+	Current  persistenceLease `json:"current"`
+	NowMS    string           `json:"nowMs"`
+	Valid    bool             `json:"valid"`
+}
+
+type persistenceLease struct {
+	Scope                  persistenceScope `json:"scope"`
+	Topic                  string           `json:"topic"`
+	PeerID                 string           `json:"peerId"`
+	JobID                  string           `json:"jobId"`
+	ChainEpoch             string           `json:"chainEpoch"`
+	TopicHistoryGeneration string           `json:"topicHistoryGeneration"`
+	LeaseToken             string           `json:"leaseToken"`
+	ExpiresAtMS            string           `json:"expiresAtMs"`
+}
+
+func (identity persistenceIdentity) admissionIdentity() engine.AdmissionIdentity {
+	topics := make([]engine.AdmissionTopic, len(identity.Topics))
+	for index, topic := range identity.Topics {
+		topics[index] = engine.AdmissionTopic{Topic: topic.Topic, PolicyID: topic.PolicyID}
+	}
+	return engine.AdmissionIdentity{
+		Scope:         identity.Scope.storageScope(),
+		TxID:          identity.TxID,
+		Mode:          engine.AdmissionMode(identity.Mode),
+		ContextDigest: identity.ContextDigest,
+		Topics:        topics,
+	}
+}
+
+func (scope persistenceScope) storageScope() engine.StorageScope {
+	return engine.StorageScope{Network: scope.Network, GenesisHash: scope.GenesisHash, NodeID: scope.NodeID}
+}
+
+func (evidence persistenceCursorEvidence) gaspCursorEvidence() engine.GASPCursorEvidence {
+	return engine.GASPCursorEvidence{
+		Mode:                     engine.GASPCursorMode(evidence.Mode),
+		Negotiated:               evidence.Negotiated,
+		InclusiveSemanticsProven: evidence.InclusiveSemanticsProven,
+		EqualScoreDrained:        evidence.EqualScoreDrained,
+		NoSkipSemanticsProven:    evidence.NoSkipSemanticsProven,
+		ResyncCompleted:          evidence.ResyncCompleted,
+		PageFinalized:            evidence.PageFinalized,
+	}
+}
+
+func (lease persistenceLease) recoveryLease() engine.RecoveryLease {
+	return engine.RecoveryLease{
+		HistoryFence: engine.HistoryFence{
+			ChainEpoch:             engine.StorageUint64(lease.ChainEpoch),
+			TopicHistoryGeneration: engine.StorageUint64(lease.TopicHistoryGeneration),
+		},
+		Scope:       lease.Scope.storageScope(),
+		Topic:       lease.Topic,
+		PeerID:      lease.PeerID,
+		JobID:       lease.JobID,
+		LeaseToken:  engine.StorageUint64(lease.LeaseToken),
+		ExpiresAtMS: engine.StorageUint64(lease.ExpiresAtMS),
+	}
 }
 
 type admissionStorageStub struct {
@@ -180,7 +270,7 @@ func TestAdmissionSemanticDigestMatchesFixture(t *testing.T) {
 	fixture := loadPersistenceFixture(t)
 	for _, tt := range fixture.Identities {
 		t.Run(tt.Name, func(t *testing.T) {
-			actual, err := engine.AdmissionSemanticDigest(tt.Identity)
+			actual, err := engine.AdmissionSemanticDigest(tt.Identity.admissionIdentity())
 			require.NoError(t, err)
 			require.Equal(t, tt.Digest, actual)
 		})
@@ -300,8 +390,8 @@ func TestAdmissionSemanticDigestRejectsInvalidIdentity(t *testing.T) {
 func TestParseStorageUint64MatchesFixtureWithoutPrecisionLoss(t *testing.T) {
 	fixture := loadPersistenceFixture(t)
 	for _, tt := range fixture.Uint64 {
-		t.Run(string(tt.Value), func(t *testing.T) {
-			actual, err := engine.ParseStorageUint64(tt.Value)
+		t.Run(tt.Value, func(t *testing.T) {
+			actual, err := engine.ParseStorageUint64(engine.StorageUint64(tt.Value))
 			if !tt.Valid {
 				require.ErrorIs(t, err, engine.ErrInvalidStorageUint64)
 				return
@@ -320,8 +410,8 @@ func TestParseStorageUint64MatchesFixtureWithoutPrecisionLoss(t *testing.T) {
 func TestParseStorageOutputIndexMatchesFixture(t *testing.T) {
 	fixture := loadPersistenceFixture(t)
 	for _, tt := range fixture.OutputIndices {
-		t.Run(string(tt.Value), func(t *testing.T) {
-			actual, err := engine.ParseStorageOutputIndex(tt.Value)
+		t.Run(tt.Value, func(t *testing.T) {
+			actual, err := engine.ParseStorageOutputIndex(engine.StorageUint64(tt.Value))
 			if !tt.Valid {
 				if tt.Value == "4294967296" || tt.Value == "9007199254740992" || tt.Value == "9007199254740993" {
 					require.ErrorIs(t, err, engine.ErrInvalidStorageOutputIndex)
@@ -342,7 +432,7 @@ func TestRecoveryLeaseCurrentMatchesFixture(t *testing.T) {
 	fixture := loadPersistenceFixture(t)
 	for _, tt := range fixture.Leases {
 		t.Run(tt.Name, func(t *testing.T) {
-			actual, err := engine.IsRecoveryLeaseCurrent(tt.Expected, tt.Current, tt.NowMS)
+			actual, err := engine.IsRecoveryLeaseCurrent(tt.Expected.recoveryLease(), tt.Current.recoveryLease(), engine.StorageUint64(tt.NowMS))
 			require.NoError(t, err)
 			require.Equal(t, tt.Valid, actual)
 		})
@@ -368,7 +458,7 @@ func TestCanAdvanceGASPCursorMatchesFixture(t *testing.T) {
 	fixture := loadPersistenceFixture(t)
 	for _, tt := range fixture.Cursors {
 		t.Run(tt.Name, func(t *testing.T) {
-			require.Equal(t, tt.Advance, engine.CanAdvanceGASPCursor(tt.Evidence))
+			require.Equal(t, tt.Advance, engine.CanAdvanceGASPCursor(tt.Evidence.gaspCursorEvidence()))
 		})
 	}
 }

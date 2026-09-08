@@ -1,7 +1,6 @@
 package engine
 
 import (
-	"bytes"
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
@@ -9,6 +8,7 @@ import (
 	"reflect"
 	"sort"
 	"strconv"
+	"strings"
 	"unicode/utf8"
 )
 
@@ -129,6 +129,7 @@ type AdmissionScriptRange struct {
 // AdmissionOutput contains the durable fields for one admitted output.
 type AdmissionOutput struct {
 	AdmissionOutpoint
+
 	Satoshis StorageUint64
 	Score    StorageUint64
 	Script   AdmissionScriptRange
@@ -391,12 +392,8 @@ func isNilCapability(value any) bool {
 	}
 
 	reflectValue := reflect.ValueOf(value)
-	switch reflectValue.Kind() {
-	case reflect.Chan, reflect.Func, reflect.Interface, reflect.Map, reflect.Pointer, reflect.Slice:
-		return reflectValue.IsNil()
-	default:
-		return false
-	}
+	kind := reflectValue.Kind()
+	return (kind == reflect.Chan || kind == reflect.Func || kind == reflect.Interface || kind == reflect.Map || kind == reflect.Pointer || kind == reflect.Slice) && reflectValue.IsNil()
 }
 
 // AdmissionSemanticDigest returns the SHA-256 identity digest defined by persistence-v1.
@@ -411,7 +408,7 @@ func AdmissionSemanticDigest(identity AdmissionIdentity) (string, error) {
 
 	topics := append([]AdmissionTopic(nil), identity.Topics...)
 	sort.Slice(topics, func(i, j int) bool {
-		return bytes.Compare([]byte(topics[i].Topic), []byte(topics[j].Topic)) < 0
+		return strings.Compare(topics[i].Topic, topics[j].Topic) < 0
 	})
 	if len(topics) == 0 {
 		return "", ErrInvalidAdmissionTopics

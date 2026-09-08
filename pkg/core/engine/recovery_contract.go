@@ -4,6 +4,7 @@ package engine
 // Database time and this predicate must be used inside the same compare-and-swap as the update.
 type RecoveryLease struct {
 	HistoryFence
+
 	Scope       StorageScope
 	Topic       string
 	PeerID      string
@@ -65,6 +66,7 @@ type HistoryRevisionHandoff struct {
 // TopicAnchorRevision is immutable history whose current pointer must compare-and-swap both revisions and the header.
 type TopicAnchorRevision struct {
 	HistoryFence
+
 	Scope         StorageScope
 	Topic         string
 	Height        StorageUint64
@@ -114,6 +116,8 @@ func CanAdvanceGASPCursor(evidence GASPCursorEvidence) bool {
 		return evidence.InclusiveSemanticsProven && evidence.EqualScoreDrained
 	case GASPCursorModeFullResync:
 		return evidence.NoSkipSemanticsProven && evidence.ResyncCompleted
+	case GASPCursorModeUnsupported:
+		return false
 	default:
 		return false
 	}
