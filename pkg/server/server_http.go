@@ -12,6 +12,7 @@ import (
 	"github.com/gofiber/fiber/v2/middleware/monitor"
 	"github.com/google/uuid"
 
+	"github.com/bsv-blockchain/go-overlay-services/pkg/core/basm"
 	"github.com/bsv-blockchain/go-overlay-services/pkg/core/engine"
 	"github.com/bsv-blockchain/go-overlay-services/pkg/server/internal/adapters"
 	"github.com/bsv-blockchain/go-overlay-services/pkg/server/internal/ports"
@@ -109,6 +110,20 @@ func WithEngine(provider engine.OverlayEngineProvider) Option {
 	}
 }
 
+// WithBASMProvider sets the optional bounded BASM read capability.
+func WithBASMProvider(provider engine.BASMProvider) Option {
+	return func(s *HTTP) {
+		s.basmProvider = provider
+	}
+}
+
+// WithBASMLimits sets per-request limits for the optional BASM read routes.
+func WithBASMLimits(limits basm.ReadLimits) Option {
+	return func(s *HTTP) {
+		s.basmLimits = limits
+	}
+}
+
 // WithAdminBearerToken sets the admin bearer token used for authenticating
 // admin routes on the HTTP server.
 // It returns an Option that applies this configuration to HTTP.
@@ -141,10 +156,12 @@ func WithConfig(cfg Config) Option {
 // HTTP represents the HTTP server instance, including configuration,
 // Fiber app instance, middleware stack, and registered request handlers.
 type HTTP struct {
-	cfg        Config                       // cfg holds the server configuration settings.
-	app        *fiber.App                   // app is the Fiber application instance serving HTTP requests.
-	middleware []fiber.Handler              // middleware is a list of Fiber middleware functions to be applied globally.
-	engine     engine.OverlayEngineProvider // engine is a custom implementation of the overlay engine that serves as the main processor for incoming HTTP requests.
+	cfg          Config                       // cfg holds the server configuration settings.
+	app          *fiber.App                   // app is the Fiber application instance serving HTTP requests.
+	middleware   []fiber.Handler              // middleware is a list of Fiber middleware functions to be applied globally.
+	engine       engine.OverlayEngineProvider // engine is a custom implementation of the overlay engine that serves as the main processor for incoming HTTP requests.
+	basmProvider engine.BASMProvider
+	basmLimits   basm.ReadLimits
 }
 
 // SocketAddr builds the address string for binding.
@@ -198,6 +215,8 @@ func New(opts ...Option) *HTTP {
 		ARCCallbackToken: srv.cfg.ARCCallbackToken,
 		AdminBearerToken: srv.cfg.AdminBearerToken,
 		Engine:           srv.engine,
+		BASMProvider:     srv.basmProvider,
+		BASMLimits:       srv.basmLimits,
 		OctetStreamLimit: srv.cfg.OctetStreamLimit,
 		BaseURL:          srv.cfg.BaseURL,
 	})

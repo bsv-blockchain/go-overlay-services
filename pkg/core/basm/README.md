@@ -1,5 +1,11 @@
 # BASM primitive and conformance foundation
 
+The foundation record below describes commit `d99216814a4b9dca5f9f4d04a602ef2d48bdc4a7`.
+The subsequent optional read-service, HTTP, and bounded wire slice is documented
+in [READ_SERVICE.md](READ_SERVICE.md). Its additions supersede the foundation's
+statements about those features being absent; recovery and activation remain
+outside both slices.
+
 This package implements the calculation and structural-validation portion of
 B01/B03 (requirements B1 and X1; portions of verification cases T40/T44). It is
 not a complete B03 delivery. No engine/storage methods, HTTP endpoints, binary
