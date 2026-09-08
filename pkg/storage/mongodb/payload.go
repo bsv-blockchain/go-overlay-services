@@ -155,6 +155,9 @@ func (s *Store) PublishPayload(ctx context.Context, ref engine.AdmissionPayloadR
 		}
 		inline = &bson.Binary{Subtype: 0, Data: data}
 	} else {
+		if err = s.blobs.remove(ctx, payload.FileID); err != nil {
+			return err
+		}
 		metadata := s.blobMetadata(payload, ref)
 		if err = s.blobs.upload(ctx, payload.FileID, metadata, reader); err != nil {
 			return err
@@ -213,6 +216,13 @@ func (s *Store) reservePayload(ctx context.Context, ref engine.AdmissionPayloadR
 		if existing.State == "ready" {
 			return existing, nil
 		}
+		if existing.State == "uploading" && existing.Owner == s.ownerID {
+			resumed, resumeErr := s.resumeUpload(ctx, existing)
+			if resumeErr != nil {
+				return payloadDocument{}, resumeErr
+			}
+			return resumed, nil
+		}
 		if existing.State != "deleted" {
 			return payloadDocument{}, ErrConflict
 		}
@@ -240,6 +250,17 @@ func (s *Store) reservePayload(ctx context.Context, ref engine.AdmissionPayloadR
 		return payloadDocument{}, ErrConflict
 	}
 	return payload, err
+}
+
+func (s *Store) resumeUpload(ctx context.Context, existing payloadDocument) (payloadDocument, error) {
+	filter := bson.D{{Key: fieldID, Value: existing.ID}, {Key: fieldState, Value: "uploading"}, {Key: fieldOwner, Value: s.ownerID}, {Key: fieldToken, Value: existing.Token}}
+	update := mongo.Pipeline{bson.D{{Key: fieldSet, Value: bson.D{{Key: fieldUpdatedAt, Value: serverNow}, {Key: fieldLeaseUntil, Value: serverLease(s.config.LeaseDuration)}, {Key: fieldGuard, Value: bson.NewObjectID()}}}}}
+	var resumed payloadDocument
+	err := s.db.Collection(payloadCollection).FindOneAndUpdate(ctx, filter, update, options.FindOneAndUpdate().SetReturnDocument(options.After)).Decode(&resumed)
+	if errors.Is(err, mongo.ErrNoDocuments) {
+		return payloadDocument{}, ErrConflict
+	}
+	return resumed, err
 }
 
 func replaceWithServerDates(document any, lease time.Duration) mongo.Pipeline {

@@ -105,9 +105,9 @@ func TestPersistenceFoundation(t *testing.T) {
 		ref := payloadRef(data, engine.AdmissionPayloadMerklePath)
 		require.ErrorIs(t, store.PublishPayload(ctx, ref, strings.NewReader("wrong data")), ErrInvalidPayload)
 		require.ErrorIs(t, store.PinPayload(ctx, ref, ReferenceOwner{Kind: ReferenceBASMJob, ID: "repair"}), ErrPayloadUnavailable)
-		expirePayload(ctx, t, store, ref)
-		require.NoError(t, store.CollectPayload(ctx, ref))
+		require.ErrorIs(t, other.PublishPayload(ctx, ref, bytes.NewReader(data)), ErrConflict)
 		require.NoError(t, store.PublishPayload(ctx, ref, bytes.NewReader(data)))
+		require.NoError(t, store.CopyPayload(ctx, ref, io.Discard))
 		wrong := ref
 		wrong.ByteLength = "1"
 		require.ErrorIs(t, store.PinPayload(ctx, wrong, ReferenceOwner{Kind: ReferencePin, ID: "wrong-size"}), ErrPayloadUnavailable)
@@ -166,7 +166,7 @@ func TestPersistenceFoundation(t *testing.T) {
 		require.Equal(t, engine.AdmissionRejectionDigestMismatch, rejected.RejectionCode)
 		abortedKey := key
 		abortedKey.OperationID = "aborted"
-		_, abortErr := store.ExecuteOperation(ctx, abortedKey, func(sessionCtx context.Context) (engine.AdmissionReceipt, error) {
+		aborted, abortErr := store.ExecuteOperation(ctx, abortedKey, func(sessionCtx context.Context) (engine.AdmissionReceipt, error) {
 			_, writeErr := effects.InsertOne(sessionCtx, bson.D{{Key: fieldID, Value: "rolled-back"}})
 			if writeErr != nil {
 				return engine.AdmissionReceipt{}, writeErr
@@ -174,7 +174,12 @@ func TestPersistenceFoundation(t *testing.T) {
 			return engine.AdmissionReceipt{}, ErrConflict
 		})
 		require.ErrorIs(t, abortErr, ErrConflict)
+		require.Empty(t, aborted.State)
+		require.Empty(t, aborted.AttemptID)
 		require.ErrorIs(t, effects.FindOne(ctx, bson.D{{Key: fieldID, Value: "rolled-back"}}).Err(), mongo.ErrNoDocuments)
+		retried, retryErr := store.ExecuteOperation(ctx, abortedKey, func(context.Context) (engine.AdmissionReceipt, error) { return testReceipt(abortedKey), nil })
+		require.NoError(t, retryErr)
+		require.Equal(t, engine.AdmissionCommitStateCommitted, retried.State)
 	})
 
 	t.Run("PendingReconciliationAndAbsenceFence", func(t *testing.T) {
@@ -219,6 +224,25 @@ func TestPersistenceFoundation(t *testing.T) {
 		fenced, fenceErr := store.ReconcileOperation(ctx, absent, &attempt)
 		require.NoError(t, fenceErr)
 		require.Equal(t, engine.AdmissionCommitStateAborted, fenced.State)
+	})
+
+	t.Run("AbortFenceMismatchReturnsPending", func(t *testing.T) {
+		key := engine.AdmissionOperationKey{Scope: store.Scope(), OperationID: "fence-miss", SemanticDigest: strings.Repeat("6", 64)}
+		operation, claimed, claimErr := store.claimOperation(ctx, key)
+		require.NoError(t, claimErr)
+		require.True(t, claimed)
+		next, tokenErr := nextToken(operation.Token)
+		require.NoError(t, tokenErr)
+		_, tokenUpdateErr := store.db.Collection(operationCollection).UpdateOne(ctx, bson.D{{Key: fieldID, Value: operation.ID}}, bson.D{{Key: fieldSet, Value: bson.D{{Key: fieldToken, Value: next}}}})
+		require.NoError(t, tokenUpdateErr)
+		result, fenceErr := store.fenceAbortedOperation(ctx, key, operation, ErrConflict)
+		require.ErrorIs(t, fenceErr, ErrConflict)
+		require.Equal(t, engine.AdmissionCommitStatePending, result.State)
+		require.Equal(t, operation.Attempt, result.AttemptID)
+		var stored operationDocument
+		require.NoError(t, store.db.Collection(operationCollection).FindOne(ctx, bson.D{{Key: fieldID, Value: operation.ID}}).Decode(&stored))
+		require.Equal(t, "pending", stored.State)
+		require.Equal(t, next, stored.Token)
 	})
 
 	t.Run("ConnectFactoryAndUnknownCommitCAS", func(t *testing.T) {
@@ -287,6 +311,19 @@ func TestPersistenceFoundation(t *testing.T) {
 		count, countErr := effects.CountDocuments(ctx, bson.D{{Key: fieldID, Value: key.OperationID}})
 		require.NoError(t, countErr)
 		require.EqualValues(t, 1, count)
+	})
+
+	t.Run("FailedGridFSPublishCanReplaceReservation", func(t *testing.T) {
+		config := foundationConfig("foundation_resume", "node-resume")
+		config.InlineLimit = 8
+		resuming, resumeErr := New(ctx, replica.Client, config)
+		require.NoError(t, resumeErr)
+		data := []byte("gridfs-resume-bytes")
+		ref := payloadRef(data, engine.AdmissionPayloadRawTransaction)
+		require.ErrorIs(t, resuming.PublishPayload(ctx, ref, bytes.NewReader(bytes.Repeat([]byte{'y'}, len(data)))), ErrBlobCorrupt)
+		require.ErrorIs(t, resuming.PinPayload(ctx, ref, ReferenceOwner{Kind: ReferencePin, ID: "before-retry"}), ErrPayloadUnavailable)
+		require.NoError(t, resuming.PublishPayload(ctx, ref, bytes.NewReader(data)))
+		require.NoError(t, resuming.CopyPayload(ctx, ref, io.Discard))
 	})
 }
 

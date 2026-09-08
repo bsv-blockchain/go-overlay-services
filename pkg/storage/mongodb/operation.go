@@ -111,11 +111,7 @@ func (s *Store) ExecuteOperation(ctx context.Context, key engine.AdmissionOperat
 		// aborted. The majority CAS fences this attempt before allowing a retry.
 		cleanupCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
 		defer cancel()
-		_, fenceErr := s.db.Collection(operationCollection).UpdateOne(cleanupCtx, operationPredicate(operation), mongo.Pipeline{bson.D{{Key: fieldSet, Value: bson.D{{Key: fieldState, Value: "aborted"}, {Key: fieldUpdatedAt, Value: serverNow}, {Key: fieldGuard, Value: bson.NewObjectID()}}}}})
-		if fenceErr != nil {
-			return pendingOperation(operation.Attempt), errors.Join(transactionErr, fenceErr)
-		}
-		return engine.AdmissionCommitResult{}, transactionErr
+		return s.fenceAbortedOperation(cleanupCtx, key, operation, transactionErr)
 	}
 	return engine.AdmissionCommitResult{}, errInvalidOperation
 }
@@ -167,6 +163,34 @@ func (s *Store) claimOperation(ctx context.Context, key engine.AdmissionOperatio
 
 func pendingOperation(attempt string) engine.AdmissionCommitResult {
 	return engine.AdmissionCommitResult{State: engine.AdmissionCommitStatePending, AttemptID: attempt}
+}
+
+func (s *Store) fenceAbortedOperation(ctx context.Context, key engine.AdmissionOperationKey, operation operationDocument, transactionErr error) (engine.AdmissionCommitResult, error) {
+	fenced, fenceErr := s.db.Collection(operationCollection).UpdateOne(ctx, operationPredicate(operation), mongo.Pipeline{bson.D{{Key: fieldSet, Value: bson.D{{Key: fieldState, Value: "aborted"}, {Key: fieldUpdatedAt, Value: serverNow}, {Key: fieldGuard, Value: bson.NewObjectID()}}}}})
+	if fenceErr != nil {
+		return pendingOperation(operation.Attempt), errors.Join(transactionErr, fenceErr)
+	}
+	if fenced.MatchedCount == 1 {
+		return engine.AdmissionCommitResult{}, transactionErr
+	}
+	var current operationDocument
+	if readErr := s.db.Collection(operationCollection).FindOne(ctx, bson.D{{Key: fieldID, Value: operation.ID}}).Decode(&current); readErr != nil {
+		return pendingOperation(operation.Attempt), errors.Join(transactionErr, readErr)
+	}
+	result, resultErr := s.operationResult(current, key)
+	if resultErr != nil {
+		return pendingOperation(operation.Attempt), errors.Join(transactionErr, resultErr)
+	}
+	switch result.State {
+	case engine.AdmissionCommitStatePending:
+		return result, transactionErr
+	case engine.AdmissionCommitStateAborted:
+		return engine.AdmissionCommitResult{}, transactionErr
+	case engine.AdmissionCommitStateCommitted, engine.AdmissionCommitStateRejected:
+		return result, nil
+	default:
+		return pendingOperation(operation.Attempt), transactionErr
+	}
 }
 
 func (s *Store) operationResult(operation operationDocument, key engine.AdmissionOperationKey) (engine.AdmissionCommitResult, error) {
