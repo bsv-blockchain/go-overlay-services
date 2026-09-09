@@ -84,44 +84,66 @@ type AdmittedTxRef struct {
 // position. No inputs are mutated. Duplicate primitive leaves are allowed by
 // Root, but duplicate entries in an actual admitted list are rejected here.
 func ValidateAdmittedList(ctx context.Context, admitted []AdmittedTxRef, blockTxCount uint64, limits Limits) (Hash, error) {
-	if err := limits.validate(); err != nil {
+	if err := admittedListBounds(ctx, admitted, blockTxCount, limits); err != nil {
 		return Hash{}, err
+	}
+	leaves, err := admittedLeaves(ctx, admitted, blockTxCount)
+	if err != nil {
+		return Hash{}, err
+	}
+	return Root(ctx, leaves, limits.MaxAdmitted)
+}
+
+func admittedListBounds(ctx context.Context, admitted []AdmittedTxRef, blockTxCount uint64, limits Limits) error {
+	if err := limits.validate(); err != nil {
+		return err
 	}
 	if ctx == nil {
-		return Hash{}, fmt.Errorf("%w: context must not be nil", ErrInvalidInput)
+		return fmt.Errorf("%w: context must not be nil", ErrInvalidInput)
 	}
 	if err := ctx.Err(); err != nil {
-		return Hash{}, err
+		return err
 	}
 	if blockTxCount == 0 || blockTxCount > MaxSafeJSONInteger {
-		return Hash{}, fmt.Errorf("%w: block transaction count must be a positive safe JSON integer", ErrInvalidInput)
+		return fmt.Errorf("%w: block transaction count must be a positive safe JSON integer", ErrInvalidInput)
 	}
 	if uint64(len(admitted)) > uint64(limits.MaxAdmitted) {
-		return Hash{}, fmt.Errorf("%w: admitted list exceeds local limit", ErrLimitExceeded)
+		return fmt.Errorf("%w: admitted list exceeds local limit", ErrLimitExceeded)
 	}
+	return nil
+}
+
+func admittedLeaves(ctx context.Context, admitted []AdmittedTxRef, blockTxCount uint64) ([]Hash, error) {
 	seen := make(map[Hash]struct{}, len(admitted))
 	leaves := make([]Hash, len(admitted))
 	var previousIndex uint64
 	for i, ref := range admitted {
-		if i%256 == 0 {
-			if err := ctx.Err(); err != nil {
-				return Hash{}, err
-			}
-		}
-		if ref.BlockIndex >= blockTxCount {
-			return Hash{}, fmt.Errorf("%w: admitted entry %d: block index out of range", ErrInconsistent, i)
-		}
-		if i > 0 && ref.BlockIndex <= previousIndex {
-			return Hash{}, fmt.Errorf("%w: admitted entry %d: block indices must strictly increase", ErrInconsistent, i)
-		}
-		if _, exists := seen[ref.TxID]; exists {
-			return Hash{}, fmt.Errorf("%w: admitted entry %d: duplicate txid", ErrInconsistent, i)
+		if err := checkAdmittedEntry(ctx, i, ref, previousIndex, blockTxCount, seen); err != nil {
+			return nil, err
 		}
 		seen[ref.TxID] = struct{}{}
 		leaves[i] = ref.TxID
 		previousIndex = ref.BlockIndex
 	}
-	return Root(ctx, leaves, limits.MaxAdmitted)
+	return leaves, nil
+}
+
+func checkAdmittedEntry(ctx context.Context, i int, ref AdmittedTxRef, previousIndex, blockTxCount uint64, seen map[Hash]struct{}) error {
+	if i%256 == 0 {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+	}
+	if ref.BlockIndex >= blockTxCount {
+		return fmt.Errorf("%w: admitted entry %d: block index out of range", ErrInconsistent, i)
+	}
+	if i > 0 && ref.BlockIndex <= previousIndex {
+		return fmt.Errorf("%w: admitted entry %d: block indices must strictly increase", ErrInconsistent, i)
+	}
+	if _, exists := seen[ref.TxID]; exists {
+		return fmt.Errorf("%w: admitted entry %d: duplicate txid", ErrInconsistent, i)
+	}
+	return nil
 }
 
 // ValidateAnchorList additionally checks the admitted list against the anchor's

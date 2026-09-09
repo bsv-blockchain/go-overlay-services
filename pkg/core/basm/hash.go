@@ -78,16 +78,7 @@ func (h *Hash) UnmarshalText(text []byte) error {
 // mutated. Duplicate leaves are permitted for primitive conformance vectors;
 // use ValidateAdmittedList to reject duplicates in real admission claims.
 func Root(ctx context.Context, leaves []Hash, maxLeaves uint32) (Hash, error) {
-	if maxLeaves == 0 {
-		return Hash{}, fmt.Errorf("%w: max leaves must be greater than zero", ErrInvalidInput)
-	}
-	if uint64(len(leaves)) > uint64(maxLeaves) {
-		return Hash{}, fmt.Errorf("%w: leaf count exceeds maximum", ErrLimitExceeded)
-	}
-	if ctx == nil {
-		return Hash{}, fmt.Errorf("%w: context must not be nil", ErrInvalidInput)
-	}
-	if err := ctx.Err(); err != nil {
+	if err := validateMerkleLeaves(ctx, leaves, maxLeaves); err != nil {
 		return Hash{}, err
 	}
 
@@ -98,6 +89,23 @@ func Root(ctx context.Context, leaves []Hash, maxLeaves uint32) (Hash, error) {
 		return leaves[0], nil
 	}
 
+	return hashMerkleRoot(ctx, leaves)
+}
+
+func validateMerkleLeaves(ctx context.Context, leaves []Hash, maxLeaves uint32) error {
+	if maxLeaves == 0 {
+		return fmt.Errorf("%w: max leaves must be greater than zero", ErrInvalidInput)
+	}
+	if uint64(len(leaves)) > uint64(maxLeaves) {
+		return fmt.Errorf("%w: leaf count exceeds maximum", ErrLimitExceeded)
+	}
+	if ctx == nil {
+		return fmt.Errorf("%w: context must not be nil", ErrInvalidInput)
+	}
+	return ctx.Err()
+}
+
+func hashMerkleRoot(ctx context.Context, leaves []Hash) (Hash, error) {
 	// Each new layer is allocated separately, so caller-owned leaves remain
 	// unchanged while their order is retained.
 	layer := leaves
@@ -105,26 +113,30 @@ func Root(ctx context.Context, leaves []Hash, maxLeaves uint32) (Hash, error) {
 		if err := ctx.Err(); err != nil {
 			return Hash{}, err
 		}
-
-		next := make([]Hash, len(layer)/2+len(layer)%2)
-		for left, parent := 0, 0; left < len(layer); left, parent = left+2, parent+1 {
-			if left%contextCheckInterval == 0 {
-				if err := ctx.Err(); err != nil {
-					return Hash{}, err
-				}
-			}
-
-			right := left + 1
-			if right == len(layer) {
-				right = left
-			}
-			next[parent] = hashPair(layer[left], layer[right])
+		next, err := hashMerkleLayer(ctx, layer)
+		if err != nil {
+			return Hash{}, err
 		}
-
 		layer = next
 	}
-
 	return layer[0], nil
+}
+
+func hashMerkleLayer(ctx context.Context, layer []Hash) ([]Hash, error) {
+	next := make([]Hash, len(layer)/2+len(layer)%2)
+	for left, parent := 0, 0; left < len(layer); left, parent = left+2, parent+1 {
+		if left%contextCheckInterval == 0 {
+			if err := ctx.Err(); err != nil {
+				return nil, err
+			}
+		}
+		right := left + 1
+		if right == len(layer) {
+			right = left
+		}
+		next[parent] = hashPair(layer[left], layer[right])
+	}
+	return next, nil
 }
 
 // HashTACStep computes SHA256d(previous || blockHash || root) using internal

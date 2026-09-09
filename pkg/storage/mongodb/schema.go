@@ -16,6 +16,11 @@ import (
 	"go.mongodb.org/mongo-driver/v2/mongo/options"
 )
 
+const (
+	hex64Pattern = "^[0-9a-f]{64}$"
+	textPattern  = `^[^\x00]{1,1024}$`
+)
+
 // bootstrap creates and verifies only the version-one persistence foundation.
 // Existing collections are never altered: a mismatch is an operator action.
 func (s *Store) bootstrap(ctx context.Context) error {
@@ -159,14 +164,25 @@ func schemaMap(value any) (bson.M, bool) {
 
 func (s *Store) schemaEnsureIndexes(ctx context.Context, name string, wanted []mongo.IndexModel) error {
 	view := s.db.Collection(name).Indexes()
-	cursor, err := view.List(ctx)
+	existing, err := schemaListIndexes(ctx, view)
 	if err != nil {
 		return err
+	}
+	if err = schemaRejectUnexpectedIndexes(existing, wanted, name); err != nil {
+		return err
+	}
+	return schemaCreateMissingIndexes(ctx, view, existing, wanted, name)
+}
+
+func schemaListIndexes(ctx context.Context, view mongo.IndexView) (map[string]bson.M, error) {
+	cursor, err := view.List(ctx)
+	if err != nil {
+		return nil, err
 	}
 	defer schemaCloseCursor(ctx, cursor)
 	var documents []bson.D
 	if err = cursor.All(ctx, &documents); err != nil {
-		return err
+		return nil, err
 	}
 	existing := make(map[string]bson.M, len(documents))
 	for _, document := range documents {
@@ -176,10 +192,14 @@ func (s *Store) schemaEnsureIndexes(ctx context.Context, name string, wanted []m
 		}
 		indexName, ok := current["name"].(string)
 		if !ok {
-			return ErrIncompatibleSchema
+			return nil, ErrIncompatibleSchema
 		}
 		existing[indexName] = current
 	}
+	return existing, nil
+}
+
+func schemaRejectUnexpectedIndexes(existing map[string]bson.M, wanted []mongo.IndexModel, name string) error {
 	required := make(map[string]mongo.IndexModel, len(wanted))
 	for _, model := range wanted {
 		required[schemaIndexName(model)] = model
@@ -194,11 +214,15 @@ func (s *Store) schemaEnsureIndexes(ctx context.Context, name string, wanted []m
 			return fmt.Errorf("%w: index %s on %s", ErrIncompatibleSchema, indexName, name)
 		}
 	}
+	return nil
+}
+
+func schemaCreateMissingIndexes(ctx context.Context, view mongo.IndexView, existing map[string]bson.M, wanted []mongo.IndexModel, name string) error {
 	for _, model := range wanted {
 		if _, exists := existing[schemaIndexName(model)]; exists {
 			continue
 		}
-		if _, err = view.CreateOne(ctx, model, options.CreateIndexes().SetCommitQuorumMajority()); err != nil {
+		if _, err := view.CreateOne(ctx, model, options.CreateIndexes().SetCommitQuorumMajority()); err != nil {
 			return fmt.Errorf("%w: create index on %s: %w", ErrIncompatibleSchema, name, err)
 		}
 	}
@@ -370,28 +394,36 @@ func schemaString(pattern string, minimum, maximum int32) bson.D {
 	return bson.D{{Key: "bsonType", Value: "string"}, {Key: "minLength", Value: minimum}, {Key: "maxLength", Value: maximum}, {Key: "pattern", Value: pattern}}
 }
 
+func schemaHash() bson.D {
+	return schemaString(hex64Pattern, 64, 64)
+}
+
+func schemaText() bson.D {
+	return schemaString(textPattern, 1, 1024)
+}
+
 func schemaBase(required []string, properties bson.D) bson.D {
 	return bson.D{{Key: "$jsonSchema", Value: bson.D{{Key: "bsonType", Value: "object"}, {Key: "additionalProperties", Value: false}, {Key: "required", Value: required}, {Key: "properties", Value: properties}}}}
 }
 
 func schemaPayloadValidator() bson.D {
-	return schemaDocument([]string{fieldID, fieldVersion, fieldChain, "digest", fieldLength, fieldState, fieldOwner, fieldToken, fieldLeaseUntil, "guard", "createdAt", fieldUpdatedAt}, bson.D{{Key: fieldID, Value: schemaString("^[0-9a-f]{64}$", 64, 64)}, {Key: fieldVersion, Value: schemaIntEnum()}, {Key: fieldChain, Value: schemaString("^[0-9a-f]{64}$", 64, 64)}, {Key: fieldDigest, Value: schemaString("^[0-9a-f]{64}$", 64, 64)}, {Key: fieldLength, Value: schemaUint64()}, {Key: fieldState, Value: schemaEnum("uploading", "ready", "deleting", "deleted")}, {Key: fieldOwner, Value: schemaString("^[^\\x00]{1,1024}$", 1, 1024)}, {Key: fieldToken, Value: schemaUint64()}, {Key: fieldLeaseUntil, Value: schemaType("date")}, {Key: fieldGuard, Value: schemaType("objectId")}, {Key: fieldCreatedAt, Value: schemaType("date")}, {Key: fieldUpdatedAt, Value: schemaType("date")}, {Key: "fileId", Value: schemaType("objectId")}, {Key: "inlineData", Value: schemaType("binData")}, {Key: "blobOwner", Value: schemaString("^[^\\x00]{1,1024}$", 1, 1024)}, {Key: "blobToken", Value: schemaUint64()}})
+	return schemaDocument([]string{fieldID, fieldVersion, fieldChain, "digest", fieldLength, fieldState, fieldOwner, fieldToken, fieldLeaseUntil, "guard", "createdAt", fieldUpdatedAt}, bson.D{{Key: fieldID, Value: schemaHash()}, {Key: fieldVersion, Value: schemaIntEnum()}, {Key: fieldChain, Value: schemaHash()}, {Key: fieldDigest, Value: schemaHash()}, {Key: fieldLength, Value: schemaUint64()}, {Key: fieldState, Value: schemaEnum("uploading", "ready", "deleting", "deleted")}, {Key: fieldOwner, Value: schemaText()}, {Key: fieldToken, Value: schemaUint64()}, {Key: fieldLeaseUntil, Value: schemaType("date")}, {Key: fieldGuard, Value: schemaType("objectId")}, {Key: fieldCreatedAt, Value: schemaType("date")}, {Key: fieldUpdatedAt, Value: schemaType("date")}, {Key: "fileId", Value: schemaType("objectId")}, {Key: "inlineData", Value: schemaType("binData")}, {Key: "blobOwner", Value: schemaText()}, {Key: "blobToken", Value: schemaUint64()}})
 }
 
 func schemaReferenceValidator() bson.D {
-	return schemaDocument([]string{fieldID, fieldVersion, fieldChain, fieldScope, "digest", fieldLength, "kind", "ownerKind", "ownerID", "createdAt"}, bson.D{{Key: fieldID, Value: schemaString("^[0-9a-f]{64}$", 64, 64)}, {Key: fieldVersion, Value: schemaIntEnum()}, {Key: fieldChain, Value: schemaString("^[0-9a-f]{64}$", 64, 64)}, {Key: fieldScope, Value: schemaString("^[0-9a-f]{64}$", 64, 64)}, {Key: fieldDigest, Value: schemaString("^[0-9a-f]{64}$", 64, 64)}, {Key: fieldLength, Value: schemaUint64()}, {Key: "kind", Value: schemaEnum("raw-transaction", "merkle-path", "beef-manifest", "locking-script", "outbox-data")}, {Key: "ownerKind", Value: schemaEnum("transaction", "applied-history", "output", "gasp-graph", "gasp-node", "basm-job", "lookup-outbox", "propagation-outbox", "manifest", "pin")}, {Key: "ownerID", Value: schemaString("^[^\\x00]{1,1024}$", 1, 1024)}, {Key: fieldCreatedAt, Value: schemaType("date")}})
+	return schemaDocument([]string{fieldID, fieldVersion, fieldChain, fieldScope, "digest", fieldLength, "kind", "ownerKind", "ownerID", "createdAt"}, bson.D{{Key: fieldID, Value: schemaHash()}, {Key: fieldVersion, Value: schemaIntEnum()}, {Key: fieldChain, Value: schemaHash()}, {Key: fieldScope, Value: schemaHash()}, {Key: fieldDigest, Value: schemaHash()}, {Key: fieldLength, Value: schemaUint64()}, {Key: "kind", Value: schemaEnum("raw-transaction", "merkle-path", "beef-manifest", "locking-script", "outbox-data")}, {Key: "ownerKind", Value: schemaEnum("transaction", "applied-history", "output", "gasp-graph", "gasp-node", "basm-job", "lookup-outbox", "propagation-outbox", "manifest", "pin")}, {Key: "ownerID", Value: schemaText()}, {Key: fieldCreatedAt, Value: schemaType("date")}})
 }
 
 func schemaOperationValidator() bson.D {
-	return schemaDocument([]string{fieldID, fieldVersion, fieldScope, "operationID", "digest", fieldState, fieldAttempt, fieldOwner, fieldToken, fieldLeaseUntil, "guard", "createdAt", fieldUpdatedAt}, bson.D{{Key: fieldID, Value: schemaString("^[0-9a-f]{64}$", 64, 64)}, {Key: fieldVersion, Value: schemaIntEnum()}, {Key: fieldScope, Value: schemaString("^[0-9a-f]{64}$", 64, 64)}, {Key: "operationID", Value: schemaString("^[^\\x00]{1,1024}$", 1, 1024)}, {Key: fieldDigest, Value: schemaString("^[0-9a-f]{64}$", 64, 64)}, {Key: fieldState, Value: schemaEnum("pending", "committed", "aborted")}, {Key: fieldAttempt, Value: schemaString("^[^\\x00]{1,1024}$", 1, 1024)}, {Key: fieldOwner, Value: schemaString("^[^\\x00]{1,1024}$", 1, 1024)}, {Key: fieldToken, Value: schemaUint64()}, {Key: fieldLeaseUntil, Value: schemaType("date")}, {Key: fieldGuard, Value: schemaType("objectId")}, {Key: fieldCreatedAt, Value: schemaType("date")}, {Key: fieldUpdatedAt, Value: schemaType("date")}, {Key: "receipt", Value: schemaType("binData")}})
+	return schemaDocument([]string{fieldID, fieldVersion, fieldScope, "operationID", "digest", fieldState, fieldAttempt, fieldOwner, fieldToken, fieldLeaseUntil, "guard", "createdAt", fieldUpdatedAt}, bson.D{{Key: fieldID, Value: schemaHash()}, {Key: fieldVersion, Value: schemaIntEnum()}, {Key: fieldScope, Value: schemaHash()}, {Key: "operationID", Value: schemaText()}, {Key: fieldDigest, Value: schemaHash()}, {Key: fieldState, Value: schemaEnum("pending", "committed", "aborted")}, {Key: fieldAttempt, Value: schemaText()}, {Key: fieldOwner, Value: schemaText()}, {Key: fieldToken, Value: schemaUint64()}, {Key: fieldLeaseUntil, Value: schemaType("date")}, {Key: fieldGuard, Value: schemaType("objectId")}, {Key: fieldCreatedAt, Value: schemaType("date")}, {Key: fieldUpdatedAt, Value: schemaType("date")}, {Key: "receipt", Value: schemaType("binData")}})
 }
 
 func schemaValidator() bson.D {
-	return schemaDocument([]string{fieldID, "type", "scopeID", "createdAt"}, bson.D{{Key: fieldID, Value: schemaString("^[0-9a-f]{64}$", 64, 64)}, {Key: "type", Value: schemaEnum("schema", "probe")}, {Key: "scopeID", Value: schemaString("^[0-9a-f]{64}$", 64, 64)}, {Key: fieldCreatedAt, Value: schemaType("date")}, {Key: "schemaVersion", Value: schemaIntEnum()}, {Key: "fingerprint", Value: schemaString("^[0-9a-f]{64}$", 64, 64)}, {Key: "network", Value: schemaString("^[^\\x00]{1,1024}$", 1, 1024)}, {Key: "genesisHash", Value: schemaString("^[0-9a-f]{64}$", 64, 64)}, {Key: "nodeID", Value: schemaString("^[^\\x00]{1,1024}$", 1, 1024)}, {Key: "ready", Value: schemaType("bool")}})
+	return schemaDocument([]string{fieldID, "type", "scopeID", "createdAt"}, bson.D{{Key: fieldID, Value: schemaHash()}, {Key: "type", Value: schemaEnum("schema", "probe")}, {Key: "scopeID", Value: schemaHash()}, {Key: fieldCreatedAt, Value: schemaType("date")}, {Key: "schemaVersion", Value: schemaIntEnum()}, {Key: "fingerprint", Value: schemaHash()}, {Key: "network", Value: schemaText()}, {Key: "genesisHash", Value: schemaHash()}, {Key: "nodeID", Value: schemaText()}, {Key: "ready", Value: schemaType("bool")}})
 }
 
 func schemaGridFSFilesValidator() bson.D {
-	return schemaDocument([]string{fieldID, fieldLength, "chunkSize", "uploadDate", "filename", "metadata"}, bson.D{{Key: fieldID, Value: schemaType("objectId")}, {Key: fieldLength, Value: schemaType("long")}, {Key: "chunkSize", Value: schemaType("int")}, {Key: "uploadDate", Value: schemaType("date")}, {Key: "filename", Value: schemaString("^[^\\x00]{1,1024}$", 1, 1024)}, {Key: "metadata", Value: schemaValue(schemaBase([]string{fieldChain, "digest", "byteLength", fieldOwner, fieldToken, fieldState}, bson.D{{Key: fieldChain, Value: schemaString("^[0-9a-f]{64}$", 64, 64)}, {Key: fieldDigest, Value: schemaString("^[0-9a-f]{64}$", 64, 64)}, {Key: "byteLength", Value: schemaString("^(0|[1-9][0-9]{0,12})$", 1, 13)}, {Key: fieldOwner, Value: schemaString("^[^\\x00]{1,1024}$", 1, 1024)}, {Key: fieldToken, Value: schemaUint64()}, {Key: fieldState, Value: schemaEnum("staged", "published")}}), "$jsonSchema")}})
+	return schemaDocument([]string{fieldID, fieldLength, "chunkSize", "uploadDate", "filename", "metadata"}, bson.D{{Key: fieldID, Value: schemaType("objectId")}, {Key: fieldLength, Value: schemaType("long")}, {Key: "chunkSize", Value: schemaType("int")}, {Key: "uploadDate", Value: schemaType("date")}, {Key: "filename", Value: schemaText()}, {Key: "metadata", Value: schemaValue(schemaBase([]string{fieldChain, "digest", "byteLength", fieldOwner, fieldToken, fieldState}, bson.D{{Key: fieldChain, Value: schemaHash()}, {Key: fieldDigest, Value: schemaHash()}, {Key: "byteLength", Value: schemaString("^(0|[1-9][0-9]{0,12})$", 1, 13)}, {Key: fieldOwner, Value: schemaText()}, {Key: fieldToken, Value: schemaUint64()}, {Key: fieldState, Value: schemaEnum("staged", "published")}}), "$jsonSchema")}})
 }
 
 func schemaGridFSChunksValidator() bson.D {

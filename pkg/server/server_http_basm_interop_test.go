@@ -66,18 +66,18 @@ func TestBASMRemoteProofInterop(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 	defer cancel()
 	//nolint:gosec // opt-in test executes the user-selected tsx binary only.
-	command := exec.CommandContext(ctx, tsxPath, "-e", basmRemoteProofInteropScript(
-		remotePath,
-		readyURL,
-		invalidURL,
-		fixture.fourLeaves[0].String(),
-		fixture.fourLeaves[1].String(),
-		fixture.fourLeaves[2].String(),
-		fixture.fourLeaves[3].String(),
-		fixture.fourRoot.String(),
-		fixture.oddLeaves[2].String(),
-		fixture.oddRoot.String(),
-	))
+	command := exec.CommandContext(ctx, tsxPath, "-e", basmRemoteProofInteropScript(basmRemoteProofInteropArgs{
+		remotePath: remotePath,
+		readyURL:   readyURL,
+		invalidURL: invalidURL,
+		tx0:        fixture.fourLeaves[0].String(),
+		tx1:        fixture.fourLeaves[1].String(),
+		tx2:        fixture.fourLeaves[2].String(),
+		tx3:        fixture.fourLeaves[3].String(),
+		root4:      fixture.fourRoot.String(),
+		odd2:       fixture.oddLeaves[2].String(),
+		root3:      fixture.oddRoot.String(),
+	}))
 	command.Dir = overlayPackage
 	output, err := command.CombinedOutput()
 	require.NoErrorf(t, err, "TS BASMRemote proof interop failed: %s", output)
@@ -142,7 +142,20 @@ run().then(() => console.log('BASMRemote interop passed')).catch(error => { cons
 `, strconv.Quote(remotePath), strconv.Quote(interopTopic), strconv.Quote(txid), strconv.Quote(interopGenesisHex), strconv.Quote(readyURL), strconv.Quote(unsupportedURL), strconv.Quote(notReadyURL))
 }
 
-func basmRemoteProofInteropScript(remotePath, readyURL, invalidURL, tx0, tx1, tx2, tx3, root4, odd2, root3 string) string {
+type basmRemoteProofInteropArgs struct {
+	remotePath string
+	readyURL   string
+	invalidURL string
+	tx0        string
+	tx1        string
+	tx2        string
+	tx3        string
+	root4      string
+	odd2       string
+	root3      string
+}
+
+func basmRemoteProofInteropScript(args basmRemoteProofInteropArgs) string {
 	return fmt.Sprintf(`
 import { BASMRemote } from %s
 import { MerklePath } from '@bsv/sdk'
@@ -188,7 +201,7 @@ const run = async (): Promise<void> => {
   }
 }
 run().then(() => console.log('BASMRemote proof interop passed')).catch(error => { console.error(error); process.exitCode = 1 })
-`, strconv.Quote(remotePath), strconv.Quote(interopTopic), strconv.Quote(tx0), strconv.Quote(tx1), strconv.Quote(tx2), strconv.Quote(tx3), strconv.Quote(root4), strconv.Quote(odd2), strconv.Quote(root3), strconv.Quote(readyURL), strconv.Quote(invalidURL))
+`, strconv.Quote(args.remotePath), strconv.Quote(interopTopic), strconv.Quote(args.tx0), strconv.Quote(args.tx1), strconv.Quote(args.tx2), strconv.Quote(args.tx3), strconv.Quote(args.root4), strconv.Quote(args.odd2), strconv.Quote(args.root3), strconv.Quote(args.readyURL), strconv.Quote(args.invalidURL))
 }
 
 func startInteropServer(t *testing.T, provider engine.BASMProvider) string {

@@ -15,7 +15,7 @@ import (
 // snapshot against independently configured canonical headers. It does not
 // mutate admissions, compute recovery progress, or establish peer agreement.
 type BASMReadService struct {
-	storage BASMReadStorage
+	storage BASMReadOpener
 	headers BASMHeaderResolver
 	limits  basm.ReadLimits
 }
@@ -23,7 +23,7 @@ type BASMReadService struct {
 // NewBASMReadService configures optional BASM serving without changing Engine or
 // Storage defaults. A nil header resolver permits raw reads only; confirmed
 // anchor/list/proof reads explicitly return ErrBASMNotReady.
-func NewBASMReadService(storage BASMReadStorage, headers BASMHeaderResolver, limits basm.ReadLimits) (*BASMReadService, error) {
+func NewBASMReadService(storage BASMReadOpener, headers BASMHeaderResolver, limits basm.ReadLimits) (*BASMReadService, error) {
 	if nilBASMCapability(storage) {
 		return nil, ErrBASMUnsupported
 	}
@@ -69,32 +69,44 @@ func (s *BASMReadService) ProvideTopicAnchorRange(ctx context.Context, topic str
 		return basm.TopicAnchorRange{}, err
 	}
 	return readBASM(ctx, s, topic, true, func(ctx context.Context, v BASMReadView) (basm.TopicAnchorRange, []BASMCanonicalHeader, error) {
-		if sizeErr := s.checkResponseSize(64+uint64(len(topic))*6, 400+uint64(len(topic))*6, uint64(count)); sizeErr != nil {
-			return basm.TopicAnchorRange{}, nil, sizeErr
-		}
-		anchors, readErr := v.Anchors(ctx, from, to, count)
-		if readErr != nil {
-			return basm.TopicAnchorRange{}, nil, readErr
-		}
-		if uint64(len(anchors)) != uint64(count) {
-			return basm.TopicAnchorRange{}, nil, ErrBASMNotReady
-		}
-		headers := make([]BASMCanonicalHeader, len(anchors))
-		for i, anchor := range anchors {
-			if uint64(anchor.BlockHeight) != uint64(from)+uint64(i) {
-				return basm.TopicAnchorRange{}, nil, ErrBASMInvalidData
-			}
-			header, headerErr := s.validateAnchor(ctx, topic, anchor)
-			if headerErr != nil {
-				return basm.TopicAnchorRange{}, nil, headerErr
-			}
-			headers[i] = header
-			if i > 0 && anchor.TAC != basm.HashTACStep(anchors[i-1].TAC, anchor.BlockHash, anchor.BASMRoot) {
-				return basm.TopicAnchorRange{}, nil, ErrBASMInvalidData
-			}
-		}
-		return basm.TopicAnchorRange{Topic: topic, Anchors: slices.Clone(anchors)}, headers, nil
+		return s.collectAnchorRange(ctx, v, topic, from, to, count)
 	})
+}
+
+func (s *BASMReadService) collectAnchorRange(ctx context.Context, v BASMReadView, topic string, from, to, count uint32) (basm.TopicAnchorRange, []BASMCanonicalHeader, error) {
+	if err := s.checkResponseSize(64+uint64(len(topic))*6, 400+uint64(len(topic))*6, uint64(count)); err != nil {
+		return basm.TopicAnchorRange{}, nil, err
+	}
+	anchors, err := v.Anchors(ctx, from, to, count)
+	if err != nil {
+		return basm.TopicAnchorRange{}, nil, err
+	}
+	if uint64(len(anchors)) != uint64(count) {
+		return basm.TopicAnchorRange{}, nil, ErrBASMNotReady
+	}
+	headers, err := s.validateAnchorRange(ctx, topic, from, anchors)
+	if err != nil {
+		return basm.TopicAnchorRange{}, nil, err
+	}
+	return basm.TopicAnchorRange{Topic: topic, Anchors: slices.Clone(anchors)}, headers, nil
+}
+
+func (s *BASMReadService) validateAnchorRange(ctx context.Context, topic string, from uint32, anchors []basm.Anchor) ([]BASMCanonicalHeader, error) {
+	headers := make([]BASMCanonicalHeader, len(anchors))
+	for i, anchor := range anchors {
+		if uint64(anchor.BlockHeight) != uint64(from)+uint64(i) {
+			return nil, ErrBASMInvalidData
+		}
+		header, err := s.validateAnchor(ctx, topic, anchor)
+		if err != nil {
+			return nil, err
+		}
+		headers[i] = header
+		if i > 0 && anchor.TAC != basm.HashTACStep(anchors[i-1].TAC, anchor.BlockHash, anchor.BASMRoot) {
+			return nil, ErrBASMInvalidData
+		}
+	}
+	return headers, nil
 }
 
 // ProvideAdmittedList returns a complete bounded admitted subset. A supplied
@@ -125,41 +137,53 @@ func (s *BASMReadService) ProvideRawTransactions(ctx context.Context, txids []ba
 		return basm.RawTransactions{}, err
 	}
 	return readBASM(ctx, s, "", false, func(ctx context.Context, v BASMReadView) (basm.RawTransactions, []BASMCanonicalHeader, error) {
-		response := basm.RawTransactions{Transactions: make([]basm.RawTransactionRecord, 0, len(txids)), Missing: make([]basm.Hash, 0)}
-		var encodedBytes uint64
-		for _, txid := range txids {
-			if err := ctx.Err(); err != nil {
-				return basm.RawTransactions{}, nil, err
-			}
-			raw, err := v.RawTx(ctx, txid, s.limits.MaxRawTxBytes)
-			if errors.Is(err, ErrBASMNotFound) {
-				response.Missing = append(response.Missing, txid)
-				encodedBytes += 67
-				continue
-			}
-			if err != nil {
-				return basm.RawTransactions{}, nil, err
-			}
-			if uint64(len(raw)) > uint64(s.limits.MaxRawTxBytes) {
-				return basm.RawTransactions{}, nil, basm.ErrLimitExceeded
-			}
-			// Account for hex and conservative metadata before allocating the hex copy.
-			encodedBytes += uint64(len(raw))*2 + 128
-			if encodedBytes+128 > uint64(s.limits.MaxResponseBytes) {
-				return basm.RawTransactions{}, nil, basm.ErrLimitExceeded
-			}
-			raw = bytes.Clone(raw)
-			derived, err := basm.RawTransactionID(raw, s.limits.MaxRawTxBytes)
-			if err != nil || derived != txid {
-				return basm.RawTransactions{}, nil, ErrBASMInvalidData
-			}
-			response.Transactions = append(response.Transactions, basm.RawTransactionRecord{TxID: txid, RawTx: hex.EncodeToString(raw)})
-		}
-		if encodedBytes+128 > uint64(s.limits.MaxResponseBytes) {
-			return basm.RawTransactions{}, nil, basm.ErrLimitExceeded
-		}
-		return response, nil, nil
+		return s.collectRawTransactions(ctx, v, txids)
 	})
+}
+
+func (s *BASMReadService) collectRawTransactions(ctx context.Context, v BASMReadView, txids []basm.Hash) (basm.RawTransactions, []BASMCanonicalHeader, error) {
+	response := basm.RawTransactions{Transactions: make([]basm.RawTransactionRecord, 0, len(txids)), Missing: make([]basm.Hash, 0)}
+	var encodedBytes uint64
+	for _, txid := range txids {
+		next, err := s.appendRawTransaction(ctx, v, txid, &response, encodedBytes)
+		if err != nil {
+			return basm.RawTransactions{}, nil, err
+		}
+		encodedBytes = next
+	}
+	if encodedBytes+128 > uint64(s.limits.MaxResponseBytes) {
+		return basm.RawTransactions{}, nil, basm.ErrLimitExceeded
+	}
+	return response, nil, nil
+}
+
+func (s *BASMReadService) appendRawTransaction(ctx context.Context, v BASMReadView, txid basm.Hash, response *basm.RawTransactions, encodedBytes uint64) (uint64, error) {
+	if err := ctx.Err(); err != nil {
+		return encodedBytes, err
+	}
+	raw, err := v.RawTx(ctx, txid, s.limits.MaxRawTxBytes)
+	if errors.Is(err, ErrBASMNotFound) {
+		response.Missing = append(response.Missing, txid)
+		return encodedBytes + 67, nil
+	}
+	if err != nil {
+		return encodedBytes, err
+	}
+	if uint64(len(raw)) > uint64(s.limits.MaxRawTxBytes) {
+		return encodedBytes, basm.ErrLimitExceeded
+	}
+	// Account for hex and conservative metadata before allocating the hex copy.
+	encodedBytes += uint64(len(raw))*2 + 128
+	if encodedBytes+128 > uint64(s.limits.MaxResponseBytes) {
+		return encodedBytes, basm.ErrLimitExceeded
+	}
+	raw = bytes.Clone(raw)
+	derived, err := basm.RawTransactionID(raw, s.limits.MaxRawTxBytes)
+	if err != nil || derived != txid {
+		return encodedBytes, ErrBASMInvalidData
+	}
+	response.Transactions = append(response.Transactions, basm.RawTransactionRecord{TxID: txid, RawTx: hex.EncodeToString(raw)})
+	return encodedBytes, nil
 }
 
 // Bound conservative JSON sizes without overflowing multiplication. Topic
@@ -249,57 +273,82 @@ func readBASM[T any](ctx context.Context, s *BASMReadService, topic string, need
 	if ctx == nil {
 		return zero, basm.ErrInvalidInput
 	}
-	if needsHeaders {
-		if err = (basm.TopicBlockAnchor{Topic: topic}).Validate(s.limits.Limits); err != nil {
-			return zero, err
-		}
-		if s.headers == nil {
-			return zero, ErrBASMNotReady
-		}
+	if err = requireBASMHeaders(s, topic, needsHeaders); err != nil {
+		return zero, err
 	}
 	ctx, cancel := context.WithTimeout(ctx, s.limits.RequestTimeout)
 	defer cancel()
-	if err = ctx.Err(); err != nil {
-		return zero, err
-	}
-	view, err := s.storage.OpenBASMRead(ctx, topic, s.limits)
+	view, err := openBASMReadView(ctx, s, topic)
 	if err != nil {
 		return zero, err
 	}
-	if nilBASMCapability(view) {
-		return zero, ErrBASMNotReady
-	}
-	defer func() {
-		closeErr := view.Close()
-		if err == nil {
-			err = closeErr
-			if err == nil {
-				err = ctx.Err()
-			}
-		}
-		if err != nil {
-			output = zero
-		}
-	}()
+	defer closeBASMView(view, &output, &err, zero, ctx)
 	result, headers, readErr := read(ctx, view)
-	if readErr == nil {
-		for _, header := range headers {
-			current, headerErr := s.headers.CanonicalBASMHeader(ctx, header.Height)
-			if headerErr != nil {
-				readErr = headerErr
-				break
-			}
-			if current != header {
-				readErr = ErrBASMNotReady
-				break
-			}
-		}
-	}
-	if readErr == nil {
-		readErr = view.CheckCurrent(ctx)
-	}
-	if readErr != nil {
-		return zero, readErr
+	if err = completeBASMRead(ctx, s.headers, view, readErr, headers); err != nil {
+		return zero, err
 	}
 	return result, nil
+}
+
+func requireBASMHeaders(s *BASMReadService, topic string, needsHeaders bool) error {
+	if !needsHeaders {
+		return nil
+	}
+	if err := (basm.TopicBlockAnchor{Topic: topic}).Validate(s.limits.Limits); err != nil {
+		return err
+	}
+	if s.headers == nil {
+		return ErrBASMNotReady
+	}
+	return nil
+}
+
+func openBASMReadView(ctx context.Context, s *BASMReadService, topic string) (BASMReadView, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	view, err := s.storage.OpenBASMRead(ctx, topic, s.limits)
+	if err != nil {
+		return nil, err
+	}
+	if nilBASMCapability(view) {
+		return nil, ErrBASMNotReady
+	}
+	return view, nil
+}
+
+func closeBASMView[T any](view BASMReadView, output *T, err *error, zero T, ctx context.Context) {
+	closeErr := view.Close()
+	if *err == nil {
+		*err = closeErr
+		if *err == nil {
+			*err = ctx.Err()
+		}
+	}
+	if *err != nil {
+		*output = zero
+	}
+}
+
+func completeBASMRead(ctx context.Context, resolver BASMHeaderResolver, view BASMReadView, readErr error, headers []BASMCanonicalHeader) error {
+	if readErr != nil {
+		return readErr
+	}
+	if err := recheckCanonicalHeaders(ctx, resolver, headers); err != nil {
+		return err
+	}
+	return view.CheckCurrent(ctx)
+}
+
+func recheckCanonicalHeaders(ctx context.Context, resolver BASMHeaderResolver, headers []BASMCanonicalHeader) error {
+	for _, header := range headers {
+		current, err := resolver.CanonicalBASMHeader(ctx, header.Height)
+		if err != nil {
+			return err
+		}
+		if current != header {
+			return ErrBASMNotReady
+		}
+	}
+	return nil
 }

@@ -460,14 +460,14 @@ func newReadFixture(t *testing.T) *readFixture {
 	return fx
 }
 
-func newReadService(t *testing.T, storage BASMReadStorage, headers BASMHeaderResolver, limits basm.ReadLimits) *BASMReadService {
+func newReadService(t *testing.T, storage BASMReadOpener, headers BASMHeaderResolver, limits basm.ReadLimits) *BASMReadService {
 	t.Helper()
 	service, err := NewBASMReadService(storage, headers, limits)
 	require.NoError(t, err)
 	return service
 }
 
-func (f *readFixture) storage() BASMReadStorage {
+func (f *readFixture) storage() BASMReadOpener {
 	return &fakeBASMReadStorage{view: f.view, opens: &f.storageOpens}
 }
 

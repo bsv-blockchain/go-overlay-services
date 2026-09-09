@@ -15,6 +15,13 @@ import (
 	"github.com/bsv-blockchain/go-overlay-services/pkg/core/engine"
 )
 
+const (
+	basmRequestExceedsLimit = "request exceeds configured limit"
+	basmProviderInvalidData = "BASM provider returned invalid data"
+)
+
+var errUnknownBASMKind = errors.New("unknown BASM request")
+
 // BASMReadHandler adapts the optional BASM read capability to the public BRC-136 JSON routes.
 // It does not make a claim about agreement, persistence, or chain verification.
 type BASMReadHandler struct {
@@ -44,7 +51,7 @@ func (h *BASMReadHandler) Handle(c *fiber.Ctx, kind string, topicRequired bool) 
 		return h.writeError(c, fiber.StatusBadRequest, "invalid_request", "request must use application/json")
 	}
 	if uint64(len(c.Body())) > uint64(h.limits.MaxRequestBytes) {
-		return h.writeError(c, fiber.StatusRequestEntityTooLarge, "request_too_large", "request exceeds configured limit")
+		return h.writeError(c, fiber.StatusRequestEntityTooLarge, "request_too_large", basmRequestExceedsLimit)
 	}
 
 	topic, err := h.topic(c, topicRequired)
@@ -65,37 +72,49 @@ func (h *BASMReadHandler) Handle(c *fiber.Ctx, kind string, topicRequired bool) 
 		return h.writeMappedError(c, err)
 	}
 
-	var response any
-	switch kind {
-	case "tip":
-		response, err = h.provider.ProvideTopicAnchorTip(ctx, topic)
-	case "range":
-		response, err = h.provider.ProvideTopicAnchorRange(ctx, topic, request.FromHeight, request.ToHeight)
-	case "list":
-		response, err = h.provider.ProvideAdmittedList(ctx, topic, request.BlockHeight, request.BlockHash)
-	case "proof":
-		response, err = h.provider.ProvideCompoundMerklePath(ctx, topic, request.BlockHeight, request.TxIDs)
-	case "raw":
-		response, err = h.provider.ProvideRawTransactions(ctx, request.TxIDs)
-	default:
-		return h.writeError(c, fiber.StatusBadRequest, "invalid_request", "unknown BASM request")
+	response, err := h.invokeProvider(ctx, kind, topic, request)
+	if err != nil {
+		if errors.Is(err, errUnknownBASMKind) {
+			return h.writeError(c, fiber.StatusBadRequest, "invalid_request", "unknown BASM request")
+		}
+		if ctxErr := ctx.Err(); ctxErr != nil {
+			return h.writeMappedError(c, ctxErr)
+		}
+		return h.writeMappedError(c, err)
 	}
 	if ctxErr := ctx.Err(); ctxErr != nil {
 		return h.writeMappedError(c, ctxErr)
 	}
-	if err != nil {
-		return h.writeMappedError(c, err)
-	}
 	if err = h.validateResponse(kind, topic, request, response); err != nil {
 		return h.writeMappedError(c, err)
 	}
-	if err = ctx.Err(); err != nil {
+	return h.writeJSONResponse(c, ctx, response)
+}
+
+func (h *BASMReadHandler) invokeProvider(ctx context.Context, kind, topic string, request basm.ReadRequest) (any, error) {
+	switch kind {
+	case "tip":
+		return h.provider.ProvideTopicAnchorTip(ctx, topic)
+	case "range":
+		return h.provider.ProvideTopicAnchorRange(ctx, topic, request.FromHeight, request.ToHeight)
+	case "list":
+		return h.provider.ProvideAdmittedList(ctx, topic, request.BlockHeight, request.BlockHash)
+	case "proof":
+		return h.provider.ProvideCompoundMerklePath(ctx, topic, request.BlockHeight, request.TxIDs)
+	case "raw":
+		return h.provider.ProvideRawTransactions(ctx, request.TxIDs)
+	default:
+		return nil, errUnknownBASMKind
+	}
+}
+
+func (h *BASMReadHandler) writeJSONResponse(c *fiber.Ctx, ctx context.Context, response any) error {
+	if err := ctx.Err(); err != nil {
 		return h.writeMappedError(c, err)
 	}
-
 	encoded, err := json.Marshal(response)
 	if err != nil {
-		return h.writeError(c, fiber.StatusInternalServerError, "invalid_data", "BASM provider returned invalid data")
+		return h.writeError(c, fiber.StatusInternalServerError, "invalid_data", basmProviderInvalidData)
 	}
 	if uint64(len(encoded)) > uint64(h.limits.MaxResponseBytes) {
 		return h.writeError(c, fiber.StatusRequestEntityTooLarge, "response_too_large", "response exceeds configured limit")
@@ -126,86 +145,132 @@ func (h *BASMReadHandler) validateResponse(kind, topic string, request basm.Read
 	budget := responseBudget{limit: uint64(h.limits.MaxResponseBytes), ok: true}
 	switch value := response.(type) {
 	case basm.TopicAnchorTip:
-		if kind != "tip" || value.Topic != topic || !h.validTopic(value.Topic) || !h.validTip(value) {
-			return engine.ErrBASMInvalidData
-		}
-		budget.add(96)
-		budget.addString(value.Topic)
-		budget.addHashes(value.BlockHash, value.BASMRoot)
-		budget.add(86) // admitted count, TAC, and JSON punctuation
+		return h.validateTipResponse(kind, topic, value, &budget)
 	case basm.TopicAnchorRange:
-		count := uint64(request.ToHeight) - uint64(request.FromHeight) + 1
-		if kind != "range" || value.Topic != topic || !h.validTopic(value.Topic) || value.Anchors == nil || uint64(len(value.Anchors)) != count || uint64(len(value.Anchors)) > uint64(h.limits.MaxRange) {
-			return engine.ErrBASMInvalidData
-		}
-		budget.add(48)
-		budget.addString(value.Topic)
-		for index, anchor := range value.Anchors {
-			if anchor.Topic != topic || uint64(anchor.BlockHeight) != uint64(request.FromHeight)+uint64(index) || !h.validTopic(anchor.Topic) || anchor.Validate(h.limits.Limits) != nil {
-				return engine.ErrBASMInvalidData
-			}
-			budget.add(132)
-			budget.addString(anchor.Topic)
-			budget.add(66 * 3) // block hash, BASM root, TAC
-		}
+		return h.validateRangeResponse(kind, topic, request, value, &budget)
 	case basm.AdmittedList:
-		if kind != "list" || value.Topic != topic || value.BlockHeight != request.BlockHeight || !h.validTopic(value.Topic) || value.Admitted == nil || uint64(len(value.Admitted)) > uint64(h.limits.MaxAdmitted) || (request.BlockHash != nil && (value.BlockHash == nil || *value.BlockHash != *request.BlockHash)) {
-			return engine.ErrBASMInvalidData
-		}
-		budget.add(112)
-		budget.addString(value.Topic)
-		budget.add(66)
-		budget.addRepeated(uint64(len(value.Admitted)), 128)
-		if !budget.ok {
-			return basm.ErrLimitExceeded
-		}
-		if !validAdmitted(value.Admitted) {
-			return engine.ErrBASMInvalidData
-		}
+		return h.validateListResponse(kind, topic, request, value, &budget)
 	case basm.CompoundMerklePath:
-		if kind != "proof" || value.Topic != topic || value.BlockHeight != request.BlockHeight || !h.validTopic(value.Topic) || value.TxIDs == nil || len(value.TxIDs) != len(request.TxIDs) || uint64(len(value.TxIDs)) > uint64(h.limits.MaxRequestedTxIDs) || !sameHashes(value.TxIDs, request.TxIDs) || uint64(len(value.MerklePath)) > uint64(h.limits.MaxProofBytes)*2 {
-			return engine.ErrBASMInvalidData
-		}
-		budget.add(112)
-		budget.addString(value.Topic)
-		budget.addRepeated(uint64(len(value.TxIDs)), 67)
-		budget.addLiteralString(value.MerklePath)
-		if !budget.ok {
-			return basm.ErrLimitExceeded
-		}
-		if !validLowerHex(value.MerklePath) {
-			return engine.ErrBASMInvalidData
-		}
+		return h.validateProofResponse(kind, topic, request, value, &budget)
 	case basm.RawTransactions:
-		transactionsCount := uint64(len(value.Transactions))
-		missingCount := uint64(len(value.Missing))
-		if kind != "raw" || value.Transactions == nil || value.Missing == nil || transactionsCount > uint64(h.limits.MaxRequestedTxIDs) || missingCount > uint64(h.limits.MaxRequestedTxIDs)-transactionsCount || !validRawMapping(request.TxIDs, value) {
-			return engine.ErrBASMInvalidData
-		}
-		budget.add(48)
-		for _, transaction := range value.Transactions {
-			if uint64(len(transaction.RawTx)) > uint64(h.limits.MaxRawTxBytes)*2 {
-				return engine.ErrBASMInvalidData
-			}
-			budget.add(128)
-			budget.addLiteralString(transaction.RawTx)
-		}
-		budget.addRepeated(uint64(len(value.Missing)), 67)
-		if !budget.ok {
-			return basm.ErrLimitExceeded
-		}
-		for _, transaction := range value.Transactions {
-			if !validLowerHex(transaction.RawTx) {
-				return engine.ErrBASMInvalidData
-			}
-		}
+		return h.validateRawResponse(kind, request, value, &budget)
 	default:
 		return engine.ErrBASMInvalidData
 	}
+}
+
+func finishResponseBudget(budget *responseBudget) error {
 	if !budget.ok {
 		return basm.ErrLimitExceeded
 	}
 	return nil
+}
+
+func (h *BASMReadHandler) validateTipResponse(kind, topic string, value basm.TopicAnchorTip, budget *responseBudget) error {
+	if kind != "tip" || value.Topic != topic || !h.validTopic(value.Topic) || !h.validTip(value) {
+		return engine.ErrBASMInvalidData
+	}
+	budget.add(96)
+	budget.addString(value.Topic)
+	budget.addHashes(value.BlockHash, value.BASMRoot)
+	budget.add(86) // admitted count, TAC, and JSON punctuation
+	return finishResponseBudget(budget)
+}
+
+func (h *BASMReadHandler) validateRangeResponse(kind, topic string, request basm.ReadRequest, value basm.TopicAnchorRange, budget *responseBudget) error {
+	count := uint64(request.ToHeight) - uint64(request.FromHeight) + 1
+	if kind != "range" || value.Topic != topic || !h.validTopic(value.Topic) || value.Anchors == nil || uint64(len(value.Anchors)) != count || uint64(len(value.Anchors)) > uint64(h.limits.MaxRange) {
+		return engine.ErrBASMInvalidData
+	}
+	budget.add(48)
+	budget.addString(value.Topic)
+	for index, anchor := range value.Anchors {
+		if err := h.validateRangeAnchor(topic, request.FromHeight, index, anchor, budget); err != nil {
+			return err
+		}
+	}
+	return finishResponseBudget(budget)
+}
+
+func (h *BASMReadHandler) validateRangeAnchor(topic string, from uint32, index int, anchor basm.Anchor, budget *responseBudget) error {
+	if anchor.Topic != topic || uint64(anchor.BlockHeight) != uint64(from)+uint64(index) || !h.validTopic(anchor.Topic) || anchor.Validate(h.limits.Limits) != nil {
+		return engine.ErrBASMInvalidData
+	}
+	budget.add(132)
+	budget.addString(anchor.Topic)
+	budget.add(66 * 3) // block hash, BASM root, TAC
+	return nil
+}
+
+func (h *BASMReadHandler) validateListResponse(kind, topic string, request basm.ReadRequest, value basm.AdmittedList, budget *responseBudget) error {
+	if !h.validListIdentity(kind, topic, request, value) {
+		return engine.ErrBASMInvalidData
+	}
+	budget.add(112)
+	budget.addString(value.Topic)
+	budget.add(66)
+	budget.addRepeated(uint64(len(value.Admitted)), 128)
+	if !budget.ok {
+		return basm.ErrLimitExceeded
+	}
+	if !validAdmitted(value.Admitted) {
+		return engine.ErrBASMInvalidData
+	}
+	return finishResponseBudget(budget)
+}
+
+func (h *BASMReadHandler) validListIdentity(kind, topic string, request basm.ReadRequest, value basm.AdmittedList) bool {
+	if kind != "list" || value.Topic != topic || value.BlockHeight != request.BlockHeight || !h.validTopic(value.Topic) || value.Admitted == nil || uint64(len(value.Admitted)) > uint64(h.limits.MaxAdmitted) {
+		return false
+	}
+	return request.BlockHash == nil || (value.BlockHash != nil && *value.BlockHash == *request.BlockHash)
+}
+
+func (h *BASMReadHandler) validateProofResponse(kind, topic string, request basm.ReadRequest, value basm.CompoundMerklePath, budget *responseBudget) error {
+	if !h.validProofIdentity(kind, topic, request, value) {
+		return engine.ErrBASMInvalidData
+	}
+	budget.add(112)
+	budget.addString(value.Topic)
+	budget.addRepeated(uint64(len(value.TxIDs)), 67)
+	budget.addLiteralString(value.MerklePath)
+	if !budget.ok {
+		return basm.ErrLimitExceeded
+	}
+	if !validLowerHex(value.MerklePath) {
+		return engine.ErrBASMInvalidData
+	}
+	return finishResponseBudget(budget)
+}
+
+func (h *BASMReadHandler) validProofIdentity(kind, topic string, request basm.ReadRequest, value basm.CompoundMerklePath) bool {
+	return kind == "proof" && value.Topic == topic && value.BlockHeight == request.BlockHeight && h.validTopic(value.Topic) && value.TxIDs != nil && len(value.TxIDs) == len(request.TxIDs) && uint64(len(value.TxIDs)) <= uint64(h.limits.MaxRequestedTxIDs) && sameHashes(value.TxIDs, request.TxIDs) && uint64(len(value.MerklePath)) <= uint64(h.limits.MaxProofBytes)*2
+}
+
+func (h *BASMReadHandler) validateRawResponse(kind string, request basm.ReadRequest, value basm.RawTransactions, budget *responseBudget) error {
+	transactionsCount := uint64(len(value.Transactions))
+	missingCount := uint64(len(value.Missing))
+	if kind != "raw" || value.Transactions == nil || value.Missing == nil || transactionsCount > uint64(h.limits.MaxRequestedTxIDs) || missingCount > uint64(h.limits.MaxRequestedTxIDs)-transactionsCount || !validRawMapping(request.TxIDs, value) {
+		return engine.ErrBASMInvalidData
+	}
+	budget.add(48)
+	for _, transaction := range value.Transactions {
+		if uint64(len(transaction.RawTx)) > uint64(h.limits.MaxRawTxBytes)*2 {
+			return engine.ErrBASMInvalidData
+		}
+		budget.add(128)
+		budget.addLiteralString(transaction.RawTx)
+	}
+	budget.addRepeated(uint64(len(value.Missing)), 67)
+	if !budget.ok {
+		return basm.ErrLimitExceeded
+	}
+	for _, transaction := range value.Transactions {
+		if !validLowerHex(transaction.RawTx) {
+			return engine.ErrBASMInvalidData
+		}
+	}
+	return finishResponseBudget(budget)
 }
 
 func (h *BASMReadHandler) validTip(value basm.TopicAnchorTip) bool {
@@ -345,9 +410,9 @@ func (h *BASMReadHandler) writeMappedError(c *fiber.Ctx, err error) error {
 	case errors.Is(err, context.DeadlineExceeded):
 		return h.writeError(c, fiber.StatusGatewayTimeout, "timeout", "request timed out")
 	case errors.Is(err, basm.ErrLimitExceeded):
-		return h.writeError(c, fiber.StatusRequestEntityTooLarge, "limit_exceeded", "request exceeds configured limit")
+		return h.writeError(c, fiber.StatusRequestEntityTooLarge, "limit_exceeded", basmRequestExceedsLimit)
 	case errors.Is(err, engine.ErrBASMInvalidData):
-		return h.writeError(c, fiber.StatusInternalServerError, "invalid_data", "BASM provider returned invalid data")
+		return h.writeError(c, fiber.StatusInternalServerError, "invalid_data", basmProviderInvalidData)
 	case errors.Is(err, basm.ErrInvalidInput), errors.Is(err, basm.ErrInvalidHash):
 		return h.writeError(c, fiber.StatusBadRequest, "invalid_request", "request is invalid")
 	case errors.Is(err, engine.ErrBASMUnsupported):
@@ -357,13 +422,13 @@ func (h *BASMReadHandler) writeMappedError(c *fiber.Ctx, err error) error {
 	case errors.Is(err, engine.ErrBASMNotFound):
 		return h.writeError(c, fiber.StatusNotFound, "not_found", "BASM record was not found")
 	default:
-		return h.writeError(c, fiber.StatusInternalServerError, "invalid_data", "BASM provider returned invalid data")
+		return h.writeError(c, fiber.StatusInternalServerError, "invalid_data", basmProviderInvalidData)
 	}
 }
 
 func (h *BASMReadHandler) writeInputError(c *fiber.Ctx, err error) error {
 	if errors.Is(err, basm.ErrLimitExceeded) {
-		return h.writeError(c, fiber.StatusRequestEntityTooLarge, "limit_exceeded", "request exceeds configured limit")
+		return h.writeError(c, fiber.StatusRequestEntityTooLarge, "limit_exceeded", basmRequestExceedsLimit)
 	}
 	return h.writeError(c, fiber.StatusBadRequest, "invalid_request", "request is invalid")
 }

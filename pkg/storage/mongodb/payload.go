@@ -166,7 +166,7 @@ func (s *Store) PublishPayload(ctx context.Context, ref engine.AdmissionPayloadR
 	filter := append(bson.D{{Key: fieldID, Value: payload.ID}, {Key: fieldState, Value: "uploading"}, {Key: fieldOwner, Value: s.ownerID}, {Key: fieldToken, Value: payload.Token}}, leaseCurrent()...)
 	set := bson.D{{Key: fieldState, Value: "ready"}, {Key: fieldUpdatedAt, Value: serverNow}, {Key: fieldLeaseUntil, Value: serverLease(s.config.LeaseDuration)}, {Key: fieldGuard, Value: bson.NewObjectID()}}
 	if inline != nil {
-		set = append(set, bson.E{Key: "inlineData", Value: bson.D{{Key: "$literal", Value: inline}}})
+		set = append(set, bson.E{Key: "inlineData", Value: bson.D{{Key: fieldLiteral, Value: inline}}})
 	}
 	result, err := s.db.Collection(payloadCollection).UpdateOne(ctx, filter, mongo.Pipeline{bson.D{{Key: fieldSet, Value: set}}})
 	if err != nil {
@@ -203,37 +203,49 @@ func (s *Store) reservePayload(ctx context.Context, ref engine.AdmissionPayloadR
 	id := s.payloadID(ref)
 	var existing payloadDocument
 	err := s.db.Collection(payloadCollection).FindOne(ctx, bson.D{{Key: fieldID, Value: id}}).Decode(&existing)
-	filter := bson.D{{Key: fieldID, Value: id}, {Key: fieldVersion, Value: bson.D{{Key: "$exists", Value: false}}}}
-	token := "00000000000000000001"
 	if err == nil {
-		if existing.Chain != s.chainID || existing.Digest != ref.Digest {
-			return payloadDocument{}, ErrInvalidPayload
-		}
-		encoded, _ := EncodeUint64(ref.ByteLength)
-		if existing.Length != encoded {
-			return payloadDocument{}, ErrInvalidPayload
-		}
-		if existing.State == "ready" {
-			return existing, nil
-		}
-		if existing.State == "uploading" && existing.Owner == s.ownerID {
-			resumed, resumeErr := s.resumeUpload(ctx, existing)
-			if resumeErr != nil {
-				return payloadDocument{}, resumeErr
-			}
-			return resumed, nil
-		}
-		if existing.State != "deleted" {
-			return payloadDocument{}, ErrConflict
-		}
-		token, err = nextToken(existing.Token)
-		if err != nil {
-			return payloadDocument{}, err
-		}
-		filter = bson.D{{Key: fieldID, Value: id}, {Key: fieldState, Value: "deleted"}, {Key: fieldToken, Value: existing.Token}}
-	} else if !errors.Is(err, mongo.ErrNoDocuments) {
+		return s.reuseOrRecyclePayload(ctx, existing, ref, length)
+	}
+	if !errors.Is(err, mongo.ErrNoDocuments) {
 		return payloadDocument{}, err
 	}
+	filter := bson.D{{Key: fieldID, Value: id}, {Key: fieldVersion, Value: bson.D{{Key: "$exists", Value: false}}}}
+	return s.insertUploadingPayload(ctx, ref, length, id, "00000000000000000001", filter, true)
+}
+
+func (s *Store) reuseOrRecyclePayload(ctx context.Context, existing payloadDocument, ref engine.AdmissionPayloadRef, length uint64) (payloadDocument, error) {
+	if err := s.payloadMatchesRef(existing, ref); err != nil {
+		return payloadDocument{}, err
+	}
+	if existing.State == "ready" {
+		return existing, nil
+	}
+	if existing.State == "uploading" && existing.Owner == s.ownerID {
+		return s.resumeUpload(ctx, existing)
+	}
+	if existing.State != "deleted" {
+		return payloadDocument{}, ErrConflict
+	}
+	token, err := nextToken(existing.Token)
+	if err != nil {
+		return payloadDocument{}, err
+	}
+	filter := bson.D{{Key: fieldID, Value: existing.ID}, {Key: fieldState, Value: "deleted"}, {Key: fieldToken, Value: existing.Token}}
+	return s.insertUploadingPayload(ctx, ref, length, existing.ID, token, filter, false)
+}
+
+func (s *Store) payloadMatchesRef(existing payloadDocument, ref engine.AdmissionPayloadRef) error {
+	if existing.Chain != s.chainID || existing.Digest != ref.Digest {
+		return ErrInvalidPayload
+	}
+	encoded, _ := EncodeUint64(ref.ByteLength)
+	if existing.Length != encoded {
+		return ErrInvalidPayload
+	}
+	return nil
+}
+
+func (s *Store) insertUploadingPayload(ctx context.Context, ref engine.AdmissionPayloadRef, length uint64, id, token string, filter bson.D, upsert bool) (payloadDocument, error) {
 	encoded, err := EncodeUint64(ref.ByteLength)
 	if err != nil {
 		return payloadDocument{}, err
@@ -245,7 +257,7 @@ func (s *Store) reservePayload(ctx context.Context, ref engine.AdmissionPayloadR
 		payload.BlobToken = token
 	}
 	pipeline := replaceWithServerDates(payload, s.config.LeaseDuration)
-	err = s.db.Collection(payloadCollection).FindOneAndUpdate(ctx, filter, pipeline, options.FindOneAndUpdate().SetUpsert(existing.ID == "").SetReturnDocument(options.After)).Decode(&payload)
+	err = s.db.Collection(payloadCollection).FindOneAndUpdate(ctx, filter, pipeline, options.FindOneAndUpdate().SetUpsert(upsert).SetReturnDocument(options.After)).Decode(&payload)
 	if mongo.IsDuplicateKeyError(err) || errors.Is(err, mongo.ErrNoDocuments) {
 		return payloadDocument{}, ErrConflict
 	}
@@ -264,7 +276,7 @@ func (s *Store) resumeUpload(ctx context.Context, existing payloadDocument) (pay
 }
 
 func replaceWithServerDates(document any, lease time.Duration) mongo.Pipeline {
-	return mongo.Pipeline{bson.D{{Key: "$replaceWith", Value: bson.D{{Key: "$mergeObjects", Value: bson.A{bson.D{{Key: "$literal", Value: document}}, bson.D{{Key: fieldCreatedAt, Value: serverNow}, {Key: fieldUpdatedAt, Value: serverNow}, {Key: fieldLeaseUntil, Value: serverLease(lease)}}}}}}}}
+	return mongo.Pipeline{bson.D{{Key: "$replaceWith", Value: bson.D{{Key: "$mergeObjects", Value: bson.A{bson.D{{Key: fieldLiteral, Value: document}}, bson.D{{Key: fieldCreatedAt, Value: serverNow}, {Key: fieldUpdatedAt, Value: serverNow}, {Key: fieldLeaseUntil, Value: serverLease(lease)}}}}}}}}
 }
 
 func (s *Store) blobMetadata(payload payloadDocument, ref engine.AdmissionPayloadRef) blobMetadata {
@@ -294,7 +306,7 @@ func (s *Store) pinPayload(ctx context.Context, ref engine.AdmissionPayloadRef, 
 		return err
 	}
 	document := referenceDocument{ID: s.referenceID(ref, owner), Version: schemaVersion, Chain: s.chainID, Scope: s.scopeID, Digest: ref.Digest, Length: length, Kind: ref.Kind, OwnerKind: owner.Kind, OwnerID: owner.ID}
-	_, err = s.db.Collection(referenceCollection).UpdateOne(ctx, bson.D{{Key: fieldID, Value: document.ID}}, mongo.Pipeline{bson.D{{Key: "$replaceWith", Value: bson.D{{Key: "$mergeObjects", Value: bson.A{bson.D{{Key: "$literal", Value: document}}, bson.D{{Key: fieldCreatedAt, Value: bson.D{{Key: "$ifNull", Value: bson.A{"$createdAt", "$$NOW"}}}}}}}}}}}, options.UpdateOne().SetUpsert(true))
+	_, err = s.db.Collection(referenceCollection).UpdateOne(ctx, bson.D{{Key: fieldID, Value: document.ID}}, mongo.Pipeline{bson.D{{Key: "$replaceWith", Value: bson.D{{Key: "$mergeObjects", Value: bson.A{bson.D{{Key: fieldLiteral, Value: document}}, bson.D{{Key: fieldCreatedAt, Value: bson.D{{Key: "$ifNull", Value: bson.A{"$createdAt", "$$NOW"}}}}}}}}}}}, options.UpdateOne().SetUpsert(true))
 	return err
 }
 
@@ -392,55 +404,86 @@ func (s *Store) CollectPayload(ctx context.Context, ref engine.AdmissionPayloadR
 	if _, err := s.validatePayload(ref); err != nil {
 		return err
 	}
+	candidate, done, err := s.loadCollectablePayload(ctx, ref)
+	if done || err != nil {
+		return err
+	}
+	if candidate.State != "deleting" {
+		candidate, err = s.claimExpiredPayload(ctx, ref, candidate)
+		if err != nil {
+			return err
+		}
+	}
+	return s.finishPayloadDeletion(ctx, candidate)
+}
+
+func (s *Store) loadCollectablePayload(ctx context.Context, ref engine.AdmissionPayloadRef) (payloadDocument, bool, error) {
 	var candidate payloadDocument
 	err := s.db.Collection(payloadCollection).FindOne(ctx, bson.D{{Key: fieldID, Value: s.payloadID(ref)}}).Decode(&candidate)
 	if errors.Is(err, mongo.ErrNoDocuments) {
-		return nil
+		return payloadDocument{}, true, nil
 	}
 	if err != nil {
-		return err
+		return payloadDocument{}, false, err
 	}
 	encoded, _ := EncodeUint64(ref.ByteLength)
 	if candidate.Length != encoded {
-		return ErrInvalidPayload
+		return payloadDocument{}, false, ErrInvalidPayload
 	}
 	if candidate.State == "deleted" {
+		return payloadDocument{}, true, nil
+	}
+	return candidate, false, nil
+}
+
+func (s *Store) claimExpiredPayload(ctx context.Context, ref engine.AdmissionPayloadRef, old payloadDocument) (payloadDocument, error) {
+	next, tokenErr := nextToken(old.Token)
+	if tokenErr != nil {
+		return payloadDocument{}, tokenErr
+	}
+	var claimed payloadDocument
+	outcome, claimErr := s.runTransaction(ctx, func(sessionCtx context.Context) error {
+		updated, err := s.claimExpiredPayloadTx(sessionCtx, ref, old, next)
+		if err != nil {
+			return err
+		}
+		claimed = updated
 		return nil
+	})
+	if claimErr == nil {
+		return claimed, nil
 	}
-	if candidate.State != "deleting" {
-		next, tokenErr := nextToken(candidate.Token)
-		if tokenErr != nil {
-			return tokenErr
-		}
-		old := candidate
-		outcome, claimErr := s.runTransaction(ctx, func(sessionCtx context.Context) error {
-			filter := bson.D{{Key: fieldID, Value: old.ID}, {Key: fieldState, Value: old.State}, {Key: fieldToken, Value: old.Token}}
-			filter = append(filter, leaseExpired()...)
-			update := mongo.Pipeline{bson.D{{Key: fieldSet, Value: bson.D{{Key: fieldState, Value: "deleting"}, {Key: fieldOwner, Value: bson.D{{Key: "$literal", Value: s.ownerID}}}, {Key: fieldToken, Value: next}, {Key: fieldGuard, Value: bson.NewObjectID()}, {Key: fieldUpdatedAt, Value: serverNow}, {Key: fieldLeaseUntil, Value: serverLease(s.config.LeaseDuration)}}}}}
-			if updateErr := s.db.Collection(payloadCollection).FindOneAndUpdate(sessionCtx, filter, update, options.FindOneAndUpdate().SetReturnDocument(options.After)).Decode(&candidate); updateErr != nil {
-				return updateErr
-			}
-			count, countErr := s.db.Collection(referenceCollection).CountDocuments(sessionCtx, bson.D{{Key: fieldChain, Value: s.chainID}, {Key: fieldDigest, Value: ref.Digest}}, options.Count().SetLimit(1))
-			if countErr != nil {
-				return countErr
-			}
-			if count != 0 {
-				return ErrConflict
-			}
-			return nil
-		})
-		if claimErr != nil {
-			if outcome != transactionPending {
-				return claimErr
-			}
-			// Only a majority-observed matching claim authorizes physical deletion.
-			if readErr := s.db.Collection(payloadCollection).FindOne(ctx, bson.D{{Key: fieldID, Value: old.ID}, {Key: fieldState, Value: "deleting"}, {Key: fieldToken, Value: next}, {Key: fieldOwner, Value: s.ownerID}}).Decode(&candidate); readErr != nil {
-				return claimErr
-			}
-		}
+	if outcome != transactionPending {
+		return payloadDocument{}, claimErr
 	}
+	// Only a majority-observed matching claim authorizes physical deletion.
+	if s.db.Collection(payloadCollection).FindOne(ctx, bson.D{{Key: fieldID, Value: old.ID}, {Key: fieldState, Value: "deleting"}, {Key: fieldToken, Value: next}, {Key: fieldOwner, Value: s.ownerID}}).Decode(&claimed) != nil {
+		return payloadDocument{}, claimErr
+	}
+	return claimed, nil
+}
+
+func (s *Store) claimExpiredPayloadTx(ctx context.Context, ref engine.AdmissionPayloadRef, old payloadDocument, next string) (payloadDocument, error) {
+	filter := bson.D{{Key: fieldID, Value: old.ID}, {Key: fieldState, Value: old.State}, {Key: fieldToken, Value: old.Token}}
+	filter = append(filter, leaseExpired()...)
+	update := mongo.Pipeline{bson.D{{Key: fieldSet, Value: bson.D{{Key: fieldState, Value: "deleting"}, {Key: fieldOwner, Value: bson.D{{Key: fieldLiteral, Value: s.ownerID}}}, {Key: fieldToken, Value: next}, {Key: fieldGuard, Value: bson.NewObjectID()}, {Key: fieldUpdatedAt, Value: serverNow}, {Key: fieldLeaseUntil, Value: serverLease(s.config.LeaseDuration)}}}}}
+	var claimed payloadDocument
+	if err := s.db.Collection(payloadCollection).FindOneAndUpdate(ctx, filter, update, options.FindOneAndUpdate().SetReturnDocument(options.After)).Decode(&claimed); err != nil {
+		return payloadDocument{}, err
+	}
+	count, err := s.db.Collection(referenceCollection).CountDocuments(ctx, bson.D{{Key: fieldChain, Value: s.chainID}, {Key: fieldDigest, Value: ref.Digest}}, options.Count().SetLimit(1))
+	if err != nil {
+		return payloadDocument{}, err
+	}
+	if count != 0 {
+		return payloadDocument{}, ErrConflict
+	}
+	return claimed, nil
+}
+
+func (s *Store) finishPayloadDeletion(ctx context.Context, candidate payloadDocument) error {
 	if !candidate.FileID.IsZero() {
-		if err = s.blobs.remove(ctx, candidate.FileID); err != nil {
+		if err := s.blobs.remove(ctx, candidate.FileID); err != nil {
 			return err
 		}
 	}

@@ -193,5 +193,6 @@ const (
 	fieldAttempt    = "attempt"
 	fieldFilesID    = "files_id"
 	fieldSet        = "$set"
+	fieldLiteral    = "$literal"
 	serverNow       = "$$NOW"
 )
