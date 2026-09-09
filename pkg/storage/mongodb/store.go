@@ -225,6 +225,7 @@ const (
 	fieldAttempt                = "attempt"
 	fieldFilesID                = "files_id"
 	fieldSet                    = "$set"
+	fieldSetOnInsert            = "$setOnInsert"
 	fieldTopic                  = "topic"
 	fieldTxID                   = "txid"
 	fieldOutputIndex            = "outputIndex"

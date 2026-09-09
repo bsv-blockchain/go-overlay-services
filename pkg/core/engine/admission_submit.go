@@ -107,7 +107,9 @@ func (e *Engine) buildAdmissionPlan(ctx context.Context, host admissionHost, p *
 	decisions := make([]AdmissionTopicDecision, 0, len(topics))
 	outbox := make([]AdmissionOutboxIntent, 0)
 	for _, topic := range topics {
-		decision, decisionErr := e.buildTopicDecision(ctx, host, p, tx, topic.Topic, steak[topic.Topic], topicInputs[topic.Topic], payloadIndex)
+		decision, decisionErr := e.buildTopicDecision(ctx, topicDecisionParams{
+			host: host, parsed: p, tx: tx, topic: topic.Topic, admit: steak[topic.Topic], inputs: topicInputs[topic.Topic], payloads: payloadIndex,
+		})
 		if decisionErr != nil {
 			return AdmissionCommit{}, decisionErr
 		}
@@ -182,27 +184,56 @@ func (e *Engine) publishAdmissionPayloads(ctx context.Context, host admissionHos
 	return payloads, admissionPayloads{raw: raw, scripts: scripts}, nil
 }
 
-func (e *Engine) buildTopicDecision(ctx context.Context, host admissionHost, p *submitParsedBeefParams, tx *transaction.Transaction, topic string, admit *overlay.AdmittanceInstructions, inputs map[uint32]*Output, payloads admissionPayloads) (AdmissionTopicDecision, error) {
+type topicDecisionParams struct {
+	host     admissionHost
+	parsed   *submitParsedBeefParams
+	tx       *transaction.Transaction
+	topic    string
+	admit    *overlay.AdmittanceInstructions
+	inputs   map[uint32]*Output
+	payloads admissionPayloads
+}
+
+func (e *Engine) buildTopicDecision(ctx context.Context, p topicDecisionParams) (AdmissionTopicDecision, error) {
+	admit := p.admit
 	if admit == nil {
 		admit = &overlay.AdmittanceInstructions{}
 	}
-	fence, err := host.CurrentHistoryFence(ctx, topic)
+	fence, err := p.host.CurrentHistoryFence(ctx, p.topic)
 	if err != nil {
 		return AdmissionTopicDecision{}, err
 	}
-	if err = host.EnsureHistoryFence(ctx, topic, fence); err != nil {
+	if err = p.host.EnsureHistoryFence(ctx, p.topic, fence); err != nil {
 		return AdmissionTopicDecision{}, err
 	}
+	txid := hex.EncodeToString(p.parsed.Txid[:])
+	outputs := admissionOutputs(p.tx, txid, admit, p.payloads)
+	_, consumed := e.separateRetainedCoins(copyTopicInputs(p.inputs), admit.CoinsToRetain)
+	return AdmissionTopicDecision{
+		Topic:           p.topic,
+		ExpectedHistory: fence,
+		Reads:           nil,
+		Spends:          admissionSpends(p.inputs, txid),
+		Evictions:       nil,
+		Outputs:         outputs,
+		Edges:           admissionEdges(consumed, outputs),
+		Applied:         AdmissionAppliedTransaction{TxID: txid},
+	}, nil
+}
+
+func admissionSpends(inputs map[uint32]*Output, spender string) []AdmissionSpend {
 	spends := make([]AdmissionSpend, 0, len(inputs))
 	for _, output := range inputs {
 		spends = append(spends, AdmissionSpend{
 			Outpoint:        admissionOutpointFrom(&output.Outpoint),
 			ExpectedVersion: "1",
-			Spender:         hex.EncodeToString(p.Txid[:]),
+			Spender:         spender,
 		})
 	}
-	outputs := make([]AdmissionOutput, 0, len(admit.OutputsToAdmit))
-	txid := hex.EncodeToString(p.Txid[:])
+	return spends
+}
+
+func admissionAncillaryIDs(admit *overlay.AdmittanceInstructions) []string {
 	ancillary := make([]string, 0, len(admit.AncillaryTxids))
 	for _, hash := range admit.AncillaryTxids {
 		if hash == nil {
@@ -210,44 +241,50 @@ func (e *Engine) buildTopicDecision(ctx context.Context, host admissionHost, p *
 		}
 		ancillary = append(ancillary, hex.EncodeToString(hash[:]))
 	}
+	return ancillary
+}
+
+func admissionOutputs(tx *transaction.Transaction, txid string, admit *overlay.AdmittanceInstructions, payloads admissionPayloads) []AdmissionOutput {
+	ancillary := admissionAncillaryIDs(admit)
+	outputs := make([]AdmissionOutput, 0, len(admit.OutputsToAdmit))
 	for _, vout := range admit.OutputsToAdmit {
 		scriptRef, ok := payloads.scripts[vout]
 		if !ok {
 			scriptRef = payloads.raw
 		}
-		satoshis := "0"
-		scriptLen := scriptRef.ByteLength
-		if int(vout) < len(tx.Outputs) && tx.Outputs[vout] != nil {
-			satoshis = strconv.FormatUint(tx.Outputs[vout].Satoshis, 10)
-			if tx.Outputs[vout].LockingScript != nil {
-				scriptLen = StorageUint64(strconv.Itoa(len(*tx.Outputs[vout].LockingScript)))
-			}
-		}
+		satoshis, scriptLen := admittedOutputValue(tx, vout, scriptRef)
 		outputs = append(outputs, AdmissionOutput{
 			AdmissionOutpoint: AdmissionOutpoint{TxID: txid, OutputIndex: StorageUint64(strconv.FormatUint(uint64(vout), 10))},
-			Satoshis:          StorageUint64(satoshis),
+			Satoshis:          satoshis,
 			Score:             "0",
 			Script:            AdmissionScriptRange{Payload: scriptRef, Offset: "0", ByteLength: scriptLen},
 			Ancillary:         append([]string(nil), ancillary...),
 		})
 	}
-	_, outpointsConsumed := e.separateRetainedCoins(copyTopicInputs(inputs), admit.CoinsToRetain)
-	edges := make([]AdmissionEdge, 0, len(outpointsConsumed)*len(outputs))
-	for _, source := range outpointsConsumed {
+	return outputs
+}
+
+func admittedOutputValue(tx *transaction.Transaction, vout uint32, scriptRef AdmissionPayloadRef) (StorageUint64, StorageUint64) {
+	satoshis := StorageUint64("0")
+	scriptLen := scriptRef.ByteLength
+	if int(vout) >= len(tx.Outputs) || tx.Outputs[vout] == nil {
+		return satoshis, scriptLen
+	}
+	satoshis = StorageUint64(strconv.FormatUint(tx.Outputs[vout].Satoshis, 10))
+	if tx.Outputs[vout].LockingScript != nil {
+		scriptLen = StorageUint64(strconv.Itoa(len(*tx.Outputs[vout].LockingScript)))
+	}
+	return satoshis, scriptLen
+}
+
+func admissionEdges(sources []*transaction.Outpoint, outputs []AdmissionOutput) []AdmissionEdge {
+	edges := make([]AdmissionEdge, 0, len(sources)*len(outputs))
+	for _, source := range sources {
 		for _, output := range outputs {
 			edges = append(edges, AdmissionEdge{Source: admissionOutpointFrom(source), Consumer: output.AdmissionOutpoint})
 		}
 	}
-	return AdmissionTopicDecision{
-		Topic:           topic,
-		ExpectedHistory: fence,
-		Reads:           nil,
-		Spends:          spends,
-		Evictions:       nil,
-		Outputs:         outputs,
-		Edges:           edges,
-		Applied:         AdmissionAppliedTransaction{TxID: txid},
-	}, nil
+	return edges
 }
 
 func publishBytes(ctx context.Context, host admissionHost, data []byte, kind AdmissionPayloadKind) (AdmissionPayloadRef, error) {

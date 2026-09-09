@@ -48,56 +48,94 @@ type cursorDocument struct {
 	UpdatedAt time.Time `bson:"updatedAt"`
 }
 
+type admittedOutputWrite struct {
+	topic     string
+	txID      string
+	beefRef   *engine.AdmissionPayloadRef
+	ancillary []string
+	now       time.Time
+}
+
 // InsertOutputs persists admitted topic outputs and their BEEF payload outside any admission transaction.
 func (s *Store) InsertOutputs(ctx context.Context, topic string, txid *chainhash.Hash, outputs []uint32, outpointsConsumed []*transaction.Outpoint, beef *transaction.Beef, ancillaryTxids []*chainhash.Hash) error {
 	if !validText(topic) || txid == nil {
 		return ErrInvalidConfig
 	}
-	txID := canonicalHash(txid)
-	var beefRef *engine.AdmissionPayloadRef
-	if beef != nil {
-		beefBytes, err := beef.AtomicBytes(txid)
-		if err != nil {
-			return err
-		}
-		ref := payloadRefFromBytes(beefBytes, engine.AdmissionPayloadBEEFManifest)
-		if err = s.PublishPayload(ctx, ref, bytes.NewReader(beefBytes)); err != nil {
-			return err
-		}
-		beefRef = &ref
+	prepared, err := s.prepareAdmittedOutputs(ctx, topic, txid, beef, ancillaryTxids)
+	if err != nil {
+		return err
 	}
-	ancillary := hashStrings(ancillaryTxids)
-	now := time.Now().UTC()
-	_, err := s.runTransaction(ctx, func(sessionCtx context.Context) error {
-		if beefRef != nil {
-			if pinErr := s.pinPayload(sessionCtx, *beefRef, ReferenceOwner{Kind: ReferenceTransaction, ID: txID}); pinErr != nil {
-				return pinErr
-			}
-			if upsertErr := s.upsertTransaction(sessionCtx, txID, beefRef, ancillary, now); upsertErr != nil {
-				return upsertErr
-			}
-		}
-		for _, vout := range outputs {
-			outpoint := engine.AdmissionOutpoint{TxID: txID, OutputIndex: engine.StorageUint64(strconv.FormatUint(uint64(vout), 10))}
-			if insertErr := s.insertEngineOutput(sessionCtx, topic, outpoint, ancillary, now); insertErr != nil {
-				return insertErr
-			}
-			for _, consumed := range outpointsConsumed {
-				if consumed == nil {
-					continue
-				}
-				edge := engine.AdmissionEdge{
-					Source:   engine.AdmissionOutpoint{TxID: canonicalHash(&consumed.Txid), OutputIndex: engine.StorageUint64(strconv.FormatUint(uint64(consumed.Index), 10))},
-					Consumer: outpoint,
-				}
-				if edgeErr := s.insertAdmissionEdge(sessionCtx, topic, edge, now); edgeErr != nil {
-					return edgeErr
-				}
-			}
-		}
-		return nil
+	_, err = s.runTransaction(ctx, func(sessionCtx context.Context) error {
+		return s.insertPreparedOutputs(sessionCtx, prepared, outputs, outpointsConsumed)
 	})
 	return err
+}
+
+func (s *Store) prepareAdmittedOutputs(ctx context.Context, topic string, txid *chainhash.Hash, beef *transaction.Beef, ancillaryTxids []*chainhash.Hash) (admittedOutputWrite, error) {
+	prepared := admittedOutputWrite{topic: topic, txID: canonicalHash(txid), ancillary: hashStrings(ancillaryTxids), now: time.Now().UTC()}
+	if beef == nil {
+		return prepared, nil
+	}
+	ref, err := s.publishTransactionBeef(ctx, txid, beef)
+	if err != nil {
+		return admittedOutputWrite{}, err
+	}
+	prepared.beefRef = ref
+	return prepared, nil
+}
+
+func (s *Store) publishTransactionBeef(ctx context.Context, txid *chainhash.Hash, beef *transaction.Beef) (*engine.AdmissionPayloadRef, error) {
+	beefBytes, err := beef.AtomicBytes(txid)
+	if err != nil {
+		return nil, err
+	}
+	ref := payloadRefFromBytes(beefBytes, engine.AdmissionPayloadBEEFManifest)
+	if err = s.PublishPayload(ctx, ref, bytes.NewReader(beefBytes)); err != nil {
+		return nil, err
+	}
+	return &ref, nil
+}
+
+func (s *Store) insertPreparedOutputs(ctx context.Context, prepared admittedOutputWrite, outputs []uint32, outpointsConsumed []*transaction.Outpoint) error {
+	if err := s.pinAndUpsertTransaction(ctx, prepared); err != nil {
+		return err
+	}
+	for _, vout := range outputs {
+		outpoint := engine.AdmissionOutpoint{TxID: prepared.txID, OutputIndex: engine.StorageUint64(strconv.FormatUint(uint64(vout), 10))}
+		if err := s.insertEngineOutput(ctx, prepared.topic, outpoint, prepared.ancillary, prepared.now); err != nil {
+			return err
+		}
+		if err := s.insertConsumedEdges(ctx, prepared.topic, outpoint, outpointsConsumed, prepared.now); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (s *Store) pinAndUpsertTransaction(ctx context.Context, prepared admittedOutputWrite) error {
+	if prepared.beefRef == nil {
+		return nil
+	}
+	if err := s.pinPayload(ctx, *prepared.beefRef, ReferenceOwner{Kind: ReferenceTransaction, ID: prepared.txID}); err != nil {
+		return err
+	}
+	return s.upsertTransaction(ctx, prepared.txID, prepared.beefRef, prepared.ancillary, prepared.now)
+}
+
+func (s *Store) insertConsumedEdges(ctx context.Context, topic string, consumer engine.AdmissionOutpoint, outpointsConsumed []*transaction.Outpoint, now time.Time) error {
+	for _, consumed := range outpointsConsumed {
+		if consumed == nil {
+			continue
+		}
+		edge := engine.AdmissionEdge{
+			Source:   engine.AdmissionOutpoint{TxID: canonicalHash(&consumed.Txid), OutputIndex: engine.StorageUint64(strconv.FormatUint(uint64(consumed.Index), 10))},
+			Consumer: consumer,
+		}
+		if err := s.insertAdmissionEdge(ctx, topic, edge, now); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func (s *Store) insertEngineOutput(ctx context.Context, topic string, outpoint engine.AdmissionOutpoint, ancillary []string, now time.Time) error {
@@ -114,7 +152,7 @@ func (s *Store) insertEngineOutput(ctx context.Context, topic string, outpoint e
 		OutputIndex: index, Satoshis: zero, Score: zero, EngineScore: float64(now.UnixMilli()), Spent: false, Serving: true,
 		SpendVersion: spendVersionInitial, MerkleState: merkleStateUnmined, Ancillary: ancillary, CreatedAt: now, UpdatedAt: now,
 	}
-	_, err = s.db.Collection(outputCollection).UpdateOne(ctx, bson.D{{Key: fieldID, Value: doc.ID}}, bson.D{{Key: "$setOnInsert", Value: doc}}, options.UpdateOne().SetUpsert(true))
+	_, err = s.db.Collection(outputCollection).UpdateOne(ctx, bson.D{{Key: fieldID, Value: doc.ID}}, bson.D{{Key: fieldSetOnInsert, Value: doc}}, options.UpdateOne().SetUpsert(true))
 	return err
 }
 
@@ -319,7 +357,7 @@ func (s *Store) InsertAppliedTransaction(ctx context.Context, tx *overlay.Applie
 	}
 	now := time.Now().UTC()
 	doc := appliedDocument{ID: s.appliedID(tx.Topic, canonicalHash(tx.Txid)), Version: schemaVersion, Scope: s.scopeID, Topic: tx.Topic, TxID: canonicalHash(tx.Txid), Proven: false, CreatedAt: now, UpdatedAt: now}
-	_, err := s.db.Collection(appliedCollection).UpdateOne(ctx, bson.D{{Key: fieldID, Value: doc.ID}}, bson.D{{Key: "$setOnInsert", Value: doc}}, options.UpdateOne().SetUpsert(true))
+	_, err := s.db.Collection(appliedCollection).UpdateOne(ctx, bson.D{{Key: fieldID, Value: doc.ID}}, bson.D{{Key: fieldSetOnInsert, Value: doc}}, options.UpdateOne().SetUpsert(true))
 	return err
 }
 
@@ -344,7 +382,7 @@ func (s *Store) UpdateLastInteraction(ctx context.Context, host, topic string, s
 	id := s.cursorID(host, topic)
 	_, err := s.db.Collection(cursorCollection).UpdateOne(ctx, bson.D{{Key: fieldID, Value: id}}, bson.D{
 		{Key: fieldSet, Value: bson.D{{Key: fieldSince, Value: since}, {Key: fieldUpdatedAt, Value: now}}},
-		{Key: "$setOnInsert", Value: bson.D{{Key: fieldVersion, Value: schemaVersion}, {Key: fieldScope, Value: s.scopeID}, {Key: fieldHost, Value: host}, {Key: fieldTopic, Value: topic}, {Key: fieldCreatedAt, Value: now}}},
+		{Key: fieldSetOnInsert, Value: bson.D{{Key: fieldVersion, Value: schemaVersion}, {Key: fieldScope, Value: s.scopeID}, {Key: fieldHost, Value: host}, {Key: fieldTopic, Value: topic}, {Key: fieldCreatedAt, Value: now}}},
 	}, options.UpdateOne().SetUpsert(true))
 	return err
 }

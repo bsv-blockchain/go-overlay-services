@@ -189,43 +189,57 @@ func (s *Store) prevalidateAdmission(plan engine.AdmissionCommit) engine.Admissi
 }
 
 func (s *Store) planShapeValid(plan engine.AdmissionCommit) bool {
+	topics, ok := planIdentityTopics(plan)
+	return ok && planDecisionsMatch(plan.Decisions, topics) && planOutboxValid(plan) && s.planEffectsValid(plan) && s.steakBound(plan)
+}
+
+func planIdentityTopics(plan engine.AdmissionCommit) (map[string]struct{}, bool) {
 	topics := make(map[string]struct{}, len(plan.Identity.Topics))
 	for _, topic := range plan.Identity.Topics {
 		if _, exists := topics[topic.Topic]; exists || !validText(topic.Topic) || !validText(topic.PolicyID) {
-			return false
+			return nil, false
 		}
 		topics[topic.Topic] = struct{}{}
 	}
-	if len(plan.Decisions) != len(topics) {
+	return topics, true
+}
+
+func planDecisionsMatch(decisions []engine.AdmissionTopicDecision, topics map[string]struct{}) bool {
+	if len(decisions) != len(topics) {
 		return false
 	}
-	seenDecisions := make(map[string]struct{}, len(plan.Decisions))
-	for _, decision := range plan.Decisions {
-		if _, exists := seenDecisions[decision.Topic]; exists || !validText(decision.Topic) {
+	seen := make(map[string]struct{}, len(decisions))
+	for _, decision := range decisions {
+		if _, exists := seen[decision.Topic]; exists || !validText(decision.Topic) {
 			return false
 		}
 		if _, ok := topics[decision.Topic]; !ok {
 			return false
 		}
-		seenDecisions[decision.Topic] = struct{}{}
+		seen[decision.Topic] = struct{}{}
 	}
+	return true
+}
+
+func planOutboxValid(plan engine.AdmissionCommit) bool {
 	eventIDs := make(map[string]struct{}, len(plan.Outbox))
 	for _, intent := range plan.Outbox {
-		if _, exists := eventIDs[intent.EventID]; exists || !validText(intent.EventID) || !validText(intent.Target) {
-			return false
-		}
-		if intent.Kind != engine.AdmissionOutboxLookup && intent.Kind != engine.AdmissionOutboxPropagation {
-			return false
-		}
-		if plan.Identity.Mode == engine.AdmissionModeHistorical && intent.Kind == engine.AdmissionOutboxPropagation {
+		if !outboxIntentValid(intent, plan.Identity.Mode, eventIDs) {
 			return false
 		}
 		eventIDs[intent.EventID] = struct{}{}
 	}
-	if !s.planEffectsValid(plan) {
+	return true
+}
+
+func outboxIntentValid(intent engine.AdmissionOutboxIntent, mode engine.AdmissionMode, eventIDs map[string]struct{}) bool {
+	if _, exists := eventIDs[intent.EventID]; exists || !validText(intent.EventID) || !validText(intent.Target) {
 		return false
 	}
-	return s.steakBound(plan)
+	if intent.Kind != engine.AdmissionOutboxLookup && intent.Kind != engine.AdmissionOutboxPropagation {
+		return false
+	}
+	return mode != engine.AdmissionModeHistorical || intent.Kind != engine.AdmissionOutboxPropagation
 }
 
 func (s *Store) planEffectsValid(plan engine.AdmissionCommit) bool {
@@ -233,36 +247,59 @@ func (s *Store) planEffectsValid(plan engine.AdmissionCommit) bool {
 		return false
 	}
 	for _, decision := range plan.Decisions {
-		if _, err := engine.ParseStorageUint64(decision.ExpectedHistory.ChainEpoch); err != nil {
+		if !decisionEffectsValid(decision, plan.Identity.TxID) {
 			return false
 		}
-		if _, err := engine.ParseStorageUint64(decision.ExpectedHistory.TopicHistoryGeneration); err != nil {
+	}
+	return true
+}
+
+func decisionEffectsValid(decision engine.AdmissionTopicDecision, txid string) bool {
+	return validHistoryFence(decision.ExpectedHistory) &&
+		validDecisionSpends(decision.Spends, txid) &&
+		validOutpoints(decision.Evictions) &&
+		validDecisionOutputs(decision.Outputs, txid) &&
+		validDecisionEdges(decision.Edges) &&
+		validApplied(decision.Applied, txid) &&
+		(decision.HistoryUpdate == nil || validHistoryUpdate(*decision.HistoryUpdate, decision.ExpectedHistory))
+}
+
+func validHistoryFence(fence engine.HistoryFence) bool {
+	_, epochErr := engine.ParseStorageUint64(fence.ChainEpoch)
+	_, generationErr := engine.ParseStorageUint64(fence.TopicHistoryGeneration)
+	return epochErr == nil && generationErr == nil
+}
+
+func validDecisionSpends(spends []engine.AdmissionSpend, txid string) bool {
+	for _, spend := range spends {
+		if !validOutpoint(spend.Outpoint) || spend.Spender != txid || !validText(spend.ExpectedVersion) {
 			return false
 		}
-		for _, spend := range decision.Spends {
-			if !validOutpoint(spend.Outpoint) || spend.Spender != plan.Identity.TxID || !validText(spend.ExpectedVersion) {
-				return false
-			}
-		}
-		for _, eviction := range decision.Evictions {
-			if !validOutpoint(eviction) {
-				return false
-			}
-		}
-		for _, output := range decision.Outputs {
-			if output.TxID != plan.Identity.TxID || !validAdmissionOutput(output) {
-				return false
-			}
-		}
-		for _, edge := range decision.Edges {
-			if !validOutpoint(edge.Source) || !validOutpoint(edge.Consumer) {
-				return false
-			}
-		}
-		if !validApplied(decision.Applied, plan.Identity.TxID) {
+	}
+	return true
+}
+
+func validOutpoints(outpoints []engine.AdmissionOutpoint) bool {
+	for _, outpoint := range outpoints {
+		if !validOutpoint(outpoint) {
 			return false
 		}
-		if decision.HistoryUpdate != nil && !validHistoryUpdate(*decision.HistoryUpdate, decision.ExpectedHistory) {
+	}
+	return true
+}
+
+func validDecisionOutputs(outputs []engine.AdmissionOutput, txid string) bool {
+	for _, output := range outputs {
+		if output.TxID != txid || !validAdmissionOutput(output) {
+			return false
+		}
+	}
+	return true
+}
+
+func validDecisionEdges(edges []engine.AdmissionEdge) bool {
+	for _, edge := range edges {
+		if !validOutpoint(edge.Source) || !validOutpoint(edge.Consumer) {
 			return false
 		}
 	}
@@ -363,23 +400,54 @@ func (s *Store) validateAdmissionState(ctx context.Context, plan engine.Admissio
 }
 
 func (s *Store) validateDecisionState(ctx context.Context, txid string, decision engine.AdmissionTopicDecision) error {
+	if err := s.validateDecisionFence(ctx, decision); err != nil {
+		return err
+	}
+	if err := s.validateDecisionReads(ctx, decision); err != nil {
+		return err
+	}
+	if err := s.validateDecisionSpendsState(ctx, decision); err != nil {
+		return err
+	}
+	if err := s.validateDecisionEvictions(ctx, decision); err != nil {
+		return err
+	}
+	if err := s.validateNewOutputsAbsent(ctx, decision); err != nil {
+		return err
+	}
+	if err := s.validateAppliedAbsent(ctx, decision.Topic, txid); err != nil {
+		return err
+	}
+	return s.validateDecisionHandoff(ctx, decision)
+}
+
+func (s *Store) validateDecisionFence(ctx context.Context, decision engine.AdmissionTopicDecision) error {
 	fence, err := s.loadFence(ctx, decision.Topic)
 	if errors.Is(err, mongo.ErrNoDocuments) || (err == nil && !fenceEquals(fence, decision.ExpectedHistory)) {
 		return reject(engine.AdmissionRejectionReadConflict)
 	}
-	if err != nil {
-		return err
-	}
+	return err
+}
+
+func (s *Store) validateDecisionReads(ctx context.Context, decision engine.AdmissionTopicDecision) error {
 	for _, read := range decision.Reads {
-		if err = s.validateRead(ctx, decision.Topic, read); err != nil {
+		if err := s.validateRead(ctx, decision.Topic, read); err != nil {
 			return err
 		}
 	}
+	return nil
+}
+
+func (s *Store) validateDecisionSpendsState(ctx context.Context, decision engine.AdmissionTopicDecision) error {
 	for _, spend := range decision.Spends {
-		if err = s.validateSpend(ctx, decision.Topic, spend); err != nil {
+		if err := s.validateSpend(ctx, decision.Topic, spend); err != nil {
 			return err
 		}
 	}
+	return nil
+}
+
+func (s *Store) validateDecisionEvictions(ctx context.Context, decision engine.AdmissionTopicDecision) error {
 	for _, eviction := range decision.Evictions {
 		var current outputDocument
 		findErr := s.db.Collection(outputCollection).FindOne(ctx, bson.D{{Key: fieldID, Value: s.outputID(decision.Topic, eviction)}}).Decode(&current)
@@ -390,6 +458,10 @@ func (s *Store) validateDecisionState(ctx context.Context, txid string, decision
 			return findErr
 		}
 	}
+	return nil
+}
+
+func (s *Store) validateNewOutputsAbsent(ctx context.Context, decision engine.AdmissionTopicDecision) error {
 	for _, output := range decision.Outputs {
 		findErr := s.db.Collection(outputCollection).FindOne(ctx, bson.D{{Key: fieldID, Value: s.outputID(decision.Topic, output.AdmissionOutpoint)}}).Err()
 		if findErr == nil {
@@ -399,19 +471,25 @@ func (s *Store) validateDecisionState(ctx context.Context, txid string, decision
 			return findErr
 		}
 	}
-	appliedErr := s.db.Collection(appliedCollection).FindOne(ctx, bson.D{{Key: fieldID, Value: s.appliedID(decision.Topic, txid)}}).Err()
-	if appliedErr == nil {
+	return nil
+}
+
+func (s *Store) validateAppliedAbsent(ctx context.Context, topic, txid string) error {
+	err := s.db.Collection(appliedCollection).FindOne(ctx, bson.D{{Key: fieldID, Value: s.appliedID(topic, txid)}}).Err()
+	if err == nil {
 		return reject(engine.AdmissionRejectionInvalidPlan)
 	}
-	if !errors.Is(appliedErr, mongo.ErrNoDocuments) {
-		return appliedErr
-	}
-	if decision.HistoryUpdate != nil && decision.HistoryUpdate.Handoff != nil {
-		if err = s.validateHandoff(ctx, decision.Topic, decision.ExpectedHistory, *decision.HistoryUpdate.Handoff); err != nil {
-			return err
-		}
+	if !errors.Is(err, mongo.ErrNoDocuments) {
+		return err
 	}
 	return nil
+}
+
+func (s *Store) validateDecisionHandoff(ctx context.Context, decision engine.AdmissionTopicDecision) error {
+	if decision.HistoryUpdate == nil || decision.HistoryUpdate.Handoff == nil {
+		return nil
+	}
+	return s.validateHandoff(ctx, decision.Topic, decision.ExpectedHistory, *decision.HistoryUpdate.Handoff)
 }
 
 func (s *Store) validateRead(ctx context.Context, topic string, read engine.AdmissionReadPredicate) error {
@@ -788,7 +866,7 @@ func (s *Store) EnsureHistoryFence(ctx context.Context, topic string, fence engi
 	}
 	now := time.Now().UTC()
 	doc := fenceDocument{ID: s.fenceID(topic), Version: schemaVersion, Scope: s.scopeID, Topic: topic, ChainEpoch: epoch, TopicHistoryGeneration: generation, CreatedAt: now, UpdatedAt: now}
-	_, err = s.db.Collection(fenceCollection).UpdateOne(ctx, bson.D{{Key: fieldID, Value: doc.ID}}, bson.D{{Key: "$setOnInsert", Value: doc}}, options.UpdateOne().SetUpsert(true))
+	_, err = s.db.Collection(fenceCollection).UpdateOne(ctx, bson.D{{Key: fieldID, Value: doc.ID}}, bson.D{{Key: fieldSetOnInsert, Value: doc}}, options.UpdateOne().SetUpsert(true))
 	if mongo.IsDuplicateKeyError(err) {
 		return nil
 	}
@@ -911,7 +989,7 @@ func validHistoryUpdate(update engine.AdmissionHistoryUpdate, expected engine.Hi
 	return err == nil && (update.Handoff == nil || validText(update.Handoff.Checkpoint))
 }
 
-func fenceEquals(actual engine.HistoryFence, expected engine.HistoryFence) bool {
+func fenceEquals(actual, expected engine.HistoryFence) bool {
 	return actual.ChainEpoch == expected.ChainEpoch && actual.TopicHistoryGeneration == expected.TopicHistoryGeneration
 }
 
@@ -1014,7 +1092,7 @@ func (s *Store) seedReadyPayload(ctx context.Context, ref engine.AdmissionPayloa
 	}
 	now := time.Now().UTC()
 	doc := payloadDocument{ID: s.payloadID(ref), Version: schemaVersion, Chain: s.chainID, Digest: ref.Digest, Length: length, State: payloadStateReady, Owner: s.ownerID, Token: "00000000000000000001", Guard: bson.NewObjectID(), CreatedAt: now, UpdatedAt: now, LeaseUntil: now.Add(s.config.LeaseDuration)}
-	_, err = s.db.Collection(payloadCollection).UpdateOne(ctx, bson.D{{Key: fieldID, Value: doc.ID}}, bson.D{{Key: "$setOnInsert", Value: doc}}, options.UpdateOne().SetUpsert(true))
+	_, err = s.db.Collection(payloadCollection).UpdateOne(ctx, bson.D{{Key: fieldID, Value: doc.ID}}, bson.D{{Key: fieldSetOnInsert, Value: doc}}, options.UpdateOne().SetUpsert(true))
 	return err
 }
 
