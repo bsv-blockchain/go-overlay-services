@@ -282,7 +282,7 @@ func readBASM[T any](ctx context.Context, s *BASMReadService, topic string, need
 	if err != nil {
 		return zero, err
 	}
-	defer closeBASMView(view, &output, &err, zero, ctx)
+	defer closeBASMView(ctx, view, &output, &err, zero)
 	result, headers, readErr := read(ctx, view)
 	if err = completeBASMRead(ctx, s.headers, view, readErr, headers); err != nil {
 		return zero, err
@@ -317,7 +317,7 @@ func openBASMReadView(ctx context.Context, s *BASMReadService, topic string) (BA
 	return view, nil
 }
 
-func closeBASMView[T any](view BASMReadView, output *T, err *error, zero T, ctx context.Context) {
+func closeBASMView[T any](ctx context.Context, view BASMReadView, output *T, err *error, zero T) {
 	closeErr := view.Close()
 	if *err == nil {
 		*err = closeErr

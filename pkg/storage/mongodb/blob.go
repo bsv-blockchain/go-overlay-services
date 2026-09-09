@@ -303,10 +303,11 @@ func copyBlobBytes(ctx context.Context, reader io.Reader, expected uint64, write
 		if err != nil {
 			return written, err
 		}
-		written, stop, err := applyBlobChunk(writer, digest, buffer[:n], n, readErr, written, expected)
+		next, stop, err := applyBlobChunk(writer, digest, buffer[:n], n, readErr, written, expected)
 		if err != nil || stop {
-			return written, err
+			return next, err
 		}
+		written = next
 	}
 	return written, nil
 }
@@ -337,7 +338,7 @@ func applyBlobChunk(writer io.Writer, digest hash.Hash, data []byte, n int, read
 		written += uint64(n)
 	}
 	if readErr != nil {
-		if readErr == io.EOF && written == expected {
+		if errors.Is(readErr, io.EOF) && written == expected {
 			return written, true, nil
 		}
 		return written, true, readErr

@@ -50,14 +50,14 @@ func (s *Store) runTransaction(ctx context.Context, body func(context.Context) e
 		}
 		bodyErr := runTransactionBody(workCtx, session, body, s.config.TransactionTimeout)
 		if bodyErr != nil {
-			failOutcome, failErr, retry := handleBodyFailure(workCtx, session, bodyErr)
+			retry, failErr := handleBodyFailure(workCtx, session, bodyErr)
 			if retry {
 				lastErr = failErr
 				continue
 			}
-			return failOutcome, failErr
+			return transactionAborted, failErr
 		}
-		commitOutcome, commitErr, retry := s.commitTransactionAttempt(workCtx, session)
+		commitOutcome, retry, commitErr := s.commitTransactionAttempt(workCtx, session)
 		if retry {
 			lastErr = commitErr
 			continue
@@ -86,12 +86,12 @@ func runTransactionBody(workCtx context.Context, session *mongo.Session, body fu
 	return body(mongo.NewSessionContext(bodyCtx, session))
 }
 
-func handleBodyFailure(workCtx context.Context, session *mongo.Session, bodyErr error) (transactionOutcome, error, bool) {
+func handleBodyFailure(workCtx context.Context, session *mongo.Session, bodyErr error) (bool, error) {
 	retry, abortErr := abortTransactionAttempt(workCtx, session, bodyErr)
 	if abortErr != nil {
-		return transactionAborted, abortErr, false
+		return false, abortErr
 	}
-	return transactionAborted, bodyErr, retry
+	return retry, bodyErr
 }
 
 func abortTransactionAttempt(workCtx context.Context, session *mongo.Session, bodyErr error) (bool, error) {
@@ -103,7 +103,7 @@ func abortTransactionAttempt(workCtx context.Context, session *mongo.Session, bo
 	return hasErrorLabel(bodyErr, "TransientTransactionError"), nil
 }
 
-func (s *Store) commitTransactionAttempt(workCtx context.Context, session *mongo.Session) (transactionOutcome, error, bool) {
+func (s *Store) commitTransactionAttempt(workCtx context.Context, session *mongo.Session) (transactionOutcome, bool, error) {
 	commitBudget, commitCancel := context.WithTimeout(context.WithoutCancel(workCtx), s.config.CommitTimeout)
 	defer commitCancel()
 	ambiguous := false
@@ -113,14 +113,14 @@ func (s *Store) commitTransactionAttempt(workCtx context.Context, session *mongo
 		commitErr := session.CommitTransaction(commitCtx)
 		attemptCancel()
 		if commitErr == nil {
-			return transactionCommitted, nil, false
+			return transactionCommitted, false, nil
 		}
 		lastErr = commitErr
 		if unknownCommitResult(commitErr) {
 			ambiguous = true
 		}
 		if !ambiguous && hasErrorLabel(commitErr, "TransientTransactionError") {
-			return transactionAborted, commitErr, true
+			return transactionAborted, true, commitErr
 		}
 		if !ambiguous {
 			// Even unlabeled commit failures are conservatively unresolved; only an
@@ -131,7 +131,7 @@ func (s *Store) commitTransactionAttempt(workCtx context.Context, session *mongo
 			break
 		}
 	}
-	return transactionPending, errors.Join(ErrCommitPending, lastErr), false
+	return transactionPending, false, errors.Join(ErrCommitPending, lastErr)
 }
 
 func unknownCommitResult(err error) bool {

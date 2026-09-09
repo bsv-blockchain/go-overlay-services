@@ -88,7 +88,7 @@ func (h *BASMReadHandler) Handle(c *fiber.Ctx, kind string, topicRequired bool) 
 	if err = h.validateResponse(kind, topic, request, response); err != nil {
 		return h.writeMappedError(c, err)
 	}
-	return h.writeJSONResponse(c, ctx, response)
+	return h.writeJSONResponse(ctx, c, response)
 }
 
 func (h *BASMReadHandler) invokeProvider(ctx context.Context, kind, topic string, request basm.ReadRequest) (any, error) {
@@ -108,7 +108,7 @@ func (h *BASMReadHandler) invokeProvider(ctx context.Context, kind, topic string
 	}
 }
 
-func (h *BASMReadHandler) writeJSONResponse(c *fiber.Ctx, ctx context.Context, response any) error {
+func (h *BASMReadHandler) writeJSONResponse(ctx context.Context, c *fiber.Ctx, response any) error {
 	if err := ctx.Err(); err != nil {
 		return h.writeMappedError(c, err)
 	}
@@ -193,6 +193,9 @@ func (h *BASMReadHandler) validateRangeResponse(kind, topic string, request basm
 }
 
 func (h *BASMReadHandler) validateRangeAnchor(topic string, from uint32, index int, anchor basm.Anchor, budget *responseBudget) error {
+	if index < 0 {
+		return engine.ErrBASMInvalidData
+	}
 	if anchor.Topic != topic || uint64(anchor.BlockHeight) != uint64(from)+uint64(index) || !h.validTopic(anchor.Topic) || anchor.Validate(h.limits.Limits) != nil {
 		return engine.ErrBASMInvalidData
 	}
