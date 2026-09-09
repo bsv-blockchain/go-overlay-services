@@ -48,43 +48,43 @@ func TestPersistenceFoundation(t *testing.T) {
 	require.Nil(t, engine.GetAdmissionStorage(store), "foundation must not advertise unfinished admission")
 
 	t.Run("SharedContentKindsNodesAndRetention", func(t *testing.T) {
-		testSharedContentKindsNodesAndRetention(t, ctx, store, other)
+		testSharedContentKindsNodesAndRetention(ctx, t, store, other)
 	})
 
 	t.Run("LargePayloadReadyAndDeletionRecovery", func(t *testing.T) {
-		testLargePayloadReadyAndDeletionRecovery(t, ctx, replica, store)
+		testLargePayloadReadyAndDeletionRecovery(ctx, t, replica, store)
 	})
 
 	t.Run("RejectedUploadNeverBecomesReady", func(t *testing.T) {
-		testRejectedUploadNeverBecomesReady(t, ctx, store, other)
+		testRejectedUploadNeverBecomesReady(ctx, t, store, other)
 	})
 
 	t.Run("PinAndDeletionRace", func(t *testing.T) {
-		testPinAndDeletionRace(t, ctx, store, other)
+		testPinAndDeletionRace(ctx, t, store, other)
 	})
 
 	t.Run("OperationReplayDigestAndAtomicBody", func(t *testing.T) {
-		testOperationReplayDigestAndAtomicBody(t, ctx, replica, store)
+		testOperationReplayDigestAndAtomicBody(ctx, t, replica, store)
 	})
 
 	t.Run("PendingReconciliationAndAbsenceFence", func(t *testing.T) {
-		testPendingReconciliationAndAbsenceFence(t, ctx, store, other)
+		testPendingReconciliationAndAbsenceFence(ctx, t, store, other)
 	})
 
 	t.Run("AbortFenceMismatchReturnsPending", func(t *testing.T) {
-		testAbortFenceMismatchReturnsPending(t, ctx, store)
+		testAbortFenceMismatchReturnsPending(ctx, t, store)
 	})
 
 	t.Run("ConnectFactoryAndUnknownCommitCAS", func(t *testing.T) {
-		testConnectFactoryAndUnknownCommitCAS(t, ctx, replica)
+		testConnectFactoryAndUnknownCommitCAS(ctx, t, replica)
 	})
 
 	t.Run("TransientBodyRetry", func(t *testing.T) {
-		testTransientBodyRetry(t, ctx, replica, store)
+		testTransientBodyRetry(ctx, t, replica, store)
 	})
 
 	t.Run("FailedGridFSPublishCanReplaceReservation", func(t *testing.T) {
-		testFailedGridFSPublishCanReplaceReservation(t, ctx, replica)
+		testFailedGridFSPublishCanReplaceReservation(ctx, t, replica)
 	})
 }
 
@@ -92,7 +92,7 @@ func testReceipt(key engine.AdmissionOperationKey) engine.AdmissionReceipt {
 	return engine.AdmissionReceipt{OperationID: key.OperationID, SemanticDigest: key.SemanticDigest, Durability: engine.AdmissionDurabilityAtomicLocal, Steak: " {\n\"tx\": \"𐀀\", \"admitted\": []}\n", Indexes: []engine.AdmissionIndexStatus{{Target: "local", State: engine.AdmissionIndexVisible}, {Target: "external", State: engine.AdmissionIndexPending}}, Propagation: engine.AdmissionPropagationPending}
 }
 
-func testSharedContentKindsNodesAndRetention(t *testing.T, ctx context.Context, store, other *Store) {
+func testSharedContentKindsNodesAndRetention(ctx context.Context, t *testing.T, store, other *Store) {
 	t.Helper()
 	data := []byte("content retained by history and outbox, topics.$are.values")
 	ref := payloadRef(data, engine.AdmissionPayloadRawTransaction)
@@ -126,7 +126,7 @@ func testSharedContentKindsNodesAndRetention(t *testing.T, ctx context.Context, 
 	require.NoError(t, other.CopyPayload(ctx, ref, io.Discard))
 }
 
-func testLargePayloadReadyAndDeletionRecovery(t *testing.T, ctx context.Context, replica *mongotest.ReplicaSet, store *Store) {
+func testLargePayloadReadyAndDeletionRecovery(ctx context.Context, t *testing.T, replica *mongotest.ReplicaSet, store *Store) {
 	t.Helper()
 	const length = 17 << 20
 	ref := engine.AdmissionPayloadRef{Digest: repeatedSHA256(length, 'x'), ByteLength: engine.StorageUint64(strconv.Itoa(length)), Kind: engine.AdmissionPayloadRawTransaction}
@@ -147,7 +147,7 @@ func testLargePayloadReadyAndDeletionRecovery(t *testing.T, ctx context.Context,
 	require.Zero(t, count)
 }
 
-func testRejectedUploadNeverBecomesReady(t *testing.T, ctx context.Context, store, other *Store) {
+func testRejectedUploadNeverBecomesReady(ctx context.Context, t *testing.T, store, other *Store) {
 	t.Helper()
 	data := []byte("must match")
 	ref := payloadRef(data, engine.AdmissionPayloadMerklePath)
@@ -161,7 +161,7 @@ func testRejectedUploadNeverBecomesReady(t *testing.T, ctx context.Context, stor
 	require.ErrorIs(t, store.PinPayload(ctx, wrong, ReferenceOwner{Kind: ReferencePin, ID: "wrong-size"}), ErrPayloadUnavailable)
 }
 
-func testPinAndDeletionRace(t *testing.T, ctx context.Context, store, other *Store) {
+func testPinAndDeletionRace(ctx context.Context, t *testing.T, store, other *Store) {
 	t.Helper()
 	for i := range 8 {
 		data := []byte("race-" + strconv.Itoa(i))
@@ -189,7 +189,7 @@ func testPinAndDeletionRace(t *testing.T, ctx context.Context, store, other *Sto
 	}
 }
 
-func testOperationReplayDigestAndAtomicBody(t *testing.T, ctx context.Context, replica *mongotest.ReplicaSet, store *Store) {
+func testOperationReplayDigestAndAtomicBody(ctx context.Context, t *testing.T, replica *mongotest.ReplicaSet, store *Store) {
 	t.Helper()
 	key := engine.AdmissionOperationKey{Scope: store.Scope(), OperationID: "receipt.$:𐀀", SemanticDigest: strings.Repeat("1", 64)}
 	effects := store.db.Collection("test_effects")
@@ -232,7 +232,7 @@ func testOperationReplayDigestAndAtomicBody(t *testing.T, ctx context.Context, r
 	require.Equal(t, engine.AdmissionCommitStateCommitted, retried.State)
 }
 
-func testPendingReconciliationAndAbsenceFence(t *testing.T, ctx context.Context, store, other *Store) {
+func testPendingReconciliationAndAbsenceFence(ctx context.Context, t *testing.T, store, other *Store) {
 	t.Helper()
 	key := engine.AdmissionOperationKey{Scope: store.Scope(), OperationID: "expired-claim", SemanticDigest: strings.Repeat("3", 64)}
 	operation, claimed, claimErr := store.claimOperation(ctx, key)
@@ -277,7 +277,7 @@ func testPendingReconciliationAndAbsenceFence(t *testing.T, ctx context.Context,
 	require.Equal(t, engine.AdmissionCommitStateAborted, fenced.State)
 }
 
-func testAbortFenceMismatchReturnsPending(t *testing.T, ctx context.Context, store *Store) {
+func testAbortFenceMismatchReturnsPending(ctx context.Context, t *testing.T, store *Store) {
 	t.Helper()
 	key := engine.AdmissionOperationKey{Scope: store.Scope(), OperationID: "fence-miss", SemanticDigest: strings.Repeat("6", 64)}
 	operation, claimed, claimErr := store.claimOperation(ctx, key)
@@ -297,7 +297,7 @@ func testAbortFenceMismatchReturnsPending(t *testing.T, ctx context.Context, sto
 	require.Equal(t, next, stored.Token)
 }
 
-func testConnectFactoryAndUnknownCommitCAS(t *testing.T, ctx context.Context, replica *mongotest.ReplicaSet) {
+func testConnectFactoryAndUnknownCommitCAS(ctx context.Context, t *testing.T, replica *mongotest.ReplicaSet) {
 	t.Helper()
 	connected, connectErr := Connect(ctx, replica.URI, foundationConfig("foundation_connect", "node-connect"))
 	require.NoError(t, connectErr)
@@ -345,7 +345,7 @@ func testConnectFactoryAndUnknownCommitCAS(t *testing.T, ctx context.Context, re
 	}
 }
 
-func testTransientBodyRetry(t *testing.T, ctx context.Context, replica *mongotest.ReplicaSet, store *Store) {
+func testTransientBodyRetry(ctx context.Context, t *testing.T, replica *mongotest.ReplicaSet, store *Store) {
 	t.Helper()
 	key := engine.AdmissionOperationKey{Scope: store.Scope(), OperationID: "transient-body", SemanticDigest: strings.Repeat("5", 64)}
 	effects := store.db.Collection("transient_effects")
@@ -367,7 +367,7 @@ func testTransientBodyRetry(t *testing.T, ctx context.Context, replica *mongotes
 	require.EqualValues(t, 1, count)
 }
 
-func testFailedGridFSPublishCanReplaceReservation(t *testing.T, ctx context.Context, replica *mongotest.ReplicaSet) {
+func testFailedGridFSPublishCanReplaceReservation(ctx context.Context, t *testing.T, replica *mongotest.ReplicaSet) {
 	t.Helper()
 	config := foundationConfig("foundation_resume", "node-resume")
 	config.InlineLimit = 8

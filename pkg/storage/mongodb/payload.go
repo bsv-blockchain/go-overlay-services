@@ -464,8 +464,10 @@ func (s *Store) claimExpiredPayload(ctx context.Context, ref engine.AdmissionPay
 }
 
 func (s *Store) claimExpiredPayloadTx(ctx context.Context, ref engine.AdmissionPayloadRef, old payloadDocument, next string) (payloadDocument, error) {
-	filter := bson.D{{Key: fieldID, Value: old.ID}, {Key: fieldState, Value: old.State}, {Key: fieldToken, Value: old.Token}}
-	filter = append(filter, leaseExpired()...)
+	expired := leaseExpired()
+	filter := make(bson.D, 0, 3+len(expired))
+	filter = append(filter, bson.E{Key: fieldID, Value: old.ID}, bson.E{Key: fieldState, Value: old.State}, bson.E{Key: fieldToken, Value: old.Token})
+	filter = append(filter, expired...)
 	update := mongo.Pipeline{bson.D{{Key: fieldSet, Value: bson.D{{Key: fieldState, Value: "deleting"}, {Key: fieldOwner, Value: bson.D{{Key: fieldLiteral, Value: s.ownerID}}}, {Key: fieldToken, Value: next}, {Key: fieldGuard, Value: bson.NewObjectID()}, {Key: fieldUpdatedAt, Value: serverNow}, {Key: fieldLeaseUntil, Value: serverLease(s.config.LeaseDuration)}}}}}
 	var claimed payloadDocument
 	if err := s.db.Collection(payloadCollection).FindOneAndUpdate(ctx, filter, update, options.FindOneAndUpdate().SetReturnDocument(options.After)).Decode(&claimed); err != nil {
