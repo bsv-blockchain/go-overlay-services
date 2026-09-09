@@ -34,28 +34,11 @@ var (
 )
 
 const (
-	schemaVersion           = int32(1)
-	payloadCollection       = "go_overlay_v1_payloads"
-	referenceCollection     = "go_overlay_v1_references"
-	operationCollection     = "go_overlay_v1_operations"
-	schemaCollection        = "go_overlay_v1_schema"
-	outputCollection        = "go_overlay_v1_outputs"
-	edgeCollection          = "go_overlay_v1_edges"
-	appliedCollection       = "go_overlay_v1_applied"
-	transactionCollection   = "go_overlay_v1_transactions"
-	outboxCollection        = "go_overlay_v1_outbox"
-	readCollection          = "go_overlay_v1_reads"
-	fenceCollection         = "go_overlay_v1_fences"
-	leaseCollection         = "go_overlay_v1_leases"
-	cursorCollection        = "go_overlay_v1_cursors"
-	merkleStateUnmined      = "unmined"
-	merkleStateValidated    = "validated"
-	merkleStateInvalidated  = "invalidated"
-	merkleStateImmutable    = "immutable"
-	outboxStatePending      = "pending"
-	payloadStateReady       = "ready"
-	spendVersionInitial     = "1"
-	maxAdmissionArrayLength = 1024
+	schemaVersion       = int32(1)
+	payloadCollection   = "go_overlay_v1_payloads"
+	referenceCollection = "go_overlay_v1_references"
+	operationCollection = "go_overlay_v1_operations"
+	schemaCollection    = "go_overlay_v1_schema"
 )
 
 // Config binds a store to an explicit database and overlay scope. Zero limits
@@ -84,7 +67,6 @@ type Store struct {
 	ownerID    string
 	ownsClient bool
 	blobs      *blobStore
-	projector  any
 }
 
 func normalizeConfig(config Config) (Config, error) {
@@ -173,20 +155,6 @@ func (s *Store) Close(ctx context.Context) error {
 // Scope returns the immutable node authority namespace of the store.
 func (s *Store) Scope() engine.StorageScope { return s.config.Scope }
 
-// AdmissionProtocol identifies the implemented overlay-admission-v1 capability.
-func (s *Store) AdmissionProtocol() string {
-	return engine.AdmissionStorageProtocol
-}
-
-// AdmissionStorage advertises this store as the v1 admission capability.
-// A nil store does not advertise a protocol.
-func (s *Store) AdmissionStorage() engine.AdmissionStorage {
-	if s == nil {
-		return nil
-	}
-	return s
-}
-
 func (s *Store) transactionOptions() *options.TransactionOptionsBuilder {
 	return options.Transaction().SetReadConcern(readconcern.Snapshot()).SetReadPreference(readpref.Primary()).SetWriteConcern(majorityWriteConcern())
 }
@@ -209,78 +177,22 @@ func majorityWriteConcern() *writeconcern.WriteConcern {
 }
 
 const (
-	fieldID                     = "_id"
-	fieldGuard                  = "guard"
-	fieldDigest                 = "digest"
-	fieldCreatedAt              = "createdAt"
-	fieldUpdatedAt              = "updatedAt"
-	fieldState                  = "state"
-	fieldOwner                  = "owner"
-	fieldChain                  = "chain"
-	fieldLeaseUntil             = "leaseUntil"
-	fieldToken                  = "token"
-	fieldLength                 = "length"
-	fieldScope                  = "scope"
-	fieldVersion                = "version"
-	fieldAttempt                = "attempt"
-	fieldFilesID                = "files_id"
-	fieldSet                    = "$set"
-	fieldSetOnInsert            = "$setOnInsert"
-	fieldTopic                  = "topic"
-	fieldTxID                   = "txid"
-	fieldOutputIndex            = "outputIndex"
-	fieldSatoshis               = "satoshis"
-	fieldScore                  = "score"
-	fieldEngineScore            = "engineScore"
-	fieldSpent                  = "spent"
-	fieldSpentBy                = "spentBy"
-	fieldSpendVersion           = "spendVersion"
-	fieldServing                = "serving"
-	fieldMerkleState            = "merkleState"
-	fieldKind                   = "kind"
-	fieldTarget                 = "target"
-	fieldEventID                = "eventId"
-	fieldPayloads               = "payloads"
-	fieldReadVersion            = "readVersion"
-	fieldKey                    = "key"
-	fieldPeerID                 = "peerId"
-	fieldJobID                  = "jobId"
-	fieldChainEpoch             = "chainEpoch"
-	fieldTopicHistoryGeneration = "topicHistoryGeneration"
-	fieldExpiresAtMS            = "expiresAtMs"
-	fieldAffectedFromHeight     = "affectedFromHeight"
-	fieldCheckpoint             = "checkpoint"
-	fieldHost                   = "host"
-	fieldSince                  = "since"
-	fieldNowMS                  = "nowMs"
-	fieldSourceTxID             = "sourceTxid"
-	fieldSourceIndex            = "sourceIndex"
-	fieldConsumerTxID           = "consumerTxid"
-	fieldConsumerIndex          = "consumerIndex"
-	fieldAncillary              = "ancillaryTxids"
-	fieldBeefDigest             = "beefDigest"
-	fieldBeefLength             = "beefLength"
-	fieldBeefKind               = "beefKind"
-	fieldScriptDigest           = "scriptDigest"
-	fieldScriptKind             = "scriptKind"
-	fieldScriptOffset           = "scriptOffset"
-	fieldScriptLength           = "scriptLength"
-	fieldBlockHeight            = "blockHeight"
-	fieldBlockIndex             = "blockIndex"
-	fieldBlockHash              = "blockHash"
-	fieldMerkleRoot             = "merkleRoot"
-	fieldProven                 = "proven"
-	fieldFirstSeenHeight        = "firstSeenHeight"
-	fieldProofDigest            = "proofDigest"
-	fieldProofKind              = "proofKind"
-	fieldProofLength            = "proofLength"
-	fieldOperationID            = "operationID"
-	fieldByteLength             = "byteLength"
-	serverNow                   = "$$NOW"
-)
-
-var (
-	_ engine.Storage                  = (*Store)(nil)
-	_ engine.AdmissionStorage         = (*Store)(nil)
-	_ engine.AdmissionStorageProvider = (*Store)(nil)
+	fieldID         = "_id"
+	fieldGuard      = "guard"
+	fieldDigest     = "digest"
+	fieldCreatedAt  = "createdAt"
+	fieldUpdatedAt  = "updatedAt"
+	fieldState      = "state"
+	fieldOwner      = "owner"
+	fieldChain      = "chain"
+	fieldLeaseUntil = "leaseUntil"
+	fieldToken      = "token"
+	fieldLength     = "length"
+	fieldScope      = "scope"
+	fieldVersion    = "version"
+	fieldAttempt    = "attempt"
+	fieldFilesID    = "files_id"
+	fieldSet        = "$set"
+	fieldLiteral    = "$literal"
+	serverNow       = "$$NOW"
 )

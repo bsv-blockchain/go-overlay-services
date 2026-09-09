@@ -49,7 +49,7 @@ regenerated with `go generate ./pkg/server`, not manually edited output.
 ## Storage and chain obligations
 
 Construct `engine.NewBASMReadService(storage, headers, limits)` and supply it as
-the optional provider. `BASMReadStorage` is a new, separate capability.
+the optional provider. `BASMReadOpener` is a new, separate capability.
 `OpenBASMRead` must return an immutable coherent per-request view, enforce
 passed count/byte limits before allocating, retain historical spent/banned
 admissions, and return errors for incomplete intervals. `CheckCurrent` must

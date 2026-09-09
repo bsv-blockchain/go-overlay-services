@@ -73,27 +73,9 @@ func DecodeAdmittedListJSON(ctx context.Context, data []byte, blockTxCount uint6
 	if err != nil || token != json.Delim('[') {
 		return nil, fmt.Errorf("%w: admitted list must be a JSON array", ErrInvalidInput)
 	}
-	admitted := make([]AdmittedTxRef, 0)
-	for dec.More() {
-		if err = ctx.Err(); err != nil {
-			return nil, err
-		}
-		if uint64(len(admitted)) >= uint64(limits.MaxAdmitted) {
-			return nil, fmt.Errorf("%w: admitted list exceeds local limit", ErrLimitExceeded)
-		}
-		fields, itemErr := readObject(dec)
-		if itemErr != nil {
-			return nil, itemErr
-		}
-		txid, itemErr := parseJSONHash(fields["txid"])
-		if itemErr != nil {
-			return nil, fmt.Errorf("txid: %w", itemErr)
-		}
-		index, itemErr := parseUint(fields["blockIndex"], 64)
-		if itemErr != nil || index > MaxSafeJSONInteger {
-			return nil, fmt.Errorf("%w: blockIndex must be an unsigned safe JSON integer", ErrInvalidInput)
-		}
-		admitted = append(admitted, AdmittedTxRef{TxID: txid, BlockIndex: index})
+	admitted, err := readAdmittedArray(ctx, dec, limits)
+	if err != nil {
+		return nil, err
 	}
 	if _, err = dec.Token(); err != nil {
 		return nil, fmt.Errorf("admitted list closing delimiter: %w", err)
@@ -105,6 +87,40 @@ func DecodeAdmittedListJSON(ctx context.Context, data []byte, blockTxCount uint6
 		return nil, err
 	}
 	return admitted, nil
+}
+
+func readAdmittedArray(ctx context.Context, dec *json.Decoder, limits Limits) ([]AdmittedTxRef, error) {
+	admitted := make([]AdmittedTxRef, 0)
+	for dec.More() {
+		if err := ctx.Err(); err != nil {
+			return nil, err
+		}
+		if uint64(len(admitted)) >= uint64(limits.MaxAdmitted) {
+			return nil, fmt.Errorf("%w: admitted list exceeds local limit", ErrLimitExceeded)
+		}
+		ref, err := readAdmittedItem(dec)
+		if err != nil {
+			return nil, err
+		}
+		admitted = append(admitted, ref)
+	}
+	return admitted, nil
+}
+
+func readAdmittedItem(dec *json.Decoder) (AdmittedTxRef, error) {
+	fields, err := readObject(dec)
+	if err != nil {
+		return AdmittedTxRef{}, err
+	}
+	txid, err := parseJSONHash(fields["txid"])
+	if err != nil {
+		return AdmittedTxRef{}, fmt.Errorf("txid: %w", err)
+	}
+	index, err := parseUint(fields["blockIndex"], 64)
+	if err != nil || index > MaxSafeJSONInteger {
+		return AdmittedTxRef{}, fmt.Errorf("%w: blockIndex must be an unsigned safe JSON integer", ErrInvalidInput)
+	}
+	return AdmittedTxRef{TxID: txid, BlockIndex: index}, nil
 }
 
 // DecodeRangeJSON reads the existing TS {fromHeight,toHeight} request value and
@@ -167,30 +183,38 @@ func validUnicodeEscapes(data []byte) bool {
 		if i >= len(data) || data[i] != 'u' {
 			continue
 		}
-		if i+4 >= len(data) {
+		next, ok := consumeUnicodeEscape(data, i)
+		if !ok {
 			return false
 		}
-		unit, err := strconv.ParseUint(string(data[i+1:i+5]), 16, 16)
-		if err != nil {
-			return false
-		}
-		i += 4
-		if unit >= 0xdc00 && unit <= 0xdfff {
-			return false
-		}
-		if unit < 0xd800 || unit > 0xdbff {
-			continue
-		}
-		if i+6 >= len(data) || data[i+1] != '\\' || data[i+2] != 'u' {
-			return false
-		}
-		low, err := strconv.ParseUint(string(data[i+3:i+7]), 16, 16)
-		if err != nil || low < 0xdc00 || low > 0xdfff {
-			return false
-		}
-		i += 6
+		i = next
 	}
 	return true
+}
+
+func consumeUnicodeEscape(data []byte, uIndex int) (int, bool) {
+	if uIndex+4 >= len(data) {
+		return 0, false
+	}
+	unit, err := strconv.ParseUint(string(data[uIndex+1:uIndex+5]), 16, 16)
+	if err != nil {
+		return 0, false
+	}
+	i := uIndex + 4
+	if unit >= 0xdc00 && unit <= 0xdfff {
+		return 0, false
+	}
+	if unit < 0xd800 || unit > 0xdbff {
+		return i, true
+	}
+	if i+6 >= len(data) || data[i+1] != '\\' || data[i+2] != 'u' {
+		return 0, false
+	}
+	low, err := strconv.ParseUint(string(data[i+3:i+7]), 16, 16)
+	if err != nil || low < 0xdc00 || low > 0xdfff {
+		return 0, false
+	}
+	return i + 6, true
 }
 
 func readObject(dec *json.Decoder) (map[string]json.RawMessage, error) {

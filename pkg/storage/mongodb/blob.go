@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"hash"
 	"io"
 	"math"
 	"strconv"
@@ -151,12 +152,9 @@ func (s *blobStore) copy(ctx context.Context, id bson.ObjectID, metadata blobMet
 	if err != nil {
 		return err
 	}
-	stream, err := s.bucket.OpenDownloadStream(ctx, id)
+	stream, err := s.openDownloadStream(ctx, id)
 	if err != nil {
-		if errors.Is(err, mongo.ErrFileNotFound) {
-			return ErrBlobUnavailable
-		}
-		return fmt.Errorf("open GridFS download: %w", err)
+		return err
 	}
 	defer func() {
 		closeErr := stream.Close()
@@ -164,7 +162,24 @@ func (s *blobStore) copy(ctx context.Context, id bson.ObjectID, metadata blobMet
 			err = fmt.Errorf("close GridFS download: %w", closeErr)
 		}
 	}()
-	file := stream.GetFile()
+	if err = verifyStreamedBlobFile(stream.GetFile(), stored, metadata, expected); err != nil {
+		return err
+	}
+	return copyVerifiedBlob(ctx, stream, expected, metadata.Digest, writer)
+}
+
+func (s *blobStore) openDownloadStream(ctx context.Context, id bson.ObjectID) (*mongo.GridFSDownloadStream, error) {
+	stream, err := s.bucket.OpenDownloadStream(ctx, id)
+	if err == nil {
+		return stream, nil
+	}
+	if errors.Is(err, mongo.ErrFileNotFound) {
+		return nil, ErrBlobUnavailable
+	}
+	return nil, fmt.Errorf("open GridFS download: %w", err)
+}
+
+func verifyStreamedBlobFile(file *mongo.GridFSFile, stored storedBlobFile, metadata blobMetadata, expected uint64) error {
 	if file == nil || file.Length != stored.Length || file.ChunkSize != blobChunkSize || file.Length < 0 || uint64(file.Length) != expected {
 		return ErrBlobUnavailable
 	}
@@ -172,7 +187,11 @@ func (s *blobStore) copy(ctx context.Context, id bson.ObjectID, metadata blobMet
 	if len(file.Metadata) == 0 || bson.Unmarshal(file.Metadata, &streamedMetadata) != nil || streamedMetadata.State != blobStatePublished || !sameBlobIdentity(streamedMetadata, metadata) {
 		return ErrBlobUnavailable
 	}
-	digest, length, copyErr := streamBlob(ctx, stream, expected, writer)
+	return nil
+}
+
+func copyVerifiedBlob(ctx context.Context, stream io.Reader, expected uint64, digest string, writer io.Writer) error {
+	gotDigest, length, copyErr := streamBlob(ctx, stream, expected, writer)
 	if copyErr != nil {
 		var writerErr *blobWriterError
 		if errors.As(copyErr, &writerErr) || errors.Is(copyErr, context.Canceled) || errors.Is(copyErr, context.DeadlineExceeded) {
@@ -180,7 +199,7 @@ func (s *blobStore) copy(ctx context.Context, id bson.ObjectID, metadata blobMet
 		}
 		return fmt.Errorf("%w: %w", ErrBlobCorrupt, copyErr)
 	}
-	if length != expected || digest != metadata.Digest {
+	if length != expected || gotDigest != digest {
 		return fmt.Errorf("%w: downloaded bytes do not match metadata", ErrBlobCorrupt)
 	}
 	return nil
@@ -268,43 +287,76 @@ func blobLengthBSON(value string) int64 {
 }
 
 func streamBlob(ctx context.Context, reader io.Reader, expected uint64, writer io.Writer) (string, uint64, error) {
-	hash := sha256.New()
+	digest := sha256.New()
 	buffer := make([]byte, 32<<10)
+	written, err := copyBlobBytes(ctx, reader, expected, writer, digest, buffer)
+	if err != nil {
+		return "", written, err
+	}
+	return finishBlobStream(ctx, reader, digest, written)
+}
+
+func copyBlobBytes(ctx context.Context, reader io.Reader, expected uint64, writer io.Writer, digest hash.Hash, buffer []byte) (uint64, error) {
 	var written uint64
 	for written < expected {
-		if err := ctx.Err(); err != nil {
-			return "", written, err
+		n, readErr, err := readBlobChunk(ctx, reader, buffer, expected, written)
+		if err != nil {
+			return written, err
 		}
-		wanted := uint64(len(buffer))
-		if remaining := expected - written; remaining < wanted {
-			wanted = remaining
-		}
-		n, readErr := reader.Read(buffer[:wanted])
-		if n < 0 || uint64(n) > wanted {
-			return "", written, ErrBlobCorrupt
-		}
-		if n > 0 {
-			if uint64(n) > expected-written {
-				return "", written, ErrBlobCorrupt
-			}
-			if err := writeBlobBytes(writer, buffer[:n]); err != nil {
-				return "", written, &blobWriterError{err: err}
-			}
-			if _, err := hash.Write(buffer[:n]); err != nil {
-				return "", written, err
-			}
-			written += uint64(n)
-		}
-		if readErr != nil {
-			if readErr == io.EOF && written == expected {
-				break
-			}
-			return "", written, readErr
-		}
-		if n == 0 {
-			return "", written, io.ErrNoProgress
+		written, stop, err := applyBlobChunk(writer, digest, buffer[:n], n, readErr, written, expected)
+		if err != nil || stop {
+			return written, err
 		}
 	}
+	return written, nil
+}
+
+func readBlobChunk(ctx context.Context, reader io.Reader, buffer []byte, expected, written uint64) (int, error, error) {
+	if err := ctx.Err(); err != nil {
+		return 0, nil, err
+	}
+	wanted := uint64(len(buffer))
+	if remaining := expected - written; remaining < wanted {
+		wanted = remaining
+	}
+	n, readErr := reader.Read(buffer[:wanted])
+	if n < 0 || uint64(n) > wanted {
+		return 0, readErr, ErrBlobCorrupt
+	}
+	if n > 0 && uint64(n) > expected-written {
+		return 0, readErr, ErrBlobCorrupt
+	}
+	return n, readErr, nil
+}
+
+func applyBlobChunk(writer io.Writer, digest hash.Hash, data []byte, n int, readErr error, written, expected uint64) (uint64, bool, error) {
+	if n > 0 {
+		if err := commitBlobChunk(writer, digest, data); err != nil {
+			return written, true, err
+		}
+		written += uint64(n)
+	}
+	if readErr != nil {
+		if readErr == io.EOF && written == expected {
+			return written, true, nil
+		}
+		return written, true, readErr
+	}
+	if n == 0 {
+		return written, true, io.ErrNoProgress
+	}
+	return written, false, nil
+}
+
+func commitBlobChunk(writer io.Writer, digest hash.Hash, data []byte) error {
+	if err := writeBlobBytes(writer, data); err != nil {
+		return &blobWriterError{err: err}
+	}
+	_, err := digest.Write(data)
+	return err
+}
+
+func finishBlobStream(ctx context.Context, reader io.Reader, digest hash.Hash, written uint64) (string, uint64, error) {
 	if err := ctx.Err(); err != nil {
 		return "", written, err
 	}
@@ -316,7 +368,7 @@ func streamBlob(ctx context.Context, reader io.Reader, expected uint64, writer i
 	if readErr != nil && readErr != io.EOF {
 		return "", written, readErr
 	}
-	return hex.EncodeToString(hash.Sum(nil)), written, nil
+	return hex.EncodeToString(digest.Sum(nil)), written, nil
 }
 
 type blobWriterError struct{ err error }

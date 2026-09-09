@@ -65,39 +65,22 @@ func (s *Store) ExecuteOperation(ctx context.Context, key engine.AdmissionOperat
 		return pendingOperation(operation.Attempt), err
 	}
 	if !claimed {
-		if operation.State == "aborted" && operation.Digest == key.SemanticDigest {
-			return engine.AdmissionCommitResult{}, ErrConflict
-		}
-		return s.operationResult(operation, key)
+		return s.unclaimedOperationResult(operation, key)
 	}
+	return s.commitOperationBody(ctx, key, operation, body)
+}
+
+func (s *Store) unclaimedOperationResult(operation operationDocument, key engine.AdmissionOperationKey) (engine.AdmissionCommitResult, error) {
+	if operation.State == "aborted" && operation.Digest == key.SemanticDigest {
+		return engine.AdmissionCommitResult{}, ErrConflict
+	}
+	return s.operationResult(operation, key)
+}
+
+func (s *Store) commitOperationBody(ctx context.Context, key engine.AdmissionOperationKey, operation operationDocument, body OperationBody) (engine.AdmissionCommitResult, error) {
 	var receipt engine.AdmissionReceipt
 	outcome, transactionErr := s.runTransaction(ctx, func(sessionCtx context.Context) error {
-		filter := operationPredicate(operation)
-		filter = append(filter, leaseCurrent()...)
-		guarded, guardErr := s.db.Collection(operationCollection).UpdateOne(sessionCtx, filter, bson.D{{Key: fieldSet, Value: bson.D{{Key: fieldGuard, Value: bson.NewObjectID()}}}})
-		if guardErr != nil {
-			return guardErr
-		}
-		if guarded.MatchedCount != 1 {
-			return ErrConflict
-		}
-		generated, bodyErr := body(sessionCtx)
-		if bodyErr != nil {
-			return bodyErr
-		}
-		encoded, receiptErr := encodeReceipt(key, generated)
-		if receiptErr != nil {
-			return receiptErr
-		}
-		saved, saveErr := s.db.Collection(operationCollection).UpdateOne(sessionCtx, filter, mongo.Pipeline{bson.D{{Key: fieldSet, Value: bson.D{{Key: fieldState, Value: "committed"}, {Key: "receipt", Value: bson.D{{Key: "$literal", Value: bson.Binary{Subtype: 0, Data: encoded}}}}, {Key: fieldUpdatedAt, Value: serverNow}, {Key: fieldGuard, Value: bson.NewObjectID()}}}}})
-		if saveErr != nil {
-			return saveErr
-		}
-		if saved.MatchedCount != 1 {
-			return ErrConflict
-		}
-		receipt = newReceiptDocument(generated).receipt()
-		return nil
+		return s.applyOperationBody(sessionCtx, operation, key, body, &receipt)
 	})
 	switch outcome {
 	case transactionCommitted:
@@ -113,6 +96,35 @@ func (s *Store) ExecuteOperation(ctx context.Context, key engine.AdmissionOperat
 		return s.fenceAbortedOperation(cleanupCtx, key, operation, transactionErr)
 	}
 	return engine.AdmissionCommitResult{}, errInvalidOperation
+}
+
+func (s *Store) applyOperationBody(ctx context.Context, operation operationDocument, key engine.AdmissionOperationKey, body OperationBody, receipt *engine.AdmissionReceipt) error {
+	filter := operationPredicate(operation)
+	filter = append(filter, leaseCurrent()...)
+	guarded, err := s.db.Collection(operationCollection).UpdateOne(ctx, filter, bson.D{{Key: fieldSet, Value: bson.D{{Key: fieldGuard, Value: bson.NewObjectID()}}}})
+	if err != nil {
+		return err
+	}
+	if guarded.MatchedCount != 1 {
+		return ErrConflict
+	}
+	generated, err := body(ctx)
+	if err != nil {
+		return err
+	}
+	encoded, err := encodeReceipt(key, generated)
+	if err != nil {
+		return err
+	}
+	saved, err := s.db.Collection(operationCollection).UpdateOne(ctx, filter, mongo.Pipeline{bson.D{{Key: fieldSet, Value: bson.D{{Key: fieldState, Value: "committed"}, {Key: "receipt", Value: bson.D{{Key: fieldLiteral, Value: bson.Binary{Subtype: 0, Data: encoded}}}}, {Key: fieldUpdatedAt, Value: serverNow}, {Key: fieldGuard, Value: bson.NewObjectID()}}}}})
+	if err != nil {
+		return err
+	}
+	if saved.MatchedCount != 1 {
+		return ErrConflict
+	}
+	*receipt = newReceiptDocument(generated).receipt()
+	return nil
 }
 
 func (s *Store) validateOperation(key engine.AdmissionOperationKey) error {
@@ -272,24 +284,39 @@ func (s *Store) ReconcileOperation(ctx context.Context, key engine.AdmissionOper
 	if attempt != nil && !validText(*attempt) {
 		return engine.AdmissionCommitResult{}, errInvalidOperation
 	}
-	var operation operationDocument
-	err := s.db.Collection(operationCollection).FindOne(ctx, bson.D{{Key: fieldID, Value: s.operationID(key)}}).Decode(&operation)
-	if errors.Is(err, mongo.ErrNoDocuments) {
-		if attempt == nil {
-			return engine.AdmissionCommitResult{}, errInvalidOperation
-		}
-		tombstone := operationDocument{ID: s.operationID(key), Version: schemaVersion, Scope: s.scopeID, OperationID: key.OperationID, Digest: key.SemanticDigest, State: "aborted", Attempt: *attempt, Owner: s.ownerID, Token: "00000000000000000001", Guard: bson.NewObjectID()}
-		err = s.db.Collection(operationCollection).FindOneAndUpdate(ctx, bson.D{{Key: fieldID, Value: tombstone.ID}, {Key: fieldVersion, Value: bson.D{{Key: "$exists", Value: false}}}}, replaceWithServerDates(tombstone, s.config.LeaseDuration), options.FindOneAndUpdate().SetUpsert(true).SetReturnDocument(options.After)).Decode(&operation)
-		if mongo.IsDuplicateKeyError(err) {
-			err = s.db.Collection(operationCollection).FindOne(ctx, bson.D{{Key: fieldID, Value: tombstone.ID}}).Decode(&operation)
-		}
-	}
+	operation, err := s.loadOrTombstoneOperation(ctx, key, attempt)
 	if err != nil {
 		if attempt != nil {
 			return pendingOperation(*attempt), err
 		}
 		return engine.AdmissionCommitResult{}, err
 	}
+	return s.reconcileLoadedOperation(ctx, key, attempt, operation)
+}
+
+func (s *Store) loadOrTombstoneOperation(ctx context.Context, key engine.AdmissionOperationKey, attempt *string) (operationDocument, error) {
+	var operation operationDocument
+	err := s.db.Collection(operationCollection).FindOne(ctx, bson.D{{Key: fieldID, Value: s.operationID(key)}}).Decode(&operation)
+	if !errors.Is(err, mongo.ErrNoDocuments) {
+		return operation, err
+	}
+	if attempt == nil {
+		return operationDocument{}, errInvalidOperation
+	}
+	return s.insertOperationTombstone(ctx, key, *attempt)
+}
+
+func (s *Store) insertOperationTombstone(ctx context.Context, key engine.AdmissionOperationKey, attempt string) (operationDocument, error) {
+	tombstone := operationDocument{ID: s.operationID(key), Version: schemaVersion, Scope: s.scopeID, OperationID: key.OperationID, Digest: key.SemanticDigest, State: "aborted", Attempt: attempt, Owner: s.ownerID, Token: "00000000000000000001", Guard: bson.NewObjectID()}
+	var operation operationDocument
+	err := s.db.Collection(operationCollection).FindOneAndUpdate(ctx, bson.D{{Key: fieldID, Value: tombstone.ID}, {Key: fieldVersion, Value: bson.D{{Key: "$exists", Value: false}}}}, replaceWithServerDates(tombstone, s.config.LeaseDuration), options.FindOneAndUpdate().SetUpsert(true).SetReturnDocument(options.After)).Decode(&operation)
+	if mongo.IsDuplicateKeyError(err) {
+		err = s.db.Collection(operationCollection).FindOne(ctx, bson.D{{Key: fieldID, Value: tombstone.ID}}).Decode(&operation)
+	}
+	return operation, err
+}
+
+func (s *Store) reconcileLoadedOperation(ctx context.Context, key engine.AdmissionOperationKey, attempt *string, operation operationDocument) (engine.AdmissionCommitResult, error) {
 	if !s.validOperationDocument(operation, key) {
 		return engine.AdmissionCommitResult{}, errInvalidOperation
 	}
@@ -302,6 +329,10 @@ func (s *Store) ReconcileOperation(ctx context.Context, key engine.AdmissionOper
 	if operation.State != "pending" {
 		return s.operationResult(operation, key)
 	}
+	return s.fenceExpiredPendingOperation(ctx, key, attempt, operation)
+}
+
+func (s *Store) fenceExpiredPendingOperation(ctx context.Context, key engine.AdmissionOperationKey, attempt *string, operation operationDocument) (engine.AdmissionCommitResult, error) {
 	filter := operationPredicate(operation)
 	filter = append(filter, leaseExpired()...)
 	result, err := s.db.Collection(operationCollection).UpdateOne(ctx, filter, mongo.Pipeline{bson.D{{Key: fieldSet, Value: bson.D{{Key: fieldState, Value: "aborted"}, {Key: fieldUpdatedAt, Value: serverNow}, {Key: fieldGuard, Value: bson.NewObjectID()}}}}})

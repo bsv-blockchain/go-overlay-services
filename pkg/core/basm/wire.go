@@ -138,72 +138,97 @@ func validateWireSize(data []byte, maxBytes uint32) error {
 
 func preflightMerklePath(data []byte) error {
 	reader := boundedWireReader{data: data}
-	blockHeight, err := reader.compactSize()
+	treeHeight, err := readBUMPTreeHeight(&reader)
 	if err != nil {
-		return fmt.Errorf("BUMP block height: %w", err)
+		return err
 	}
-	if blockHeight > math.MaxUint32 {
-		return fmt.Errorf("%w: BUMP block height overflows uint32", ErrInvalidInput)
-	}
-	treeHeightByte, err := reader.byte()
-	if err != nil {
-		return fmt.Errorf("BUMP tree height: %w", err)
-	}
-	treeHeight := uint64(treeHeightByte)
-	if treeHeight == 0 || treeHeight > 64 || treeHeight > uint64(reader.remaining()) { //nolint:gosec // remaining is nonnegative
-		return fmt.Errorf("%w: unsafe BUMP tree height", ErrInvalidInput)
-	}
-
 	for level := uint64(0); level < treeHeight; level++ {
-		count, countErr := reader.compactSize()
-		if countErr != nil {
-			return fmt.Errorf("BUMP level %d count: %w", level, countErr)
-		}
-		// Every item has at least a CompactSize offset and flags byte.
-		// Compound paths can omit internal nodes derived from lower levels.
-		// The leaf-level hash requirement below still excludes an empty proof.
-		if count > uint64(reader.remaining()/2) { //nolint:gosec // remaining is nonnegative
-			return fmt.Errorf("%w: unsafe BUMP item count at level %d", ErrInvalidInput, level)
-		}
-		seenOffsets := make(map[uint64]struct{}, count)
-		levelHasHash := false
-		for item := uint64(0); item < count; item++ {
-			offset, offsetErr := reader.compactSize()
-			if offsetErr != nil {
-				return fmt.Errorf("BUMP level %d item %d offset: %w", level, item, offsetErr)
-			}
-			if !validBUMPPosition(offset, level) {
-				return fmt.Errorf("%w: BUMP offset outside level %d", ErrInvalidInput, level)
-			}
-			if _, exists := seenOffsets[offset]; exists {
-				return fmt.Errorf("%w: duplicate BUMP offset at level %d", ErrInvalidInput, level)
-			}
-			seenOffsets[offset] = struct{}{}
-			flags, flagErr := reader.byte()
-			if flagErr != nil {
-				return fmt.Errorf("BUMP level %d item %d flags: %w", level, item, flagErr)
-			}
-			if flags&^byte(3) != 0 || flags == 3 {
-				return fmt.Errorf("%w: invalid BUMP flags", ErrInvalidInput)
-			}
-			if flags&1 != 0 && offset%2 == 0 {
-				return fmt.Errorf("%w: BUMP duplicate must occupy a right-hand offset", ErrInvalidInput)
-			}
-			if flags&1 == 0 {
-				if _, hashErr := reader.bytes(hashSize); hashErr != nil {
-					return fmt.Errorf("BUMP level %d item %d hash: %w", level, item, hashErr)
-				}
-				levelHasHash = true
-			}
-		}
-		if level == 0 && !levelHasHash {
-			return fmt.Errorf("%w: BUMP leaf level has no hash", ErrInvalidInput)
+		if err = preflightMerkleLevel(&reader, level); err != nil {
+			return err
 		}
 	}
 	if reader.remaining() != 0 {
 		return fmt.Errorf("%w: trailing BUMP bytes", ErrInvalidInput)
 	}
 	return nil
+}
+
+func readBUMPTreeHeight(reader *boundedWireReader) (uint64, error) {
+	blockHeight, err := reader.compactSize()
+	if err != nil {
+		return 0, fmt.Errorf("BUMP block height: %w", err)
+	}
+	if blockHeight > math.MaxUint32 {
+		return 0, fmt.Errorf("%w: BUMP block height overflows uint32", ErrInvalidInput)
+	}
+	treeHeightByte, err := reader.byte()
+	if err != nil {
+		return 0, fmt.Errorf("BUMP tree height: %w", err)
+	}
+	treeHeight := uint64(treeHeightByte)
+	if treeHeight == 0 || treeHeight > 64 || treeHeight > uint64(reader.remaining()) { //nolint:gosec // remaining is nonnegative
+		return 0, fmt.Errorf("%w: unsafe BUMP tree height", ErrInvalidInput)
+	}
+	return treeHeight, nil
+}
+
+func preflightMerkleLevel(reader *boundedWireReader, level uint64) error {
+	count, err := reader.compactSize()
+	if err != nil {
+		return fmt.Errorf("BUMP level %d count: %w", level, err)
+	}
+	// Every item has at least a CompactSize offset and flags byte.
+	// Compound paths can omit internal nodes derived from lower levels.
+	// The leaf-level hash requirement below still excludes an empty proof.
+	if count > uint64(reader.remaining()/2) { //nolint:gosec // remaining is nonnegative
+		return fmt.Errorf("%w: unsafe BUMP item count at level %d", ErrInvalidInput, level)
+	}
+	seenOffsets := make(map[uint64]struct{}, count)
+	levelHasHash := false
+	for item := uint64(0); item < count; item++ {
+		hasHash, itemErr := preflightMerkleItem(reader, level, item, seenOffsets)
+		if itemErr != nil {
+			return itemErr
+		}
+		if hasHash {
+			levelHasHash = true
+		}
+	}
+	if level == 0 && !levelHasHash {
+		return fmt.Errorf("%w: BUMP leaf level has no hash", ErrInvalidInput)
+	}
+	return nil
+}
+
+func preflightMerkleItem(reader *boundedWireReader, level, item uint64, seenOffsets map[uint64]struct{}) (bool, error) {
+	offset, err := reader.compactSize()
+	if err != nil {
+		return false, fmt.Errorf("BUMP level %d item %d offset: %w", level, item, err)
+	}
+	if !validBUMPPosition(offset, level) {
+		return false, fmt.Errorf("%w: BUMP offset outside level %d", ErrInvalidInput, level)
+	}
+	if _, exists := seenOffsets[offset]; exists {
+		return false, fmt.Errorf("%w: duplicate BUMP offset at level %d", ErrInvalidInput, level)
+	}
+	seenOffsets[offset] = struct{}{}
+	flags, err := reader.byte()
+	if err != nil {
+		return false, fmt.Errorf("BUMP level %d item %d flags: %w", level, item, err)
+	}
+	if flags&^byte(3) != 0 || flags == 3 {
+		return false, fmt.Errorf("%w: invalid BUMP flags", ErrInvalidInput)
+	}
+	if flags&1 != 0 && offset%2 == 0 {
+		return false, fmt.Errorf("%w: BUMP duplicate must occupy a right-hand offset", ErrInvalidInput)
+	}
+	if flags&1 != 0 {
+		return false, nil
+	}
+	if _, err = reader.bytes(hashSize); err != nil {
+		return false, fmt.Errorf("BUMP level %d item %d hash: %w", level, item, err)
+	}
+	return true, nil
 }
 
 func validBUMPPosition(offset, level uint64) bool {
@@ -215,6 +240,22 @@ func validBUMPPosition(offset, level uint64) bool {
 
 func preflightRawTransaction(data []byte) error {
 	reader := boundedWireReader{data: data}
+	if err := skipRawTransactionInputs(&reader); err != nil {
+		return err
+	}
+	if err := skipRawTransactionOutputs(&reader); err != nil {
+		return err
+	}
+	if _, err := reader.bytes(4); err != nil {
+		return fmt.Errorf("transaction locktime: %w", err)
+	}
+	if reader.remaining() != 0 {
+		return fmt.Errorf("%w: trailing transaction bytes", ErrInvalidInput)
+	}
+	return nil
+}
+
+func skipRawTransactionInputs(reader *boundedWireReader) error {
 	if _, err := reader.bytes(4); err != nil {
 		return fmt.Errorf("transaction version: %w", err)
 	}
@@ -228,16 +269,27 @@ func preflightRawTransaction(data []byte) error {
 		return fmt.Errorf("%w: unsafe transaction input count", ErrInvalidInput)
 	}
 	for input := uint64(0); input < inputCount; input++ {
-		if _, err = reader.bytes(36); err != nil {
-			return fmt.Errorf("transaction input %d outpoint: %w", input, err)
-		}
-		if err = skipWireScript(&reader); err != nil {
-			return fmt.Errorf("transaction input %d script: %w", input, err)
-		}
-		if _, err = reader.bytes(4); err != nil {
-			return fmt.Errorf("transaction input %d sequence: %w", input, err)
+		if err = skipRawTransactionInput(reader, input); err != nil {
+			return err
 		}
 	}
+	return nil
+}
+
+func skipRawTransactionInput(reader *boundedWireReader, input uint64) error {
+	if _, err := reader.bytes(36); err != nil {
+		return fmt.Errorf("transaction input %d outpoint: %w", input, err)
+	}
+	if err := skipWireScript(reader); err != nil {
+		return fmt.Errorf("transaction input %d script: %w", input, err)
+	}
+	if _, err := reader.bytes(4); err != nil {
+		return fmt.Errorf("transaction input %d sequence: %w", input, err)
+	}
+	return nil
+}
+
+func skipRawTransactionOutputs(reader *boundedWireReader) error {
 	outputCount, err := reader.compactSize()
 	if err != nil {
 		return fmt.Errorf("transaction output count: %w", err)
@@ -249,15 +301,9 @@ func preflightRawTransaction(data []byte) error {
 		if _, err = reader.bytes(8); err != nil {
 			return fmt.Errorf("transaction output %d value: %w", output, err)
 		}
-		if err = skipWireScript(&reader); err != nil {
+		if err = skipWireScript(reader); err != nil {
 			return fmt.Errorf("transaction output %d script: %w", output, err)
 		}
-	}
-	if _, err = reader.bytes(4); err != nil {
-		return fmt.Errorf("transaction locktime: %w", err)
-	}
-	if reader.remaining() != 0 {
-		return fmt.Errorf("%w: trailing transaction bytes", ErrInvalidInput)
 	}
 	return nil
 }

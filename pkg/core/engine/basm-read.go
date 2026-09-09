@@ -47,11 +47,11 @@ func nilBASMCapability(capability any) bool {
 	}
 }
 
-// BASMReadStorage opens an immutable per-request read view. topic is empty only
+// BASMReadOpener opens an immutable per-request read view. topic is empty only
 // for the current protocol's global raw-transaction lookup. Unsupported topics
 // return ErrBASMNotFound; unavailable/incomplete snapshots return ErrBASMNotReady.
 // Opening a view must not mutate admissions, evict history, or advance recovery.
-type BASMReadStorage interface {
+type BASMReadOpener interface {
 	OpenBASMRead(ctx context.Context, topic string, limits basm.ReadLimits) (BASMReadView, error)
 }
 

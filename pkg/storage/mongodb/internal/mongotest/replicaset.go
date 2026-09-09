@@ -253,10 +253,7 @@ func (r *ReplicaSet) start(ctx context.Context) error {
 	if err = waitFor(ctx, func() (bool, error) {
 		pingCtx, cancel := context.WithTimeout(ctx, connectionTimeout)
 		defer cancel()
-		if pingErr := client.Ping(pingCtx, readpref.Primary()); pingErr != nil {
-			return false, nil
-		}
-		return true, nil
+		return client.Ping(pingCtx, readpref.Primary()) == nil, nil
 	}); err != nil {
 		disconnectClient(ctx, client)
 		return fmt.Errorf("ping replica-set primary: %w", err)
@@ -342,29 +339,49 @@ func (r *ReplicaSet) waitForMemberLocked(ctx context.Context, member *member) er
 
 func (r *ReplicaSet) waitForReplicaLocked(ctx context.Context, wanted int) error {
 	return waitFor(ctx, func() (bool, error) {
-		ready := 0
-		primary := false
-		for _, member := range r.members {
-			if member.cmd == nil {
-				continue
-			}
-			if err := r.exitedLocked(member); err != nil {
-				return false, err
-			}
-			state, err := memberState(ctx, member.address)
-			if err != nil {
-				continue
-			}
-			switch state {
-			case 1:
-				primary = true
-				ready++
-			case 2:
-				ready++
-			}
+		primary, ready, err := r.replicaReadyCounts(ctx)
+		if err != nil {
+			return false, err
 		}
 		return primary && ready >= wanted, nil
 	})
+}
+
+func (r *ReplicaSet) replicaReadyCounts(ctx context.Context) (primary bool, ready int, err error) {
+	for _, member := range r.members {
+		if member.cmd == nil {
+			continue
+		}
+		if err = r.exitedLocked(member); err != nil {
+			return false, 0, err
+		}
+		isPrimary, isReady, stateErr := replicaMemberState(ctx, member.address)
+		if stateErr != nil {
+			continue
+		}
+		if isPrimary {
+			primary = true
+		}
+		if isReady {
+			ready++
+		}
+	}
+	return primary, ready, nil
+}
+
+func replicaMemberState(ctx context.Context, address string) (primary, ready bool, err error) {
+	state, err := memberState(ctx, address)
+	if err != nil {
+		return false, false, err
+	}
+	switch state {
+	case 1:
+		return true, true, nil
+	case 2:
+		return false, true, nil
+	default:
+		return false, false, nil
+	}
 }
 
 func (r *ReplicaSet) stopMemberLocked(ctx context.Context, member *member) error {
@@ -409,7 +426,7 @@ func (r *ReplicaSet) stopForCleanupLocked(ctx context.Context, member *member) e
 	if killErr := member.cmd.Process.Kill(); killErr != nil && !errors.Is(killErr, os.ErrProcessDone) {
 		return fmt.Errorf("kill mongod at %s: %w", member.address, killErr)
 	}
-	waitCtx, waitCancel := context.WithTimeout(context.Background(), shutdownTimeout)
+	waitCtx, waitCancel := context.WithTimeout(ctx, shutdownTimeout)
 	defer waitCancel()
 	select {
 	case <-member.wait:

@@ -37,17 +37,7 @@ func (s *Store) runTransaction(ctx context.Context, body func(context.Context) e
 		return transactionAborted, err
 	}
 	outcome := transactionAborted
-	defer func() {
-		cleanupCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 2*time.Second)
-		defer cancel()
-		if outcome == transactionPending {
-			// EndSession otherwise sends an implicit abort after a commit timeout.
-			// A canceled cleanup context releases local resources without sending a
-			// competing abort. Neither cleanup nor lease expiry proves an abort.
-			cancel()
-		}
-		session.EndSession(cleanupCtx)
-	}()
+	defer endTransactionSession(ctx, session, &outcome)
 	workCtx, cancel := context.WithTimeout(ctx, s.config.TransactionTimeout)
 	defer cancel()
 	var lastErr error
@@ -58,59 +48,94 @@ func (s *Store) runTransaction(ctx context.Context, body func(context.Context) e
 		if err = session.StartTransaction(s.transactionOptions()); err != nil {
 			return transactionAborted, err
 		}
-		bodyCtx, bodyCancel := context.WithTimeout(workCtx, s.config.TransactionTimeout)
-		bodyErr := body(mongo.NewSessionContext(bodyCtx, session))
-		bodyCancel()
+		bodyErr := runTransactionBody(workCtx, session, body, s.config.TransactionTimeout)
 		if bodyErr != nil {
-			abortCtx, abortCancel := context.WithTimeout(context.WithoutCancel(workCtx), 2*time.Second)
-			abortErr := session.AbortTransaction(abortCtx)
-			abortCancel()
-			if abortErr != nil {
-				return transactionAborted, errors.Join(bodyErr, abortErr)
-			}
-			lastErr = bodyErr
-			if hasErrorLabel(bodyErr, "TransientTransactionError") {
+			failOutcome, failErr, retry := handleBodyFailure(workCtx, session, bodyErr)
+			if retry {
+				lastErr = failErr
 				continue
 			}
-			return transactionAborted, bodyErr
+			return failOutcome, failErr
 		}
-		commitBudget, commitCancel := context.WithTimeout(context.WithoutCancel(workCtx), s.config.CommitTimeout)
-		ambiguous := false
-		retryBody := false
-		for commitAttempt := 0; commitAttempt < s.config.MaxCommitAttempts; commitAttempt++ {
-			commitCtx, attemptCancel := context.WithTimeout(commitBudget, s.config.CommitTimeout/time.Duration(s.config.MaxCommitAttempts))
-			commitErr := session.CommitTransaction(commitCtx)
-			attemptCancel()
-			if commitErr == nil {
-				commitCancel()
-				outcome = transactionCommitted
-				return outcome, nil
-			}
+		commitOutcome, commitErr, retry := s.commitTransactionAttempt(workCtx, session)
+		if retry {
 			lastErr = commitErr
-			if hasErrorLabel(commitErr, "UnknownTransactionCommitResult") || mongo.IsTimeout(commitErr) || errors.Is(commitErr, context.Canceled) || mongo.IsNetworkError(commitErr) {
-				ambiguous = true
-			}
-			if !ambiguous && hasErrorLabel(commitErr, "TransientTransactionError") {
-				retryBody = true
-				break
-			}
-			if !ambiguous {
-				// Even unlabeled commit failures are conservatively unresolved; only an
-				// explicit transient-abort label authorizes rerunning the body.
-				ambiguous = true
-			}
-			if commitBudget.Err() != nil {
-				break
-			}
-		}
-		commitCancel()
-		if retryBody {
 			continue
 		}
-		outcome = transactionPending
-		return outcome, errors.Join(ErrCommitPending, lastErr)
+		outcome = commitOutcome
+		return outcome, commitErr
 	}
 	return transactionAborted, fmt.Errorf("%w: %w", errRetryBudget, lastErr)
+}
+
+func endTransactionSession(ctx context.Context, session *mongo.Session, outcome *transactionOutcome) {
+	cleanupCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 2*time.Second)
+	defer cancel()
+	if *outcome == transactionPending {
+		// EndSession otherwise sends an implicit abort after a commit timeout.
+		// A canceled cleanup context releases local resources without sending a
+		// competing abort. Neither cleanup nor lease expiry proves an abort.
+		cancel()
+	}
+	session.EndSession(cleanupCtx)
+}
+
+func runTransactionBody(workCtx context.Context, session *mongo.Session, body func(context.Context) error, timeout time.Duration) error {
+	bodyCtx, bodyCancel := context.WithTimeout(workCtx, timeout)
+	defer bodyCancel()
+	return body(mongo.NewSessionContext(bodyCtx, session))
+}
+
+func handleBodyFailure(workCtx context.Context, session *mongo.Session, bodyErr error) (transactionOutcome, error, bool) {
+	retry, abortErr := abortTransactionAttempt(workCtx, session, bodyErr)
+	if abortErr != nil {
+		return transactionAborted, abortErr, false
+	}
+	return transactionAborted, bodyErr, retry
+}
+
+func abortTransactionAttempt(workCtx context.Context, session *mongo.Session, bodyErr error) (bool, error) {
+	abortCtx, abortCancel := context.WithTimeout(context.WithoutCancel(workCtx), 2*time.Second)
+	defer abortCancel()
+	if abortErr := session.AbortTransaction(abortCtx); abortErr != nil {
+		return false, errors.Join(bodyErr, abortErr)
+	}
+	return hasErrorLabel(bodyErr, "TransientTransactionError"), nil
+}
+
+func (s *Store) commitTransactionAttempt(workCtx context.Context, session *mongo.Session) (transactionOutcome, error, bool) {
+	commitBudget, commitCancel := context.WithTimeout(context.WithoutCancel(workCtx), s.config.CommitTimeout)
+	defer commitCancel()
+	ambiguous := false
+	var lastErr error
+	for commitAttempt := 0; commitAttempt < s.config.MaxCommitAttempts; commitAttempt++ {
+		commitCtx, attemptCancel := context.WithTimeout(commitBudget, s.config.CommitTimeout/time.Duration(s.config.MaxCommitAttempts))
+		commitErr := session.CommitTransaction(commitCtx)
+		attemptCancel()
+		if commitErr == nil {
+			return transactionCommitted, nil, false
+		}
+		lastErr = commitErr
+		if unknownCommitResult(commitErr) {
+			ambiguous = true
+		}
+		if !ambiguous && hasErrorLabel(commitErr, "TransientTransactionError") {
+			return transactionAborted, commitErr, true
+		}
+		if !ambiguous {
+			// Even unlabeled commit failures are conservatively unresolved; only an
+			// explicit transient-abort label authorizes rerunning the body.
+			ambiguous = true
+		}
+		if commitBudget.Err() != nil {
+			break
+		}
+	}
+	return transactionPending, errors.Join(ErrCommitPending, lastErr), false
+}
+
+func unknownCommitResult(err error) bool {
+	return hasErrorLabel(err, "UnknownTransactionCommitResult") || mongo.IsTimeout(err) || errors.Is(err, context.Canceled) || mongo.IsNetworkError(err)
 }
 
 func hasErrorLabel(err error, label string) bool {
