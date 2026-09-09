@@ -12,6 +12,8 @@ tags:
     description: Admin API endpoints
   - name: non-admin
     description: Non Admin API endpoints
+  - name: basm
+    description: Public bounded BRC-136 BASM read endpoints
 
 paths:
   /admin/syncAdvertisements:
@@ -232,6 +234,129 @@ paths:
         500:
           $ref: '#/components/responses/InternalServerErrorResponse'
 
+  /requestTopicAnchorTip:
+    post:
+      tags: [basm]
+      operationId: RequestTopicAnchorTip
+      security: []
+      parameters:
+        - $ref: '#/components/parameters/BASMTopic'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        200:
+          $ref: '#/components/responses/BASMTopicAnchorTipResponse'
+        400: {$ref: '#/components/responses/BASMErrorResponse'}
+        413: {$ref: '#/components/responses/BASMErrorResponse'}
+        404: {$ref: '#/components/responses/BASMErrorResponse'}
+        501: {$ref: '#/components/responses/BASMErrorResponse'}
+        503: {$ref: '#/components/responses/BASMErrorResponse'}
+        500: {$ref: '#/components/responses/BASMErrorResponse'}
+        504: {$ref: '#/components/responses/BASMErrorResponse'}
+        408: {$ref: '#/components/responses/BASMErrorResponse'}
+
+  /requestTopicAnchorRange:
+    post:
+      tags: [basm]
+      operationId: RequestTopicAnchorRange
+      security: []
+      parameters:
+        - $ref: '#/components/parameters/BASMTopic'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BASMTopicAnchorRangeRequest'
+      responses:
+        200:
+          $ref: '#/components/responses/BASMTopicAnchorRangeResponse'
+        400: {$ref: '#/components/responses/BASMErrorResponse'}
+        413: {$ref: '#/components/responses/BASMErrorResponse'}
+        404: {$ref: '#/components/responses/BASMErrorResponse'}
+        501: {$ref: '#/components/responses/BASMErrorResponse'}
+        503: {$ref: '#/components/responses/BASMErrorResponse'}
+        500: {$ref: '#/components/responses/BASMErrorResponse'}
+        504: {$ref: '#/components/responses/BASMErrorResponse'}
+        408: {$ref: '#/components/responses/BASMErrorResponse'}
+
+  /requestAdmittedList:
+    post:
+      tags: [basm]
+      operationId: RequestAdmittedList
+      security: []
+      parameters:
+        - $ref: '#/components/parameters/BASMTopic'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BASMAdmittedListRequest'
+      responses:
+        200:
+          $ref: '#/components/responses/BASMAdmittedListResponse'
+        400: {$ref: '#/components/responses/BASMErrorResponse'}
+        413: {$ref: '#/components/responses/BASMErrorResponse'}
+        404: {$ref: '#/components/responses/BASMErrorResponse'}
+        501: {$ref: '#/components/responses/BASMErrorResponse'}
+        503: {$ref: '#/components/responses/BASMErrorResponse'}
+        500: {$ref: '#/components/responses/BASMErrorResponse'}
+        504: {$ref: '#/components/responses/BASMErrorResponse'}
+        408: {$ref: '#/components/responses/BASMErrorResponse'}
+
+  /requestCompoundMerklePath:
+    post:
+      tags: [basm]
+      operationId: RequestCompoundMerklePath
+      security: []
+      parameters:
+        - $ref: '#/components/parameters/BASMTopic'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BASMMerklePathRequest'
+      responses:
+        200:
+          $ref: '#/components/responses/BASMCompoundMerklePathResponse'
+        400: {$ref: '#/components/responses/BASMErrorResponse'}
+        413: {$ref: '#/components/responses/BASMErrorResponse'}
+        404: {$ref: '#/components/responses/BASMErrorResponse'}
+        501: {$ref: '#/components/responses/BASMErrorResponse'}
+        503: {$ref: '#/components/responses/BASMErrorResponse'}
+        500: {$ref: '#/components/responses/BASMErrorResponse'}
+        504: {$ref: '#/components/responses/BASMErrorResponse'}
+        408: {$ref: '#/components/responses/BASMErrorResponse'}
+
+  /requestRawTransactions:
+    post:
+      tags: [basm]
+      operationId: RequestRawTransactions
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BASMRawTransactionsRequest'
+      responses:
+        200:
+          $ref: '#/components/responses/BASMRawTransactionsResponse'
+        400: {$ref: '#/components/responses/BASMErrorResponse'}
+        413: {$ref: '#/components/responses/BASMErrorResponse'}
+        404: {$ref: '#/components/responses/BASMErrorResponse'}
+        501: {$ref: '#/components/responses/BASMErrorResponse'}
+        503: {$ref: '#/components/responses/BASMErrorResponse'}
+        500: {$ref: '#/components/responses/BASMErrorResponse'}
+        504: {$ref: '#/components/responses/BASMErrorResponse'}
+        408: {$ref: '#/components/responses/BASMErrorResponse'}
+
 components:
   schemas:
     Error:
@@ -243,12 +368,159 @@ components:
           type: string
           description: Human-readable error message
 
+    BASMHash:
+      type: string
+      pattern: '^[0-9a-f]{64}$'
+    BASMTopicAnchorRangeRequest:
+      type: object
+      required: [fromHeight, toHeight]
+      properties:
+        fromHeight: {type: integer, minimum: 0, maximum: 4294967295}
+        toHeight: {type: integer, minimum: 0, maximum: 4294967295}
+    BASMAdmittedListRequest:
+      type: object
+      required: [blockHeight]
+      properties:
+        blockHeight: {type: integer, minimum: 0, maximum: 4294967295}
+        blockHash: {$ref: '#/components/schemas/BASMHash'}
+    BASMMerklePathRequest:
+      type: object
+      required: [blockHeight, txids]
+      properties:
+        blockHeight: {type: integer, minimum: 0, maximum: 4294967295}
+        txids:
+          type: array
+          minItems: 1
+          uniqueItems: true
+          items: {$ref: '#/components/schemas/BASMHash'}
+    BASMRawTransactionsRequest:
+      type: object
+      required: [txids]
+      properties:
+        txids:
+          type: array
+          uniqueItems: true
+          items: {$ref: '#/components/schemas/BASMHash'}
+    BASMAnchor:
+      type: object
+      required: [topic, blockHeight, blockHash, basmRoot, admittedCount, tac]
+      properties:
+        topic: {type: string, minLength: 1}
+        blockHeight: {type: integer, minimum: 0, maximum: 4294967295}
+        blockHash: {$ref: '#/components/schemas/BASMHash'}
+        basmRoot: {$ref: '#/components/schemas/BASMHash'}
+        admittedCount: {type: integer, minimum: 0, maximum: 9007199254740991}
+        tac: {$ref: '#/components/schemas/BASMHash'}
+    BASMTopicAnchorTip:
+      type: object
+      required: [topic, blockHeight, tac]
+      properties:
+        topic: {type: string, minLength: 1}
+        blockHeight: {type: integer, minimum: -1, maximum: 4294967295}
+        blockHash: {$ref: '#/components/schemas/BASMHash'}
+        basmRoot: {$ref: '#/components/schemas/BASMHash'}
+        admittedCount: {type: integer, minimum: 0, maximum: 9007199254740991}
+        tac: {$ref: '#/components/schemas/BASMHash'}
+    BASMTopicAnchorRange:
+      type: object
+      required: [topic, anchors]
+      properties:
+        topic: {type: string, minLength: 1}
+        anchors:
+          type: array
+          items: {$ref: '#/components/schemas/BASMAnchor'}
+    BASMAdmittedTxRef:
+      type: object
+      required: [txid, blockIndex]
+      properties:
+        txid: {$ref: '#/components/schemas/BASMHash'}
+        blockIndex: {type: integer, minimum: 0, maximum: 9007199254740991}
+    BASMAdmittedList:
+      type: object
+      required: [topic, blockHeight, admitted]
+      properties:
+        topic: {type: string, minLength: 1}
+        blockHeight: {type: integer, minimum: 0, maximum: 4294967295}
+        blockHash: {$ref: '#/components/schemas/BASMHash'}
+        admitted:
+          type: array
+          items: {$ref: '#/components/schemas/BASMAdmittedTxRef'}
+    BASMCompoundMerklePath:
+      type: object
+      required: [topic, blockHeight, txids, merklePath]
+      properties:
+        topic: {type: string, minLength: 1}
+        blockHeight: {type: integer, minimum: 0, maximum: 4294967295}
+        txids:
+          type: array
+          minItems: 1
+          uniqueItems: true
+          items: {$ref: '#/components/schemas/BASMHash'}
+        merklePath: {type: string, pattern: '^([0-9a-f]{2})+$'}
+    BASMRawTransactionRecord:
+      type: object
+      required: [txid, rawTx]
+      properties:
+        txid: {$ref: '#/components/schemas/BASMHash'}
+        rawTx: {type: string, pattern: '^([0-9a-f]{2})+$'}
+    BASMRawTransactions:
+      type: object
+      required: [transactions, missing]
+      properties:
+        transactions:
+          type: array
+          items: {$ref: '#/components/schemas/BASMRawTransactionRecord'}
+        missing:
+          type: array
+          items: {$ref: '#/components/schemas/BASMHash'}
+    BASMError:
+      type: object
+      required: [status, code, message]
+      properties:
+        status: {type: string, enum: [error]}
+        code: {type: string}
+        message: {type: string}
+
   securitySchemes:
     bearerAuth:
       type: http
       scheme: bearer
 
   responses:
+    BASMTopicAnchorTipResponse:
+      description: Current topic anchor tip.
+      content:
+        application/json:
+          schema: {$ref: '#/components/schemas/BASMTopicAnchorTip'}
+    BASMTopicAnchorRangeResponse:
+      description: Complete requested topic anchor range.
+      content:
+        application/json:
+          schema: {$ref: '#/components/schemas/BASMTopicAnchorRange'}
+    BASMAdmittedListResponse:
+      description: Admitted transaction references for a block.
+      content:
+        application/json:
+          schema: {$ref: '#/components/schemas/BASMAdmittedList'}
+    BASMCompoundMerklePathResponse:
+      description: Compound Merkle path for requested transaction IDs.
+      content:
+        application/json:
+          schema: {$ref: '#/components/schemas/BASMCompoundMerklePath'}
+    BASMRawTransactionsResponse:
+      description: Raw transactions and missing identifiers.
+      content:
+        application/json:
+          schema: {$ref: '#/components/schemas/BASMRawTransactions'}
+    BASMErrorResponse:
+      description: >-
+        Redacted BASM request failure. Actual route statuses are 400 (invalid
+        request), 413 (request too large), 404 (not found), 501 (unsupported),
+        503 (not ready), 500 (invalid provider data/internal failure), 504
+        (provider timeout), and 408 (request context timeout).
+      content:
+        application/json:
+          schema: {$ref: '#/components/schemas/BASMError'}
     BadRequestResponse:
       description: |
         The server cannot process the request due to malformed syntax or invalid input.
@@ -286,3 +558,13 @@ components:
         application/json:
           schema:
             $ref: '#/components/schemas/Error'
+
+  parameters:
+    BASMTopic:
+      in: header
+      name: x-bsv-topic
+      required: true
+      schema:
+        type: string
+        minLength: 1
+      description: Nonempty UTF-8 topic identifier.
