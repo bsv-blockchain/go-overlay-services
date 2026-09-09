@@ -67,31 +67,15 @@ func (m *TopicManager) IdentifyAdmissibleOutputs(ctx context.Context, beef *tran
 }
 
 func selectedTransaction(beef *transaction.Beef, txid *chainhash.Hash, policy AdmissionPolicy) (*transaction.Transaction, error) {
-	if beef == nil || txid == nil {
-		return nil, ErrInvalidTransaction
+	tx, err := lookupSelectedTransaction(beef, txid)
+	if err != nil {
+		return nil, err
 	}
-	entry := beef.Transactions[*txid]
-	if entry == nil || entry.Transaction == nil || entry.DataFormat == transaction.TxIDOnly {
-		return nil, ErrInvalidTransaction
+	if err = boundSelectedOutputs(tx, policy); err != nil {
+		return nil, err
 	}
-	tx := entry.Transaction
-	if len(tx.Outputs) > policy.MaxOutputs || uint64(len(tx.Outputs)) > 1<<32 {
-		return nil, ErrAdmissionBudget
-	}
-	total := 0
-	for _, output := range tx.Outputs {
-		if output == nil || output.LockingScript == nil {
-			return nil, ErrInvalidTransaction
-		}
-		if len(*output.LockingScript) > policy.MaxTotalScriptBytes-total {
-			return nil, ErrAdmissionBudget
-		}
-		total += len(*output.LockingScript)
-	}
-	for _, input := range tx.Inputs {
-		if input == nil || input.SourceTXID == nil || input.UnlockingScript == nil {
-			return nil, ErrInvalidTransaction
-		}
+	if err = requireSelectedInputs(tx); err != nil {
+		return nil, err
 	}
 	// The BEEF map is caller-supplied. Bind its selected ID to serialized bytes
 	// instead of trusting a map key (without claiming graph/SPV verification).
@@ -99,6 +83,43 @@ func selectedTransaction(beef *transaction.Beef, txid *chainhash.Hash, policy Ad
 		return nil, fmt.Errorf("%w: selected txid does not match bytes", ErrInvalidTransaction)
 	}
 	return tx, nil
+}
+
+func lookupSelectedTransaction(beef *transaction.Beef, txid *chainhash.Hash) (*transaction.Transaction, error) {
+	if beef == nil || txid == nil {
+		return nil, ErrInvalidTransaction
+	}
+	entry := beef.Transactions[*txid]
+	if entry == nil || entry.Transaction == nil || entry.DataFormat == transaction.TxIDOnly {
+		return nil, ErrInvalidTransaction
+	}
+	return entry.Transaction, nil
+}
+
+func boundSelectedOutputs(tx *transaction.Transaction, policy AdmissionPolicy) error {
+	if len(tx.Outputs) > policy.MaxOutputs || uint64(len(tx.Outputs)) > 1<<32 {
+		return ErrAdmissionBudget
+	}
+	total := 0
+	for _, output := range tx.Outputs {
+		if output == nil || output.LockingScript == nil {
+			return ErrInvalidTransaction
+		}
+		if len(*output.LockingScript) > policy.MaxTotalScriptBytes-total {
+			return ErrAdmissionBudget
+		}
+		total += len(*output.LockingScript)
+	}
+	return nil
+}
+
+func requireSelectedInputs(tx *transaction.Transaction) error {
+	for _, input := range tx.Inputs {
+		if input == nil || input.SourceTXID == nil || input.UnlockingScript == nil {
+			return ErrInvalidTransaction
+		}
+	}
+	return nil
 }
 
 // IdentifyNeededInputs requests no inputs beyond the engine's verification

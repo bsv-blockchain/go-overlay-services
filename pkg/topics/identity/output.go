@@ -144,28 +144,9 @@ func ProjectOutput(ctx context.Context, outpoint transaction.Outpoint, lockingSc
 	if err := ctx.Err(); err != nil {
 		return Record{}, err
 	}
-	if lockingScript == nil || len(*lockingScript) == 0 {
-		return Record{}, ErrInvalidOutput
-	}
-	if len(*lockingScript) > policy.MaxScriptBytes {
-		return Record{}, ErrAdmissionBudget
-	}
-	decoded := pushdrop.Decode(lockingScript)
-	if decoded == nil || len(decoded.Fields) < 2 {
-		return Record{}, ErrInvalidOutput
-	}
-	if len(decoded.Fields)-1 > policy.MaxFields {
-		return Record{}, ErrAdmissionBudget
-	}
-	var envelope certificateEnvelope
-	// TS parses with TextDecoder: strip an initial BOM and replace ill-formed
-	// UTF-8. Signature verification below still uses the original field bytes.
-	envelopeJSON, err := unicode.UTF8BOM.NewDecoder().Bytes(decoded.Fields[0])
+	decoded, envelope, err := decodeCertificateEnvelope(lockingScript, policy)
 	if err != nil {
-		return Record{}, fmt.Errorf("%w: UTF-8 envelope: %w", ErrInvalidOutput, err)
-	}
-	if err = json.Unmarshal(envelopeJSON, &envelope); err != nil {
-		return Record{}, fmt.Errorf("%w: certificate envelope: %w", ErrInvalidOutput, err)
+		return Record{}, err
 	}
 	certificate, err := envelope.certificate(policy)
 	if err != nil {
@@ -177,25 +158,8 @@ func ProjectOutput(ctx context.Context, outpoint transaction.Outpoint, lockingSc
 	if err != nil {
 		return Record{}, err
 	}
-	signature, err := ec.ParseSignature(decoded.Fields[len(decoded.Fields)-1])
-	if err != nil {
-		return Record{}, fmt.Errorf("%w: envelope signature: %w", ErrInvalidOutput, err)
-	}
-	data := bytes.Join(decoded.Fields[:len(decoded.Fields)-1], nil)
-	verification, err := anyone.VerifySignature(ctx, wallet.VerifySignatureArgs{
-		EncryptionArgs: wallet.EncryptionArgs{
-			ProtocolID:   wallet.Protocol{SecurityLevel: wallet.SecurityLevelEveryApp, Protocol: "identity"},
-			KeyID:        "1",
-			Counterparty: wallet.Counterparty{Type: wallet.CounterpartyTypeOther, Counterparty: &certificate.Subject},
-		},
-		Data:      data,
-		Signature: signature,
-	}, "")
-	if err != nil {
-		return Record{}, fmt.Errorf("%w: envelope verification: %w", ErrInvalidOutput, err)
-	}
-	if verification == nil || !verification.Valid {
-		return Record{}, fmt.Errorf("%w: envelope signature", ErrInvalidOutput)
+	if err = verifyEnvelopeSignature(ctx, anyone, decoded, certificate); err != nil {
+		return Record{}, err
 	}
 	// The certificate subject uses the derived-key identity protocol. It need
 	// not equal the raw PushDrop locking key; the envelope is verified above.
@@ -205,29 +169,12 @@ func ProjectOutput(ctx context.Context, outpoint transaction.Outpoint, lockingSc
 	if err = ctx.Err(); err != nil {
 		return Record{}, err
 	}
-	publicFields, err := certificate.DecryptFields(ctx, anyone, false, "")
+	publicFields, err := decryptPublicFields(ctx, anyone, certificate)
 	if err != nil {
-		return Record{}, fmt.Errorf("%w: public field decryption: %w", ErrInvalidOutput, err)
-	}
-	if len(publicFields) == 0 {
-		return Record{}, fmt.Errorf("%w: no public attributes", ErrInvalidOutput)
-	}
-	// This is text decoding of authenticated plaintext, not normalization of
-	// the signed certificate field names or encrypted values.
-	for key, value := range publicFields {
-		publicFields[key], err = unicode.UTF8BOM.NewDecoder().String(value)
-		if err != nil {
-			return Record{}, fmt.Errorf("%w: UTF-8 public field: %w", ErrInvalidOutput, err)
-		}
+		return Record{}, err
 	}
 	if err = ctx.Err(); err != nil {
 		return Record{}, err
-	}
-	searchable := make([]string, 0, len(publicFields))
-	for _, key := range envelope.Keyring.keys {
-		if key != "profilePhoto" && key != "icon" {
-			searchable = append(searchable, publicFields[key])
-		}
 	}
 	return Record{
 		Outpoint: outpoint,
@@ -236,8 +183,87 @@ func ProjectOutput(ctx context.Context, outpoint transaction.Outpoint, lockingSc
 			Subject: envelope.Subject, Certifier: envelope.Certifier,
 			RevocationOutpoint: envelope.RevocationOutpoint, Fields: publicFields,
 		},
-		SearchableAttributes: strings.Join(searchable, " "),
+		SearchableAttributes: searchableAttributes(envelope.Keyring.keys, publicFields),
 	}, nil
+}
+
+func decodeCertificateEnvelope(lockingScript *script.Script, policy AdmissionPolicy) (*pushdrop.PushDropData, certificateEnvelope, error) {
+	if lockingScript == nil || len(*lockingScript) == 0 {
+		return nil, certificateEnvelope{}, ErrInvalidOutput
+	}
+	if len(*lockingScript) > policy.MaxScriptBytes {
+		return nil, certificateEnvelope{}, ErrAdmissionBudget
+	}
+	decoded := pushdrop.Decode(lockingScript)
+	if decoded == nil || len(decoded.Fields) < 2 {
+		return nil, certificateEnvelope{}, ErrInvalidOutput
+	}
+	if len(decoded.Fields)-1 > policy.MaxFields {
+		return nil, certificateEnvelope{}, ErrAdmissionBudget
+	}
+	var envelope certificateEnvelope
+	// TS parses with TextDecoder: strip an initial BOM and replace ill-formed
+	// UTF-8. Signature verification still uses the original field bytes.
+	envelopeJSON, err := unicode.UTF8BOM.NewDecoder().Bytes(decoded.Fields[0])
+	if err != nil {
+		return nil, certificateEnvelope{}, fmt.Errorf("%w: UTF-8 envelope: %w", ErrInvalidOutput, err)
+	}
+	if err = json.Unmarshal(envelopeJSON, &envelope); err != nil {
+		return nil, certificateEnvelope{}, fmt.Errorf("%w: certificate envelope: %w", ErrInvalidOutput, err)
+	}
+	return decoded, envelope, nil
+}
+
+func verifyEnvelopeSignature(ctx context.Context, anyone *wallet.CompletedProtoWallet, decoded *pushdrop.PushDropData, certificate *certificates.VerifiableCertificate) error {
+	signature, err := ec.ParseSignature(decoded.Fields[len(decoded.Fields)-1])
+	if err != nil {
+		return fmt.Errorf("%w: envelope signature: %w", ErrInvalidOutput, err)
+	}
+	verification, err := anyone.VerifySignature(ctx, wallet.VerifySignatureArgs{
+		EncryptionArgs: wallet.EncryptionArgs{
+			ProtocolID:   wallet.Protocol{SecurityLevel: wallet.SecurityLevelEveryApp, Protocol: "identity"},
+			KeyID:        "1",
+			Counterparty: wallet.Counterparty{Type: wallet.CounterpartyTypeOther, Counterparty: &certificate.Subject},
+		},
+		Data:      bytes.Join(decoded.Fields[:len(decoded.Fields)-1], nil),
+		Signature: signature,
+	}, "")
+	if err != nil {
+		return fmt.Errorf("%w: envelope verification: %w", ErrInvalidOutput, err)
+	}
+	if verification == nil || !verification.Valid {
+		return fmt.Errorf("%w: envelope signature", ErrInvalidOutput)
+	}
+	return nil
+}
+
+func decryptPublicFields(ctx context.Context, anyone *wallet.CompletedProtoWallet, certificate *certificates.VerifiableCertificate) (map[string]string, error) {
+	publicFields, err := certificate.DecryptFields(ctx, anyone, false, "")
+	if err != nil {
+		return nil, fmt.Errorf("%w: public field decryption: %w", ErrInvalidOutput, err)
+	}
+	if len(publicFields) == 0 {
+		return nil, fmt.Errorf("%w: no public attributes", ErrInvalidOutput)
+	}
+	// This is text decoding of authenticated plaintext, not normalization of
+	// the signed certificate field names or encrypted values.
+	for key, value := range publicFields {
+		publicFields[key], err = unicode.UTF8BOM.NewDecoder().String(value)
+		if err != nil {
+			return nil, fmt.Errorf("%w: UTF-8 public field: %w", ErrInvalidOutput, err)
+		}
+	}
+	return publicFields, nil
+}
+
+func searchableAttributes(keys []string, publicFields map[string]string) string {
+	searchable := make([]string, 0, len(publicFields))
+	for _, key := range keys {
+		if key != "profilePhoto" && key != "icon" {
+			searchable = append(searchable, publicFields[key])
+		}
+	}
+	return strings.Join(searchable, " ")
 }
 
 func (e *certificateEnvelope) certificate(policy AdmissionPolicy) (*certificates.VerifiableCertificate, error) {

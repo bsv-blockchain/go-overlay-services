@@ -255,48 +255,68 @@ func compilePagination(values map[string]json.RawMessage, policy QueryPolicy) (Q
 }
 
 func compileAttributes(raw json.RawMessage) ([]AttributePredicate, bool, error) {
+	decoded, keys, err := decodeAttributeMap(raw)
+	if err != nil {
+		return nil, false, err
+	}
+	if value, ok := decoded["any"]; ok {
+		predicates, empty := compileAnyAttribute(value)
+		return predicates, empty, nil
+	}
+	predicates, empty := compileFieldAttributes(decoded, keys)
+	return predicates, empty, nil
+}
+
+func decodeAttributeMap(raw json.RawMessage) (map[string]string, []string, error) {
 	var attributes map[string]json.RawMessage
-	if err := json.Unmarshal(raw, &attributes); err != nil || attributes == nil {
-		if err != nil {
-			return nil, false, fmt.Errorf("%w: attributes must be an object: %w", ErrInvalidQuery, err)
-		}
-		return nil, false, fmt.Errorf("%w: attributes must be an object", ErrInvalidQuery)
+	if err := json.Unmarshal(raw, &attributes); err != nil {
+		return nil, nil, fmt.Errorf("%w: attributes must be an object: %w", ErrInvalidQuery, err)
+	}
+	if attributes == nil {
+		return nil, nil, fmt.Errorf("%w: attributes must be an object", ErrInvalidQuery)
 	}
 	if len(attributes) > MaxQueryAttributes {
-		return nil, false, fmt.Errorf("%w: attributes may contain at most %d fields", ErrInvalidQuery, MaxQueryAttributes)
+		return nil, nil, fmt.Errorf("%w: attributes may contain at most %d fields", ErrInvalidQuery, MaxQueryAttributes)
 	}
 
 	keys := make([]string, 0, len(attributes))
 	decoded := make(map[string]string, len(attributes))
 	for key := range attributes {
-		if len(key) > MaxQueryStringBytes {
-			return nil, false, fmt.Errorf("%w: attribute name exceeds %d bytes", ErrInvalidQuery, MaxQueryStringBytes)
-		}
-		if key != "any" && !safeAttributePath(key) {
-			return nil, false, fmt.Errorf("%w: unsafe attribute path %q", ErrInvalidQuery, key)
-		}
-		value, err := decodeString(attributes[key], "attributes."+key)
+		value, err := decodeAttributeEntry(key, attributes[key])
 		if err != nil {
-			return nil, false, err
+			return nil, nil, err
 		}
 		decoded[key] = value
 		keys = append(keys, key)
 	}
 	sort.Strings(keys)
+	return decoded, keys, nil
+}
 
-	if _, ok := attributes["any"]; ok {
-		normalized := normalizeSearchInput(decoded["any"])
-		if utf16Length(normalized) <= 1 {
-			return nil, true, nil
-		}
-		if utf16Length(normalized) == 2 {
-			return []AttributePredicate{{
-				Field: "", Value: fuzzyPattern(normalized), Match: AttributeMatchFuzzy,
-			}}, false, nil
-		}
-		return []AttributePredicate{{Field: "", Value: normalized, Match: AttributeMatchText}}, false, nil
+func decodeAttributeEntry(key string, raw json.RawMessage) (string, error) {
+	if len(key) > MaxQueryStringBytes {
+		return "", fmt.Errorf("%w: attribute name exceeds %d bytes", ErrInvalidQuery, MaxQueryStringBytes)
 	}
+	if key != "any" && !safeAttributePath(key) {
+		return "", fmt.Errorf("%w: unsafe attribute path %q", ErrInvalidQuery, key)
+	}
+	return decodeString(raw, "attributes."+key)
+}
 
+func compileAnyAttribute(value string) ([]AttributePredicate, bool) {
+	normalized := normalizeSearchInput(value)
+	if utf16Length(normalized) <= 1 {
+		return nil, true
+	}
+	if utf16Length(normalized) == 2 {
+		return []AttributePredicate{{
+			Field: "", Value: fuzzyPattern(normalized), Match: AttributeMatchFuzzy,
+		}}, false
+	}
+	return []AttributePredicate{{Field: "", Value: normalized, Match: AttributeMatchText}}, false
+}
+
+func compileFieldAttributes(decoded map[string]string, keys []string) ([]AttributePredicate, bool) {
 	predicates := make([]AttributePredicate, 0, len(keys))
 	for _, key := range keys {
 		normalized := normalizeSearchInput(decoded[key])
@@ -310,7 +330,7 @@ func compileAttributes(raw json.RawMessage) ([]AttributePredicate, bool, error) 
 		}
 		predicates = append(predicates, predicate)
 	}
-	return predicates, len(predicates) == 0, nil
+	return predicates, len(predicates) == 0
 }
 
 func decodeOptionalString(values map[string]json.RawMessage, name string) (string, bool, error) {
