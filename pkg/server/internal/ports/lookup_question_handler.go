@@ -71,7 +71,7 @@ func NewLookupQuestionSuccessResponse(dto *app.LookupAnswerDTO) (*openapi.Lookup
 		outputs = make([]openapi.OutputListItem, len(dto.Outputs))
 		for i, output := range dto.Outputs {
 			outputs[i] = openapi.OutputListItem{
-				Beef:        output.BEEF,
+				Beef:        brc24Bytes(output.BEEF),
 				OutputIndex: output.OutputIndex,
 			}
 		}
@@ -82,4 +82,18 @@ func NewLookupQuestionSuccessResponse(dto *app.LookupAnswerDTO) (*openapi.Lookup
 		Result:  dto.Result,
 		Type:    dto.Type,
 	}, nil
+}
+
+// brc24Bytes converts Go's base64-marshaled []byte form into BRC-24's
+// portable JSON byte array. This conversion is confined to the JSON lookup
+// response; aggregated binary lookup responses are unchanged.
+func brc24Bytes(bytes []byte) []int32 {
+	if bytes == nil {
+		return nil
+	}
+	result := make([]int32, len(bytes))
+	for i, value := range bytes {
+		result[i] = int32(value)
+	}
+	return result
 }

@@ -5,7 +5,6 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/bsv-blockchain/go-sdk/chainhash"
 	"github.com/bsv-blockchain/go-sdk/overlay/lookup"
 	"github.com/bsv-blockchain/go-sdk/transaction"
 	"github.com/stretchr/testify/require"
@@ -111,13 +110,9 @@ func TestEngine_Lookup_ShouldReturnDirectResult_WhenAnswerTypeIsOutputList(t *te
 func TestEngine_Lookup_ShouldHydrateOutputs_WhenFormulasProvided(t *testing.T) {
 	// given
 	ctx := context.Background()
-	outpoint := &transaction.Outpoint{Txid: fakeTxID(t), Index: 0}
-
-	// Create a proper BEEF object for testing
-	expectedBeef := &transaction.Beef{
-		Version:      transaction.BEEF_V2,
-		Transactions: make(map[chainhash.Hash]*transaction.BeefTx),
-	}
+	beef, subjectTx, _, err := transaction.ParseBeef(createDummyBEEF(t))
+	require.NoError(t, err)
+	outpoint := &transaction.Outpoint{Txid: *subjectTx.TxID(), Index: 0}
 
 	sut := engine.NewEngine(&engine.Config{
 		LookupServices: map[string]engine.LookupService{
@@ -126,7 +121,7 @@ func TestEngine_Lookup_ShouldHydrateOutputs_WhenFormulasProvided(t *testing.T) {
 					return &lookup.LookupAnswer{
 						Type: lookup.AnswerTypeFormula,
 						Formulas: []lookup.LookupFormula{
-							{Outpoint: &transaction.Outpoint{Txid: fakeTxID(t), Index: 0}},
+							{Outpoint: outpoint},
 						},
 					}, nil
 				},
@@ -136,7 +131,7 @@ func TestEngine_Lookup_ShouldHydrateOutputs_WhenFormulasProvided(t *testing.T) {
 			findOutputFunc: func(_ context.Context, outpoint *transaction.Outpoint, _ *string, _ *bool, _ bool) (*engine.Output, error) {
 				return &engine.Output{
 					Outpoint: *outpoint,
-					Beef:     expectedBeef,
+					Beef:     beef,
 				}, nil
 			},
 		},
@@ -150,4 +145,7 @@ func TestEngine_Lookup_ShouldHydrateOutputs_WhenFormulasProvided(t *testing.T) {
 	require.Equal(t, lookup.AnswerTypeOutputList, actualAnswer.Type)
 	require.Len(t, actualAnswer.Outputs, 1)
 	require.Equal(t, outpoint.Index, actualAnswer.Outputs[0].OutputIndex)
+	_, hydratedTx, _, err := transaction.ParseBeef(actualAnswer.Outputs[0].Beef)
+	require.NoError(t, err)
+	require.Equal(t, subjectTx.Bytes(), hydratedTx.Bytes())
 }
