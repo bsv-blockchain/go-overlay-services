@@ -59,8 +59,9 @@ type Metadata map[string]ServiceMetadata
 
 // OutputListItem defines model for OutputListItem.
 type OutputListItem struct {
-	Beef        []byte `json:"beef"`
-	OutputIndex uint32 `json:"outputIndex"`
+	// Beef BEEF bytes encoded as the BRC-24 JSON byte array. Earlier Go server releases emitted a base64 string here through Go's []byte JSON encoding; that legacy representation is not BRC-24 JSON interoperable.
+	Beef        []int32 `json:"beef"`
+	OutputIndex uint32  `json:"outputIndex"`
 }
 
 // RequestSyncRes defines model for RequestSyncRes.
