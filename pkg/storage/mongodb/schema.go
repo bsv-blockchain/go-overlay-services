@@ -425,7 +425,7 @@ func schemaOperationValidator() bson.D {
 }
 
 func schemaValidator() bson.D {
-	return schemaDocument([]string{fieldID, "type", "scopeID", "createdAt"}, bson.D{{Key: fieldID, Value: schemaHash()}, {Key: "type", Value: schemaEnum("schema", "probe")}, {Key: "scopeID", Value: schemaHash()}, {Key: fieldCreatedAt, Value: schemaType("date")}, {Key: "schemaVersion", Value: schemaIntEnum()}, {Key: "fingerprint", Value: schemaHash()}, {Key: "network", Value: schemaText()}, {Key: "genesisHash", Value: schemaHash()}, {Key: "nodeID", Value: schemaText()}, {Key: "ready", Value: schemaType("bool")}})
+	return schemaDocument([]string{fieldID, "type", "scopeID", "createdAt"}, bson.D{{Key: fieldID, Value: schemaHash()}, {Key: "type", Value: schemaEnum("schema", "probe", "clock")}, {Key: "scopeID", Value: schemaHash()}, {Key: fieldCreatedAt, Value: schemaType("date")}, {Key: "schemaVersion", Value: schemaIntEnum()}, {Key: "fingerprint", Value: schemaHash()}, {Key: "network", Value: schemaText()}, {Key: "genesisHash", Value: schemaHash()}, {Key: "nodeID", Value: schemaText()}, {Key: "ready", Value: schemaType("bool")}, {Key: fieldNowMS, Value: schemaUint64()}})
 }
 
 func schemaGridFSFilesValidator() bson.D {

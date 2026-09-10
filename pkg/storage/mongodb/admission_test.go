@@ -22,6 +22,19 @@ import (
 
 const admissionTestTopic = "tm_contract"
 
+func TestStoreAdvertisesAdmissionWithoutMongo(t *testing.T) {
+	store := &Store{}
+	var storage engine.Storage = store
+	admission := engine.GetAdmissionStorage(storage)
+	require.NotNil(t, admission)
+	require.Same(t, store, admission)
+	require.Equal(t, engine.AdmissionStorageProtocol, admission.AdmissionProtocol())
+
+	var absent *Store
+	require.Nil(t, absent.AdmissionStorage())
+	require.Nil(t, engine.GetAdmissionStorage(absent))
+}
+
 func TestAdmissionStorage(t *testing.T) {
 	replica := mongotest.New(t)
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Minute)
@@ -29,7 +42,9 @@ func TestAdmissionStorage(t *testing.T) {
 
 	t.Run("AdvertisesV1", func(t *testing.T) {
 		store := openAdmissionStore(ctx, t, replica, "reference-node")
-		require.Equal(t, engine.AdmissionStorageProtocol, engine.GetAdmissionStorage(store).AdmissionProtocol())
+		admission := engine.GetAdmissionStorage(store)
+		require.NotNil(t, admission)
+		require.Equal(t, engine.AdmissionStorageProtocol, admission.AdmissionProtocol())
 	})
 
 	t.Run("CommitsAtomicAdmissionAndLeavesExternalWorkPending", func(t *testing.T) {

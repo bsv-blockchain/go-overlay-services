@@ -173,6 +173,20 @@ func (s *Store) Close(ctx context.Context) error {
 // Scope returns the immutable node authority namespace of the store.
 func (s *Store) Scope() engine.StorageScope { return s.config.Scope }
 
+// AdmissionProtocol identifies the implemented overlay-admission-v1 capability.
+func (s *Store) AdmissionProtocol() string {
+	return engine.AdmissionStorageProtocol
+}
+
+// AdmissionStorage advertises this store as the v1 admission capability.
+// A nil store does not advertise a protocol.
+func (s *Store) AdmissionStorage() engine.AdmissionStorage {
+	if s == nil {
+		return nil
+	}
+	return s
+}
+
 func (s *Store) transactionOptions() *options.TransactionOptionsBuilder {
 	return options.Transaction().SetReadConcern(readconcern.Snapshot()).SetReadPreference(readpref.Primary()).SetWriteConcern(majorityWriteConcern())
 }
@@ -264,4 +278,10 @@ const (
 	fieldOperationID            = "operationID"
 	fieldByteLength             = "byteLength"
 	serverNow                   = "$$NOW"
+)
+
+var (
+	_ engine.Storage                  = (*Store)(nil)
+	_ engine.AdmissionStorage         = (*Store)(nil)
+	_ engine.AdmissionStorageProvider = (*Store)(nil)
 )
