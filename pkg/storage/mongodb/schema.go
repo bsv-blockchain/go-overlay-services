@@ -37,13 +37,7 @@ func (s *Store) bootstrap(ctx context.Context) error {
 	if err := s.schemaCheckLedger(ctx, ledger); err != nil {
 		return err
 	}
-	for _, spec := range []schemaCollectionSpec{
-		{name: payloadCollection, validator: schemaPayloadValidator(), indexes: schemaPayloadIndexes()},
-		{name: referenceCollection, validator: schemaReferenceValidator(), indexes: schemaReferenceIndexes()},
-		{name: operationCollection, validator: schemaOperationValidator(), indexes: schemaOperationIndexes()},
-		{name: blobBucketName + ".files", validator: schemaGridFSFilesValidator(), indexes: schemaGridFSFilesIndexes()},
-		{name: blobBucketName + ".chunks", validator: schemaGridFSChunksValidator(), indexes: schemaGridFSChunksIndexes()},
-	} {
+	for _, spec := range schemaDataSpecs() {
 		if err := s.schemaEnsureCollection(ctx, spec.name, spec.validator); err != nil {
 			return err
 		}
@@ -280,16 +274,28 @@ func schemaLedger(s *Store) bson.D {
 	return bson.D{{Key: fieldID, Value: tupleID("schema", s.scopeID)}, {Key: "type", Value: "schema"}, {Key: "schemaVersion", Value: schemaVersion}, {Key: "scopeID", Value: s.scopeID}, {Key: "fingerprint", Value: fingerprint}, {Key: "network", Value: s.config.Scope.Network}, {Key: "genesisHash", Value: s.config.Scope.GenesisHash}, {Key: "nodeID", Value: s.config.Scope.NodeID}, {Key: "ready", Value: true}, {Key: fieldCreatedAt, Value: time.Now().UTC()}}
 }
 
-func (s *Store) schemaFingerprint() string {
-	parts := []string{"mongo-schema", fmt.Sprint(schemaVersion)}
-	for _, spec := range []schemaCollectionSpec{
-		{name: schemaCollection, validator: schemaValidator()},
+func schemaDataSpecs() []schemaCollectionSpec {
+	return []schemaCollectionSpec{
 		{name: payloadCollection, validator: schemaPayloadValidator(), indexes: schemaPayloadIndexes()},
 		{name: referenceCollection, validator: schemaReferenceValidator(), indexes: schemaReferenceIndexes()},
 		{name: operationCollection, validator: schemaOperationValidator(), indexes: schemaOperationIndexes()},
 		{name: blobBucketName + ".files", validator: schemaGridFSFilesValidator(), indexes: schemaGridFSFilesIndexes()},
 		{name: blobBucketName + ".chunks", validator: schemaGridFSChunksValidator(), indexes: schemaGridFSChunksIndexes()},
-	} {
+		{name: outputCollection, validator: schemaOutputValidator(), indexes: schemaOutputIndexes()},
+		{name: edgeCollection, validator: schemaEdgeValidator(), indexes: schemaEdgeIndexes()},
+		{name: appliedCollection, validator: schemaAppliedValidator(), indexes: schemaAppliedIndexes()},
+		{name: transactionCollection, validator: schemaTransactionValidator(), indexes: schemaTransactionIndexes()},
+		{name: outboxCollection, validator: schemaOutboxValidator(), indexes: schemaOutboxIndexes()},
+		{name: readCollection, validator: schemaReadValidator(), indexes: schemaReadIndexes()},
+		{name: fenceCollection, validator: schemaFenceValidator(), indexes: schemaFenceIndexes()},
+		{name: leaseCollection, validator: schemaLeaseValidator(), indexes: schemaLeaseIndexes()},
+		{name: cursorCollection, validator: schemaCursorValidator(), indexes: schemaCursorIndexes()},
+	}
+}
+
+func (s *Store) schemaFingerprint() string {
+	parts := []string{"mongo-schema", fmt.Sprint(schemaVersion)}
+	for _, spec := range append([]schemaCollectionSpec{{name: schemaCollection, validator: schemaValidator()}}, schemaDataSpecs()...) {
 		encoded, err := bson.Marshal(bson.D{{Key: "name", Value: spec.name}, {Key: "validator", Value: spec.validator}})
 		if err != nil {
 			return ""
@@ -419,7 +425,7 @@ func schemaOperationValidator() bson.D {
 }
 
 func schemaValidator() bson.D {
-	return schemaDocument([]string{fieldID, "type", "scopeID", "createdAt"}, bson.D{{Key: fieldID, Value: schemaHash()}, {Key: "type", Value: schemaEnum("schema", "probe")}, {Key: "scopeID", Value: schemaHash()}, {Key: fieldCreatedAt, Value: schemaType("date")}, {Key: "schemaVersion", Value: schemaIntEnum()}, {Key: "fingerprint", Value: schemaHash()}, {Key: "network", Value: schemaText()}, {Key: "genesisHash", Value: schemaHash()}, {Key: "nodeID", Value: schemaText()}, {Key: "ready", Value: schemaType("bool")}})
+	return schemaDocument([]string{fieldID, "type", "scopeID", "createdAt"}, bson.D{{Key: fieldID, Value: schemaHash()}, {Key: "type", Value: schemaEnum("schema", "probe", "clock")}, {Key: "scopeID", Value: schemaHash()}, {Key: fieldCreatedAt, Value: schemaType("date")}, {Key: "schemaVersion", Value: schemaIntEnum()}, {Key: "fingerprint", Value: schemaHash()}, {Key: "network", Value: schemaText()}, {Key: "genesisHash", Value: schemaHash()}, {Key: "nodeID", Value: schemaText()}, {Key: "ready", Value: schemaType("bool")}, {Key: fieldNowMS, Value: schemaUint64()}})
 }
 
 func schemaGridFSFilesValidator() bson.D {
