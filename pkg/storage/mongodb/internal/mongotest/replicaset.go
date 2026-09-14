@@ -147,6 +147,31 @@ func (r *ReplicaSet) FailCommand(ctx context.Context, times int32, commands []st
 	}).Err()
 }
 
+// StepDownPrimary forces the current primary to step down and waits for a successor.
+func (r *ReplicaSet) StepDownPrimary(ctx context.Context) error {
+	client := r.replicaClient()
+	if client == nil {
+		return errReplicaUnavailable
+	}
+	err := client.Database("admin").RunCommand(ctx, bson.D{
+		{Key: "replSetStepDown", Value: 5},
+		{Key: "force", Value: true},
+	}).Err()
+	if err != nil && !isStepDownError(err) {
+		return err
+	}
+	waitCtx, cancel := context.WithTimeout(ctx, startupTimeout)
+	defer cancel()
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return r.waitForReplicaLocked(waitCtx, memberTotal)
+}
+
+func isStepDownError(err error) bool {
+	var commandErr mongo.CommandError
+	return errors.As(err, &commandErr) && (commandErr.Code == 189 || commandErr.HasErrorLabel("InterruptedDueToReplStateChange") || commandErr.Name == "ExceededTimeLimit")
+}
+
 // DisableFailPoint turns off failCommand on the replica-set primary.
 func (r *ReplicaSet) DisableFailPoint(ctx context.Context) error {
 	client := r.replicaClient()

@@ -370,6 +370,10 @@ func (e *Engine) submitParsedBeefInternal(ctx context.Context, p *submitParsedBe
 		return nil, err
 	}
 
+	if GetAdmissionStorage(e.Storage) != nil {
+		return e.submitWithAdmission(ctx, p, tx, steak, topicInputs)
+	}
+
 	if err := e.markSpentAndNotify(ctx, p.Topics, dupeTopics, topicInputs, tx, p.Txid, p.AtomicBeef); err != nil {
 		return nil, err
 	}
@@ -446,16 +450,19 @@ func (e *Engine) identifyAdmissibleOutputsPerTopic(
 	topicInputs map[string]map[uint32]*Output,
 	dupeTopics map[string]struct{},
 ) error {
+	admission := GetAdmissionStorage(e.Storage)
 	for _, t := range p.Topics {
-		exists, err := e.Storage.DoesAppliedTransactionExist(ctx, &overlay.AppliedTransaction{Txid: p.Txid, Topic: t})
-		if err != nil {
-			slog.Error("failed to check if transaction exists", "txid", p.Txid, "topic", t, "error", err)
-			return err
-		}
-		if exists {
-			steak[t] = &overlay.AdmittanceInstructions{}
-			dupeTopics[t] = struct{}{}
-			continue
+		if admission == nil {
+			exists, err := e.Storage.DoesAppliedTransactionExist(ctx, &overlay.AppliedTransaction{Txid: p.Txid, Topic: t})
+			if err != nil {
+				slog.Error("failed to check if transaction exists", "txid", p.Txid, "topic", t, "error", err)
+				return err
+			}
+			if exists {
+				steak[t] = &overlay.AdmittanceInstructions{}
+				dupeTopics[t] = struct{}{}
+				continue
+			}
 		}
 		previousCoins, err := e.mergeExistingOutputs(ctx, p.Beef, inpoints, t, topicInputs)
 		if err != nil {

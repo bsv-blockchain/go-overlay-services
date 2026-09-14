@@ -20,6 +20,12 @@ const (
 )
 
 var (
+	// ErrAdmissionRejected is returned when commitAdmission rejects a plan.
+	ErrAdmissionRejected = errors.New("admission rejected")
+	// ErrAdmissionPending is returned when a commit result is unresolved and must be reconciled.
+	ErrAdmissionPending = errors.New("admission commit pending")
+	// ErrAdmissionUnsupported is returned when a storage advertises admission without host methods.
+	ErrAdmissionUnsupported = errors.New("admission storage is missing host methods")
 	// ErrInvalidStorageUint64 is returned when a storage uint64 is not canonical unsigned decimal text.
 	ErrInvalidStorageUint64 = errors.New("invalid storage uint64")
 	// ErrInvalidStorageOutputIndex is returned when a canonical uint64 is outside the uint32 transaction outpoint index domain.
@@ -130,9 +136,10 @@ type AdmissionScriptRange struct {
 type AdmissionOutput struct {
 	AdmissionOutpoint
 
-	Satoshis StorageUint64
-	Score    StorageUint64
-	Script   AdmissionScriptRange
+	Satoshis  StorageUint64
+	Score     StorageUint64
+	Script    AdmissionScriptRange
+	Ancillary []string
 }
 
 // AdmissionSpend conditionally marks an outpoint spent by a transaction.

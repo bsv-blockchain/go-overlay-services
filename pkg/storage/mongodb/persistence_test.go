@@ -45,7 +45,7 @@ func TestPersistenceFoundation(t *testing.T) {
 	require.NoError(t, err)
 	other, err := New(ctx, replica.Client, foundationConfig("foundation", "node-b"))
 	require.NoError(t, err)
-	require.Nil(t, engine.GetAdmissionStorage(store), "foundation must not advertise unfinished admission")
+	require.Same(t, store, engine.GetAdmissionStorage(store))
 
 	t.Run("SharedContentKindsNodesAndRetention", func(t *testing.T) {
 		testSharedContentKindsNodesAndRetention(ctx, t, store, other)
@@ -302,7 +302,7 @@ func testConnectFactoryAndUnknownCommitCAS(ctx context.Context, t *testing.T, re
 	connected, connectErr := Connect(ctx, replica.URI, foundationConfig("foundation_connect", "node-connect"))
 	require.NoError(t, connectErr)
 	t.Cleanup(func() { _ = connected.Close(context.WithoutCancel(ctx)) })
-	require.Nil(t, engine.GetAdmissionStorage(connected))
+	require.Same(t, connected, engine.GetAdmissionStorage(connected))
 
 	key := engine.AdmissionOperationKey{Scope: connected.Scope(), OperationID: "unknown-commit", SemanticDigest: strings.Repeat("4", 64)}
 	effects := connected.db.Collection("unknown_commit_effects")
