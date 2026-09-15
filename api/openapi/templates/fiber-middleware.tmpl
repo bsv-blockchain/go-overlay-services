@@ -83,6 +83,10 @@ func (siw *ServerInterfaceWrapper) {{$opid}}(c *fiber.Ctx) error {
   {{end}}
 
     {{if .HeaderParams}}
+      {{if or (eq $opid "RequestAdmittedList") (eq $opid "RequestCompoundMerklePath") (eq $opid "RequestTopicAnchorRange") (eq $opid "RequestTopicAnchorTip")}}
+      // BASM validates x-bsv-topic multiplicity and shape itself so all failures use its stable error envelope.
+      _ = err
+      {{else}}
       headers := c.GetReqHeaders()
 
       {{range .HeaderParams}}// ------------- {{if .Required}}Required{{else}}Optional{{end}} header parameter "{{.ParamName}}" -------------
@@ -113,6 +117,7 @@ func (siw *ServerInterfaceWrapper) {{$opid}}(c *fiber.Ctx) error {
             return fiber.NewError(fiber.StatusBadRequest, "The submitted request does not include required header: {{.ParamName}}.")
         }{{end}}
 
+      {{end}}
       {{end}}
     {{end}}
 

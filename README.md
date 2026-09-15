@@ -199,6 +199,8 @@ See the [examples](examples) directory for code examples showing how to:
 
 ## 📚 Documentation
 
+The optional [Persistence v1 contract](docs/persistence-v1.md) defines standalone admission and recovery capability types. It does not change the legacy storage interface or enable a runtime adapter.
+
 ### Supported API Endpoints
 
 | HTTP Method | Endpoint                                           | Description                                          | Protection             |
