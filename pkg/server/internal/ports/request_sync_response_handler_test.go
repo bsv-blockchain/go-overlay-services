@@ -1,6 +1,7 @@
 package ports_test
 
 import (
+	"math"
 	"testing"
 
 	"github.com/gofiber/fiber/v2"
@@ -125,7 +126,8 @@ func TestRequestSyncResponseHandler_ValidCase(t *testing.T) {
 	}
 
 	expectedDTO := app.NewRequestSyncResponseDTO(expectations.Response)
-	expectedResponse := ports.NewRequestSyncResponseSuccessResponse(expectedDTO)
+	expectedResponse, err := ports.NewRequestSyncResponseSuccessResponse(expectedDTO)
+	require.NoError(t, err)
 	stub := testabilities.NewTestOverlayEngineStub(t, testabilities.WithRequestSyncResponseProvider(testabilities.NewRequestSyncResponseProviderMock(t, expectations)))
 	fixture := server.NewTestFixture(t, server.WithEngine(stub))
 
@@ -148,4 +150,44 @@ func TestRequestSyncResponseHandler_ValidCase(t *testing.T) {
 	require.Equal(t, fiber.StatusOK, res.StatusCode())
 	require.Equal(t, expectedResponse, &actualResponse)
 	stub.AssertProvidersState()
+}
+
+func TestNewRequestSyncResponseSuccessResponse_OutputIndexBounds(t *testing.T) {
+	// An int is 32 bits wide on some targets, so the largest wire index only converts
+	// where the platform int can hold it.
+	maxIndexFits := uint64(math.MaxUint32) <= uint64(math.MaxInt)
+
+	tests := map[string]struct {
+		outputIndex uint32
+		expectError bool
+	}{
+		"zero index converts":                  {outputIndex: 0},
+		"largest signed 32-bit index converts": {outputIndex: math.MaxInt32},
+		"largest wire index converts only when the platform int can hold it": {
+			outputIndex: math.MaxUint32,
+			expectError: !maxIndexFits,
+		},
+	}
+
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			// given:
+			dto := &app.RequestSyncResponseDTO{
+				UTXOList: []app.OutpointDTO{{TxID: "03895fb984362a4196bc9931629318fcbb2aeba7c6293638119ea653fa31d119", OutputIndex: tc.outputIndex}},
+			}
+
+			// when:
+			response, err := ports.NewRequestSyncResponseSuccessResponse(dto)
+
+			// then:
+			if tc.expectError {
+				require.Error(t, err)
+				require.Nil(t, response)
+				return
+			}
+			require.NoError(t, err)
+			require.Len(t, response.UTXOList, 1)
+			require.EqualValues(t, tc.outputIndex, response.UTXOList[0].OutputIndex)
+		})
+	}
 }

@@ -1,6 +1,9 @@
 package ports
 
 import (
+	"errors"
+	"math"
+
 	"github.com/gofiber/fiber/v2"
 
 	"github.com/bsv-blockchain/go-overlay-services/pkg/server/internal/app"
@@ -43,7 +46,12 @@ func (h *RequestSyncResponseHandler) Handle(c *fiber.Ctx, params openapi.Request
 		return err
 	}
 
-	return c.Status(fiber.StatusOK).JSON(NewRequestSyncResponseSuccessResponse(dto))
+	response, err := NewRequestSyncResponseSuccessResponse(dto)
+	if err != nil {
+		return err
+	}
+
+	return c.Status(fiber.StatusOK).JSON(response)
 }
 
 // NewRequestSyncResponseHandler constructs a new RequestSyncResponseHandler
@@ -59,19 +67,24 @@ func NewRequestSyncResponseHandler(provider app.RequestSyncResponseProvider) *Re
 // RequestSyncResResponse object compatible with the OpenAPI specification.
 //
 // This includes mapping a list of UTXO items and the latest "since" value used for pagination.
-func NewRequestSyncResponseSuccessResponse(response *app.RequestSyncResponseDTO) *openapi.RequestSyncResResponse {
+// It fails when an output index cannot be represented by the generated OpenAPI integer type.
+func NewRequestSyncResponseSuccessResponse(response *app.RequestSyncResponseDTO) (*openapi.RequestSyncResResponse, error) {
 	if response == nil {
 		return &openapi.RequestSyncResResponse{
 			UTXOList: []openapi.UTXOItem{},
 			Since:    0,
-		}
+		}, nil
 	}
 
 	utxos := make([]openapi.UTXOItem, 0, len(response.UTXOList))
 	for _, utxo := range response.UTXOList {
+		outputIndex, err := outputIndexToInt(utxo.OutputIndex)
+		if err != nil {
+			return nil, err
+		}
 		utxos = append(utxos, openapi.UTXOItem{
 			Txid:        utxo.TxID,
-			OutputIndex: int(utxo.OutputIndex),
+			OutputIndex: outputIndex,
 			Score:       utxo.Score,
 		})
 	}
@@ -79,5 +92,19 @@ func NewRequestSyncResponseSuccessResponse(response *app.RequestSyncResponseDTO)
 	return &openapi.RequestSyncResResponse{
 		UTXOList: utxos,
 		Since:    response.Since,
+	}, nil
+}
+
+// errOutputIndexNotRepresentable reports a wire output index that does not fit the platform int.
+var errOutputIndexNotRepresentable = errors.New("output index is not representable as a platform int")
+
+// outputIndexToInt converts a uint32 wire output index into the int used by the generated
+// OpenAPI type. An int is only 32 bits wide on some targets, so the upper bound is checked
+// explicitly instead of assuming the value fits.
+func outputIndexToInt(index uint32) (int, error) {
+	wide := uint64(index)
+	if wide > math.MaxInt {
+		return 0, app.NewRawDataProcessingWithFieldError(errOutputIndexNotRepresentable, "outputIndex")
 	}
+	return int(wide), nil
 }
