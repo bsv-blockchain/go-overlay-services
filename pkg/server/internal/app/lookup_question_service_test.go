@@ -89,8 +89,7 @@ func TestLookupQuestionService_InvalidCases(t *testing.T) {
 
 func TestLookupQuestionService_EmptyObjectDelegatesToProvider(t *testing.T) {
 	provider := testabilities.NewLookupQuestionProviderMock(t, testabilities.LookupQuestionProviderMockExpectations{
-		Answer:             &lookup.LookupAnswer{Type: lookup.AnswerTypeOutputList},
-		LookupQuestionCall: true,
+		Answer: &lookup.LookupAnswer{Type: lookup.AnswerTypeOutputList}, LookupQuestionCall: true,
 	})
 	answer, err := app.NewLookupQuestionService(provider).LookupQuestion(t.Context(), "ls_ecosystemalias", map[string]any{})
 	require.NoError(t, err)
