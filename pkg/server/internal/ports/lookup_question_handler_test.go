@@ -1,6 +1,7 @@
 package ports_test
 
 import (
+	"encoding/json"
 	"testing"
 
 	"github.com/bsv-blockchain/go-sdk/overlay/lookup"
@@ -99,6 +100,42 @@ func TestLookupQuestionHandler_ValidCase(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, fiber.StatusOK, res.StatusCode())
 	require.Equal(t, expectedResponse, &actualResponse)
+
+	stub.AssertProvidersState()
+}
+
+func TestLookupQuestionHandlerOutputListUsesBRC24ByteArray(t *testing.T) {
+	stub := testabilities.NewTestOverlayEngineStub(t, testabilities.WithLookupQuestionProvider(testabilities.NewLookupQuestionProviderMock(t, testabilities.LookupQuestionProviderMockExpectations{
+		LookupQuestionCall: true,
+		Answer: &lookup.LookupAnswer{
+			Type: lookup.AnswerTypeOutputList,
+			Outputs: []*lookup.OutputListItem{{
+				Beef:        []byte{1, 2, 255},
+				OutputIndex: 7,
+			}},
+		},
+	})))
+	fixture := server.NewTestFixture(t, server.WithEngine(stub))
+
+	res, err := fixture.Client().
+		R().
+		SetHeader("Content-Type", "application/json").
+		SetBody(openapi.LookupQuestionJSONRequestBody{
+			Query:   map[string]any{},
+			Service: "test-service",
+		}).
+		Post("/api/v1/lookup")
+
+	require.NoError(t, err)
+	require.Equal(t, fiber.StatusOK, res.StatusCode())
+	var body struct {
+		Outputs []struct {
+			Beef json.RawMessage `json:"beef"`
+		} `json:"outputs"`
+	}
+	require.NoError(t, json.Unmarshal(res.Body(), &body))
+	require.Len(t, body.Outputs, 1)
+	require.JSONEq(t, `[1,2,255]`, string(body.Outputs[0].Beef))
 
 	stub.AssertProvidersState()
 }

@@ -88,8 +88,18 @@ components:
       type: object
       properties:
         beef:
-          type: string
-          format: byte
+          type: array
+          description: >-
+            BEEF bytes encoded as the BRC-24 JSON byte array. Earlier Go
+            server releases emitted a base64 string here through Go's []byte
+            JSON encoding; that legacy representation is not BRC-24 JSON
+            interoperable.
+          x-go-type: '[]int32'
+          items:
+            type: integer
+            format: int32
+            minimum: 0
+            maximum: 255
         outputIndex:
           type: integer
           format: uint32
