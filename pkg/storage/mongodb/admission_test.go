@@ -247,6 +247,11 @@ func TestAdmissionStorage(t *testing.T) {
 		fence, fenceErr := store.CurrentHistoryFence(ctx, admissionTestTopic)
 		require.NoError(t, fenceErr)
 		require.Equal(t, engine.StorageUint64("4"), fence.TopicHistoryGeneration)
+		leaseAfterHandoff, leaseAfterErr := store.loadLease(ctx, lease)
+		require.NoError(t, leaseAfterErr)
+		leaseGeneration, leaseGenErr := DecodeUint64(leaseAfterHandoff.TopicHistoryGeneration)
+		require.NoError(t, leaseGenErr)
+		require.Equal(t, engine.StorageUint64("4"), leaseGeneration, "the recovery lease must carry the new fence so the worker that caused the revision can construct a later handoff")
 
 		stale := admissionPlan(store.Scope(), "history-2")
 		stale.Identity.TxID = strings.Repeat("6", 64)
@@ -267,6 +272,92 @@ func TestAdmissionStorage(t *testing.T) {
 		rejected, err := store.CommitAdmission(ctx, stale)
 		require.NoError(t, err)
 		require.Equal(t, engine.AdmissionRejectionReadConflict, rejected.RejectionCode)
+	})
+
+	t.Run("HistoryHandoffLeaseCASRejectsPredicateMissAndRollsBackFence", func(t *testing.T) {
+		// applyHistoryUpdate's lease write is the durable compare-and-swap docs/persistence-v1.md
+		// (~line 23) describes: "Recovery leases compare the whole scope, topic, peer, job, both
+		// history fences, and lease token, and require expiresAtMs to be later than database
+		// time. Check that predicate inside the same compare-and-swap as checkpoint...". These
+		// subtests call the storage-layer write directly (bypassing the higher-level
+		// validateHandoff pre-check) so the CAS itself, not a caller's earlier check, is what is
+		// under test: it must be the write's own filter that enforces the full predicate.
+		baseLease := engine.RecoveryLease{
+			HistoryFence: engine.HistoryFence{ChainEpoch: "7", TopicHistoryGeneration: "3"},
+			Scope:        engine.StorageScope{}, // filled in per case
+			Topic:        admissionTestTopic,
+			PeerID:       "peer-b",
+			JobID:        "repair-b",
+			LeaseToken:   "9",
+			ExpiresAtMS:  "500",
+		}
+
+		cases := []struct {
+			name           string
+			mutateExpected func(engine.RecoveryLease) engine.RecoveryLease
+			clockNowMS     engine.StorageUint64
+		}{
+			{
+				name: "WrongToken",
+				mutateExpected: func(l engine.RecoveryLease) engine.RecoveryLease {
+					l.LeaseToken = "999"
+					return l
+				},
+				clockNowMS: "50",
+			},
+			{
+				name: "StaleFence",
+				mutateExpected: func(l engine.RecoveryLease) engine.RecoveryLease {
+					l.TopicHistoryGeneration = "2"
+					return l
+				},
+				clockNowMS: "50",
+			},
+			{
+				name: "ExpiredLease",
+				mutateExpected: func(l engine.RecoveryLease) engine.RecoveryLease {
+					return l
+				},
+				clockNowMS: "1000",
+			},
+		}
+
+		for _, tc := range cases {
+			t.Run(tc.name, func(t *testing.T) {
+				store := openAdmissionStore(ctx, t, replica, "reference-node")
+				lease := baseLease
+				lease.Scope = store.Scope()
+				require.NoError(t, store.EnsureHistoryFence(ctx, admissionTestTopic, lease.HistoryFence))
+				require.NoError(t, store.seedLease(ctx, lease))
+				require.NoError(t, store.seedAdmissionClock(ctx, tc.clockNowMS))
+
+				expected := tc.mutateExpected(lease)
+				update := engine.AdmissionHistoryUpdate{
+					NextTopicHistoryGeneration: "4",
+					AffectedFromHeight:         "99",
+					Handoff:                    &engine.HistoryRevisionHandoff{Expected: expected, Checkpoint: "unverified-checkpoint"},
+				}
+
+				outcome, txErr := store.runTransaction(ctx, func(sessionCtx context.Context) error {
+					return store.applyHistoryUpdate(sessionCtx, admissionTestTopic, lease.HistoryFence, update, time.Now().UTC())
+				})
+
+				var rejected admissionRejectionError
+				require.ErrorAsf(t, txErr, &rejected, "a lease predicate miss must surface as an error, not a silent success (got outcome=%v, err=%v)", outcome, txErr)
+				require.Equal(t, engine.AdmissionRejectionReadConflict, rejected.code)
+				require.NotEqual(t, transactionCommitted, outcome, "the transaction must not commit when the lease predicate misses")
+
+				fence, fenceErr := store.CurrentHistoryFence(ctx, admissionTestTopic)
+				require.NoError(t, fenceErr)
+				require.Equal(t, engine.StorageUint64("3"), fence.TopicHistoryGeneration, "the fence CAS must roll back when the lease predicate misses inside the same compare-and-swap")
+
+				leaseDoc, leaseErr := store.loadLease(ctx, lease)
+				require.NoError(t, leaseErr)
+				leaseGeneration, leaseGenErr := DecodeUint64(leaseDoc.TopicHistoryGeneration)
+				require.NoError(t, leaseGenErr)
+				require.Equal(t, engine.StorageUint64("3"), leaseGeneration, "the lease row must not advance when its own predicate misses")
+			})
+		}
 	})
 
 	t.Run("UnknownCommitDoesNotRerunBody", func(t *testing.T) {

@@ -799,10 +799,37 @@ func (s *Store) applyHistoryUpdate(ctx context.Context, topic string, expected e
 	if update.Handoff == nil {
 		return nil
 	}
-	leaseFilter := bson.D{{Key: fieldID, Value: s.leaseID(update.Handoff.Expected)}, {Key: fieldToken, Value: mustEncodeUint64(update.Handoff.Expected.LeaseToken)}}
+	nowMS, err := s.admissionNowMS(ctx)
+	if err != nil {
+		return err
+	}
+	encodedNowMS, err := EncodeUint64(nowMS)
+	if err != nil {
+		return err
+	}
+	// The full recovery-lease predicate (scope/topic/peer/job via _id, both history
+	// fence fields, the lease token, and expiry against database time) must be
+	// checked inside this same compare-and-swap as the checkpoint, per
+	// docs/persistence-v1.md (~line 23). A caller-side pre-check (validateHandoff) is
+	// not a substitute: this write is the actual atomic guard, and it must reject
+	// on its own if the lease no longer matches so the fence CAS above rolls back
+	// together with it.
+	leaseFilter := bson.D{
+		{Key: fieldID, Value: s.leaseID(update.Handoff.Expected)},
+		{Key: fieldToken, Value: mustEncodeUint64(update.Handoff.Expected.LeaseToken)},
+		{Key: fieldChainEpoch, Value: mustEncodeUint64(update.Handoff.Expected.ChainEpoch)},
+		{Key: fieldTopicHistoryGeneration, Value: mustEncodeUint64(update.Handoff.Expected.TopicHistoryGeneration)},
+		{Key: fieldExpiresAtMS, Value: bson.D{{Key: "$gt", Value: encodedNowMS}}},
+	}
 	leaseSet := bson.D{{Key: fieldTopicHistoryGeneration, Value: nextGen}, {Key: fieldUpdatedAt, Value: now}}
-	_, err = s.db.Collection(leaseCollection).UpdateOne(ctx, leaseFilter, bson.D{{Key: fieldSet, Value: leaseSet}})
-	return err
+	leaseResult, err := s.db.Collection(leaseCollection).UpdateOne(ctx, leaseFilter, bson.D{{Key: fieldSet, Value: leaseSet}})
+	if err != nil {
+		return err
+	}
+	if leaseResult.MatchedCount != 1 {
+		return reject(engine.AdmissionRejectionReadConflict)
+	}
+	return nil
 }
 
 func (s *Store) loadFence(ctx context.Context, topic string) (engine.HistoryFence, error) {
