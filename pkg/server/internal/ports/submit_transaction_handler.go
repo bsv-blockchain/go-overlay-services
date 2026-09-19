@@ -8,9 +8,6 @@ import (
 	"github.com/bsv-blockchain/go-overlay-services/pkg/server/internal/ports/openapi"
 )
 
-// XTopicsHeader defines the HTTP header key used to specify transaction topics.
-const XTopicsHeader = "x-topics"
-
 // SubmitTransactionHandler is a Fiber-compatible HTTP handler that processes
 // incoming transaction submission requests.
 // It validates the request body and headers, delegates transaction submission to the service layer,
@@ -20,11 +17,17 @@ type SubmitTransactionHandler struct {
 }
 
 // Handle processes an HTTP request to submit a transaction.
-// It expects the `x-topics` header to be present and valid.
+// It expects the `x-topics` header to be present and valid; see ParseTopicsHeader
+// for the accepted encodings (JSON array of strings or comma-separated list).
 // On success, it returns HTTP 200 OK with a STEAK response (openapi.SubmitTransactionResponse).
 // If an error occurs during transaction submission, it returns the corresponding application error.
 func (s *SubmitTransactionHandler) Handle(c *fiber.Ctx, params openapi.SubmitTransactionParams) error {
-	steak, err := s.service.SubmitTransaction(c.UserContext(), params.XTopics, c.Body()...)
+	topics, err := ParseTopicsHeader(params.XTopics)
+	if err != nil {
+		return err
+	}
+
+	steak, err := s.service.SubmitTransaction(c.UserContext(), topics, c.Body()...)
 	if err != nil {
 		return err
 	}

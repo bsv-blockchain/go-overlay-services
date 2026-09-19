@@ -265,7 +265,16 @@ type RequestTopicAnchorTipParams struct {
 
 // SubmitTransactionParams defines parameters for SubmitTransaction.
 type SubmitTransactionParams struct {
-	XTopics []string `json:"x-topics"`
+	// XTopics Topic managers the transaction should be submitted to. Two encodings are accepted:
+	//
+	// * A JSON array of strings, as sent by the `@bsv/sdk` `SHIPBroadcaster`/`TopicBroadcaster`
+	//   and the `go-sdk` `HTTPSOverlayBroadcastFacilitator`, e.g. `["tm_ship","tm_slap"]`.
+	// * A comma-separated list (OpenAPI "simple" style), e.g. `tm_ship,tm_slap`.
+	//
+	// A value whose first non-blank character is `[` is parsed as JSON; anything else is split on commas.
+	// Whitespace around each topic is ignored, empty entries are dropped, and duplicates are removed
+	// while preserving order. The header must yield at least one topic.
+	XTopics string `json:"x-topics"`
 }
 
 // ArcIngestJSONRequestBody defines body for ArcIngest for application/json ContentType.
@@ -677,9 +686,9 @@ func (siw *ServerInterfaceWrapper) SubmitTransaction(c *fiber.Ctx) error {
 
 	// ------------- Required header parameter "x-topics" -------------
 	if valueList, found := headers[http.CanonicalHeaderKey("x-topics")]; found {
-		var XTopics []string
+		var XTopics string
 
-		err = runtime.BindStyledParameterWithOptions("simple", "x-topics", valueList[0], &XTopics, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: true, Required: true})
+		err = runtime.BindStyledParameterWithOptions("simple", "x-topics", valueList[0], &XTopics, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true})
 		if err != nil {
 			return fiber.NewError(fiber.StatusBadRequest, "One or more topics are in an invalid format. Empty string values are not allowed.")
 		}
