@@ -98,7 +98,7 @@ type TopicManagerDocumentation struct {
 // UTXOItem defines model for UTXOItem.
 type UTXOItem struct {
 	// OutputIndex Output index number
-	OutputIndex int `json:"outputIndex"`
+	OutputIndex uint32 `json:"outputIndex"`
 
 	// Score Sort score of the UTXO, used for prioritization in synchronization
 	Score float64 `json:"score"`
