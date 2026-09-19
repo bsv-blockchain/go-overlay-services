@@ -115,7 +115,15 @@ func (e *Engine) buildAdmissionPlan(ctx context.Context, host admissionHost, p *
 		}
 		decisions = append(decisions, decision)
 	}
-	operationID := admissionOperationID(mode, identity.TxID, p.Topics)
+	identityTopics := make([]string, 0, len(topics))
+	for _, topic := range topics {
+		identityTopics = append(identityTopics, topic.Topic)
+	}
+	// Use the deduped identity topic list (the same one AdmissionSemanticDigest
+	// hashed above), not raw p.Topics: a caller-supplied duplicate must not
+	// change the operation id away from the one a duplicate-free retry would
+	// compute.
+	operationID := admissionOperationID(mode, identity.TxID, identityTopics)
 	if mode == AdmissionModeLive {
 		outbox = append(outbox, AdmissionOutboxIntent{EventID: operationID + ":propagate", Kind: AdmissionOutboxPropagation, Target: "overlay-network", Payloads: []AdmissionPayloadRef{payloadIndex.raw}})
 	}
@@ -333,16 +341,42 @@ func parseSavedSteak(raw string) (overlay.Steak, error) {
 	return steak, nil
 }
 
+// admissionOperationID derives a stable operation identifier for one admission
+// attempt. This id is a Go-side implementation detail, not a cross-language
+// wire contract: docs/persistence-v1.md treats operationId as an opaque
+// member of the (network, genesisHash, nodeId, operationId) key tuple, and
+// the TS overlay derives its own id independently (and deliberately excludes
+// mode; this Go id deliberately keeps it, so a historical replay and a live
+// submit of the same transaction/topics get distinct operation records).
+//
+// Every field is length-framed the same way AdmissionSemanticDigest frames
+// its fields, so distinct topic sets can never concatenate to the same bytes
+// (e.g. ["tm_foo","x"] must not collide with ["tm_foox"]). The topic list is
+// also deduplicated before sorting so a caller-supplied list with repeats
+// hashes identically to the deduped identity used for AdmissionIdentity.
 func admissionOperationID(mode AdmissionMode, txid string, topics []string) string {
-	sorted := append([]string(nil), topics...)
-	sort.Strings(sorted)
+	seen := make(map[string]struct{}, len(topics))
+	deduped := make([]string, 0, len(topics))
+	for _, topic := range topics {
+		if _, exists := seen[topic]; exists {
+			continue
+		}
+		seen[topic] = struct{}{}
+		deduped = append(deduped, topic)
+	}
+	sort.Strings(deduped)
 	sum := sha256.New()
-	_, _ = io.WriteString(sum, string(mode))
-	_, _ = io.WriteString(sum, txid)
-	for _, topic := range sorted {
-		_, _ = io.WriteString(sum, topic)
+	writeFramedField(sum, string(mode))
+	writeFramedField(sum, txid)
+	for _, topic := range deduped {
+		writeFramedField(sum, topic)
 	}
 	return hex.EncodeToString(sum.Sum(nil))
+}
+
+func writeFramedField(w io.Writer, field string) {
+	_, _ = io.WriteString(w, strconv.Itoa(len(field))+":")
+	_, _ = io.WriteString(w, field)
 }
 
 func contextDigest(values []byte) string {
