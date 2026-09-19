@@ -1,6 +1,9 @@
 package engine
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
+	"strconv"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -48,3 +51,15 @@ func TestAdmissionOperationIDStillDependsOnMode(t *testing.T) {
 }
 
 const txidFixture = "1111111111111111111111111111111111111111111111111111111111111111"
+
+func TestAdmissionOperationIDIsDomainSeparated(t *testing.T) {
+	// The id is persisted as part of the operation key, so its byte format is pinned here:
+	// SHA-256 over length-framed fields that start with a fixed domain tag, which keeps it
+	// disjoint from AdmissionSemanticDigest (whose first framed field is the protocol name).
+	sum := sha256.New()
+	for _, field := range []string{"overlay-admission-operation-id-v1", "live", "aa", "tm_a", "tm_b"} {
+		_, _ = sum.Write([]byte(strconv.Itoa(len(field)) + ":" + field))
+	}
+
+	require.Equal(t, hex.EncodeToString(sum.Sum(nil)), admissionOperationID(AdmissionModeLive, "aa", []string{"tm_b", "tm_a"}))
+}

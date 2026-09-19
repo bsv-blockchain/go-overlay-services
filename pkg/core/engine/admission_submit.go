@@ -354,6 +354,9 @@ func parseSavedSteak(raw string) (overlay.Steak, error) {
 // (e.g. ["tm_foo","x"] must not collide with ["tm_foox"]). The topic list is
 // also deduplicated before sorting so a caller-supplied list with repeats
 // hashes identically to the deduped identity used for AdmissionIdentity.
+//
+// The first framed field is a fixed domain tag, so an operation id can never
+// equal an AdmissionSemanticDigest computed over the same transaction.
 func admissionOperationID(mode AdmissionMode, txid string, topics []string) string {
 	seen := make(map[string]struct{}, len(topics))
 	deduped := make([]string, 0, len(topics))
@@ -366,6 +369,7 @@ func admissionOperationID(mode AdmissionMode, txid string, topics []string) stri
 	}
 	sort.Strings(deduped)
 	sum := sha256.New()
+	writeFramedField(sum, admissionOperationIDDomain)
 	writeFramedField(sum, string(mode))
 	writeFramedField(sum, txid)
 	for _, topic := range deduped {
@@ -373,6 +377,9 @@ func admissionOperationID(mode AdmissionMode, txid string, topics []string) stri
 	}
 	return hex.EncodeToString(sum.Sum(nil))
 }
+
+// admissionOperationIDDomain separates operation ids from every other framed SHA-256 in the admission contract.
+const admissionOperationIDDomain = "overlay-admission-operation-id-v1"
 
 func writeFramedField(w io.Writer, field string) {
 	_, _ = io.WriteString(w, strconv.Itoa(len(field))+":")
