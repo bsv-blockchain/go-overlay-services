@@ -768,6 +768,12 @@ func (s *Store) insertApplied(ctx context.Context, topic string, applied engine.
 }
 
 func (s *Store) applyHistoryUpdate(ctx context.Context, topic string, expected engine.HistoryFence, update engine.AdmissionHistoryUpdate, now time.Time) error {
+	// A handoff lease must sit on the very fence this update advances. The lease
+	// filter below only proves the stored row equals the caller's expected lease,
+	// so reject a lease from another fence here, before anything is written.
+	if update.Handoff != nil && !fenceEquals(update.Handoff.Expected.HistoryFence, expected) {
+		return reject(engine.AdmissionRejectionReadConflict)
+	}
 	expectedEpoch, err := EncodeUint64(expected.ChainEpoch)
 	if err != nil {
 		return reject(engine.AdmissionRejectionInvalidPlan)

@@ -295,8 +295,23 @@ func TestAdmissionStorage(t *testing.T) {
 		cases := []struct {
 			name           string
 			mutateExpected func(engine.RecoveryLease) engine.RecoveryLease
+			mutateSeeded   func(engine.RecoveryLease) engine.RecoveryLease
 			clockNowMS     engine.StorageUint64
 		}{
+			{
+				// The caller's expected lease matches the stored lease row exactly, but that
+				// lease belongs to an older topic generation than the fence being advanced.
+				name: "LeaseOnOlderFenceThanTopic",
+				mutateSeeded: func(l engine.RecoveryLease) engine.RecoveryLease {
+					l.TopicHistoryGeneration = "2"
+					return l
+				},
+				mutateExpected: func(l engine.RecoveryLease) engine.RecoveryLease {
+					l.TopicHistoryGeneration = "2"
+					return l
+				},
+				clockNowMS: "50",
+			},
 			{
 				name: "WrongToken",
 				mutateExpected: func(l engine.RecoveryLease) engine.RecoveryLease {
@@ -328,7 +343,11 @@ func TestAdmissionStorage(t *testing.T) {
 				lease := baseLease
 				lease.Scope = store.Scope()
 				require.NoError(t, store.EnsureHistoryFence(ctx, admissionTestTopic, lease.HistoryFence))
-				require.NoError(t, store.seedLease(ctx, lease))
+				seeded := lease
+				if tc.mutateSeeded != nil {
+					seeded = tc.mutateSeeded(lease)
+				}
+				require.NoError(t, store.seedLease(ctx, seeded))
 				require.NoError(t, store.seedAdmissionClock(ctx, tc.clockNowMS))
 
 				expected := tc.mutateExpected(lease)
@@ -355,7 +374,7 @@ func TestAdmissionStorage(t *testing.T) {
 				require.NoError(t, leaseErr)
 				leaseGeneration, leaseGenErr := DecodeUint64(leaseDoc.TopicHistoryGeneration)
 				require.NoError(t, leaseGenErr)
-				require.Equal(t, engine.StorageUint64("3"), leaseGeneration, "the lease row must not advance when its own predicate misses")
+				require.Equal(t, seeded.TopicHistoryGeneration, leaseGeneration, "the lease row must not advance when its own predicate misses")
 			})
 		}
 	})
