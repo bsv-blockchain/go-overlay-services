@@ -1,9 +1,12 @@
 package server
 
 import (
+	"strings"
+
 	"github.com/gofiber/fiber/v2"
 	"github.com/google/uuid"
 
+	"github.com/bsv-blockchain/go-overlay-services/pkg/core/basm"
 	"github.com/bsv-blockchain/go-overlay-services/pkg/core/engine"
 	"github.com/bsv-blockchain/go-overlay-services/pkg/server/internal/adapters"
 	"github.com/bsv-blockchain/go-overlay-services/pkg/server/internal/ports"
@@ -42,6 +45,12 @@ type RegisterRoutesConfig struct {
 	// Engine is a custom implementation of the overlay engine that serves
 	// as the main processor for incoming HTTP requests.
 	Engine engine.OverlayEngineProvider
+
+	// BASMProvider optionally serves the bounded public BRC-136 BASM read routes.
+	BASMProvider engine.BASMProvider
+
+	// BASMLimits bounds input, output, and execution of BASM read routes.
+	BASMLimits basm.ReadLimits
 
 	// OctetStreamLimit defines the maximum size (in bytes) for reading applicaction/octet-stream
 	// request bodies. By default, it is set to 1GB to protect against excessively large payloads.
@@ -95,12 +104,18 @@ func RegisterRoutes(app *fiber.App, cfg *RegisterRoutesConfig) *fiber.App {
 		CallbackToken: cfg.ARCCallbackToken,
 		Scheme:        "Bearer ",
 	})
+	basmProvider := cfg.BASMProvider
+	if !engine.IsBASMProviderAvailable(basmProvider) {
+		basmProvider = nil
+		if provider, ok := cfg.Engine.(engine.BASMProvider); ok && engine.IsBASMProviderAvailable(provider) {
+			basmProvider = provider
+		}
+	}
+	registry.SetBASMProvider(basmProvider, cfg.BASMLimits)
 
 	openapi.RegisterHandlersWithOptions(app, registry, openapi.FiberServerOptions{
-		BaseURL: cfg.BaseURL,
-		HandlerMiddleware: []fiber.Handler{
-			middleware.BearerTokenAuthorizationMiddleware(cfg.AdminBearerToken),
-		},
+		BaseURL:           cfg.BaseURL,
+		HandlerMiddleware: []fiber.Handler{handlerAuthorizationMiddleware(cfg.AdminBearerToken, cfg.BaseURL)},
 		GlobalMiddleware: middleware.BasicMiddlewareGroup(middleware.BasicMiddlewareGroupConfig{
 			EnableStackTrace: true,
 			OctetStreamLimit: cfg.OctetStreamLimit,
@@ -110,4 +125,15 @@ func RegisterRoutes(app *fiber.App, cfg *RegisterRoutesConfig) *fiber.App {
 	})
 
 	return app
+}
+
+func handlerAuthorizationMiddleware(token, baseURL string) fiber.Handler {
+	authorize := middleware.BearerTokenAuthorizationMiddleware(token)
+	return func(c *fiber.Ctx) error {
+		switch strings.TrimPrefix(c.Path(), baseURL) {
+		case "/requestTopicAnchorTip", "/requestTopicAnchorRange", "/requestAdmittedList", "/requestCompoundMerklePath", "/requestRawTransactions":
+			return nil
+		}
+		return authorize(c)
+	}
 }

@@ -3,6 +3,7 @@ package ports
 import (
 	"github.com/gofiber/fiber/v2"
 
+	"github.com/bsv-blockchain/go-overlay-services/pkg/core/basm"
 	"github.com/bsv-blockchain/go-overlay-services/pkg/core/engine"
 	"github.com/bsv-blockchain/go-overlay-services/pkg/server/internal/app"
 	"github.com/bsv-blockchain/go-overlay-services/pkg/server/internal/ports/decorators"
@@ -22,6 +23,13 @@ type HandlerRegistryService struct {
 	metadataHandler           *MetadataHandler
 	lookupQuestion            *LookupQuestionHandler
 	arcIngest                 decorators.Handler
+	basmRead                  *BASMReadHandler
+}
+
+// SetBASMProvider configures the optional BASM read routes after registry construction.
+// Existing registry construction remains compatible with engines that do not support BASM.
+func (h *HandlerRegistryService) SetBASMProvider(provider engine.BASMProvider, limits basm.ReadLimits) {
+	h.basmRead = NewBASMReadHandler(provider, limits)
 }
 
 // ArcIngest implements openapi.ServerInterface.
@@ -79,6 +87,31 @@ func (h *HandlerRegistryService) RequestSyncResponse(c *fiber.Ctx, params openap
 	return h.requestSyncResponse.Handle(c, params)
 }
 
+// RequestTopicAnchorTip implements the public BASM tip route.
+func (h *HandlerRegistryService) RequestTopicAnchorTip(c *fiber.Ctx, _ openapi.RequestTopicAnchorTipParams) error {
+	return h.basmRead.Handle(c, "tip", true)
+}
+
+// RequestTopicAnchorRange implements the public BASM range route.
+func (h *HandlerRegistryService) RequestTopicAnchorRange(c *fiber.Ctx, _ openapi.RequestTopicAnchorRangeParams) error {
+	return h.basmRead.Handle(c, "range", true)
+}
+
+// RequestAdmittedList implements the public BASM admitted-list route.
+func (h *HandlerRegistryService) RequestAdmittedList(c *fiber.Ctx, _ openapi.RequestAdmittedListParams) error {
+	return h.basmRead.Handle(c, "list", true)
+}
+
+// RequestCompoundMerklePath implements the public BASM proof route.
+func (h *HandlerRegistryService) RequestCompoundMerklePath(c *fiber.Ctx, _ openapi.RequestCompoundMerklePathParams) error {
+	return h.basmRead.Handle(c, "proof", true)
+}
+
+// RequestRawTransactions implements the public BASM raw transaction route.
+func (h *HandlerRegistryService) RequestRawTransactions(c *fiber.Ctx) error {
+	return h.basmRead.Handle(c, "raw", false)
+}
+
 // NewHandlerRegistryService creates and returns a new HandlerRegistryService instance.
 // It initializes all handler implementations with their required dependencies.
 func NewHandlerRegistryService(provider engine.OverlayEngineProvider, cfg *decorators.ARCAuthorizationDecoratorConfig) *HandlerRegistryService {
@@ -98,5 +131,6 @@ func NewHandlerRegistryService(provider engine.OverlayEngineProvider, cfg *decor
 		syncAdvertisements:        NewSyncAdvertisementsHandler(provider),
 		requestForeignGASPNode:    NewRequestForeignGASPNodeHandler(provider),
 		requestSyncResponse:       NewRequestSyncResponseHandler(provider),
+		basmRead:                  NewBASMReadHandler(nil, basm.DefaultReadLimits()),
 	}
 }

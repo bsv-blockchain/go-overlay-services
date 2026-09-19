@@ -1,6 +1,7 @@
 package ports_test
 
 import (
+	"math"
 	"testing"
 
 	"github.com/gofiber/fiber/v2"
@@ -148,4 +149,28 @@ func TestRequestSyncResponseHandler_ValidCase(t *testing.T) {
 	require.Equal(t, fiber.StatusOK, res.StatusCode())
 	require.Equal(t, expectedResponse, &actualResponse)
 	stub.AssertProvidersState()
+}
+
+func TestNewRequestSyncResponseSuccessResponse_PreservesWireOutputIndex(t *testing.T) {
+	tests := map[string]uint32{
+		"zero index":                  0,
+		"largest signed 32-bit index": math.MaxInt32,
+		"largest wire index":          math.MaxUint32,
+	}
+
+	for name, outputIndex := range tests {
+		t.Run(name, func(t *testing.T) {
+			// given:
+			dto := &app.RequestSyncResponseDTO{
+				UTXOList: []app.OutpointDTO{{TxID: "03895fb984362a4196bc9931629318fcbb2aeba7c6293638119ea653fa31d119", OutputIndex: outputIndex}},
+			}
+
+			// when:
+			response := ports.NewRequestSyncResponseSuccessResponse(dto)
+
+			// then:
+			require.Len(t, response.UTXOList, 1)
+			require.Equal(t, outputIndex, response.UTXOList[0].OutputIndex)
+		})
+	}
 }

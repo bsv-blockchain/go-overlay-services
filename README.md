@@ -199,6 +199,8 @@ See the [examples](examples) directory for code examples showing how to:
 
 ## 📚 Documentation
 
+The optional [Persistence v1 contract](docs/persistence-v1.md) defines admission and recovery capability types. A `Storage` that implements this capability alongside the legacy storage interface (as `pkg/storage/mongodb`'s `Store` does) both satisfies `engine.Storage` and selects the engine's admission submit path at runtime. This stays opt-in: it only applies when such a store is explicitly injected into an `Engine`, and the default HTTP server construction still uses `NoopEngineProvider`.
+
 ### Supported API Endpoints
 
 | HTTP Method | Endpoint                                           | Description                                          | Protection             |

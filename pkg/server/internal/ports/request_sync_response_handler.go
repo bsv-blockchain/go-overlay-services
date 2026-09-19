@@ -71,7 +71,7 @@ func NewRequestSyncResponseSuccessResponse(response *app.RequestSyncResponseDTO)
 	for _, utxo := range response.UTXOList {
 		utxos = append(utxos, openapi.UTXOItem{
 			Txid:        utxo.TxID,
-			OutputIndex: int(utxo.OutputIndex),
+			OutputIndex: utxo.OutputIndex,
 			Score:       utxo.Score,
 		})
 	}

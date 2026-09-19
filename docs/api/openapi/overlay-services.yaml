@@ -295,6 +295,7 @@ paths:
                           description: Transaction ID in hexadecimal format
                         outputIndex:
                           type: integer
+                          format: uint32
                           description: Output index number
                         score:
                           type: number
