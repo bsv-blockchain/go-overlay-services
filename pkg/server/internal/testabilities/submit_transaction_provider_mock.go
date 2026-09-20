@@ -96,6 +96,17 @@ func (s *SubmitTransactionProviderMock) AssertCalled() {
 	require.Equal(s.t, s.expectations.SubmitCall, called, "Discrepancy between expected and actual Submit call")
 }
 
+// AssertCalledWithTopics verifies that Submit was called with exactly the given topics, in order.
+func (s *SubmitTransactionProviderMock) AssertCalledWithTopics(expected []string) {
+	s.t.Helper()
+	s.mu.RLock()
+	called := s.called
+	topics := s.calledTaggedBEEF.Topics
+	s.mu.RUnlock()
+	require.True(s.t, called, "Submit was expected to be called")
+	require.Equal(s.t, expected, topics, "Discrepancy between expected and actual topics passed to Submit")
+}
+
 // NewSubmitTransactionProviderMock creates a new instance of SubmitTransactionProviderMock with the given expectations.
 func NewSubmitTransactionProviderMock(t *testing.T, expectations SubmitTransactionProviderMockExpectations) *SubmitTransactionProviderMock {
 	mock := &SubmitTransactionProviderMock{
