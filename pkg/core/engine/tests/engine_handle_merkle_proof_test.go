@@ -150,8 +150,10 @@ func TestEngine_HandleNewMerkleProof(t *testing.T) {
 		err := sut.HandleNewMerkleProof(ctx, txid, merklePath)
 
 		// then
+		// The proof's single leaf holds a different txid, so validation fails while
+		// computing the merkle root (the go-sdk reports the missing txid directly).
 		require.Error(t, err)
-		require.Contains(t, err.Error(), "not found in proof")
+		require.Contains(t, err.Error(), "does not contain the txid")
 	})
 
 	t.Run("should handle no outputs found", func(t *testing.T) {
