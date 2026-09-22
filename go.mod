@@ -3,7 +3,7 @@ module github.com/bsv-blockchain/go-overlay-services
 go 1.26.0
 
 require (
-	github.com/bsv-blockchain/go-sdk v1.5.1
+	github.com/bsv-blockchain/go-sdk v1.5.2
 	github.com/bsv-blockchain/universal-test-vectors v0.6.1
 	github.com/go-resty/resty/v2 v2.17.2
 	github.com/go-viper/mapstructure/v2 v2.5.0
@@ -13,7 +13,7 @@ require (
 	github.com/oapi-codegen/runtime v1.7.0
 	github.com/spf13/viper v1.21.0
 	github.com/stretchr/testify v1.12.1
-	go.mongodb.org/mongo-driver/v2 v2.8.2
+	go.mongodb.org/mongo-driver/v2 v2.9.1
 	golang.org/x/sync v0.23.0
 	golang.org/x/text v0.42.0
 	gopkg.in/yaml.v3 v3.0.1
