@@ -34,10 +34,11 @@ func NewTopicManagerWithPolicy(policy AdmissionPolicy) (*TopicManager, error) {
 
 // IdentifyAdmissibleOutputs validates the transaction selected by txid in beef.
 // ctx cancels work. previousCoins does not affect identity retention: coins to
-// retain are always empty. Invalid outputs are skipped independently; malformed
-// transaction selection or exhausted transaction-wide budgets return an error.
-// Successful application admission does not establish transaction/SPV validity.
-func (m *TopicManager) IdentifyAdmissibleOutputs(ctx context.Context, beef *transaction.Beef, txid *chainhash.Hash, _ []uint32) (overlay.AdmittanceInstructions, error) {
+// retain are always empty. offChainValues is ignored; identity admission does
+// not use submit-time off-chain bytes. Invalid outputs are skipped independently;
+// malformed transaction selection or exhausted transaction-wide budgets return an
+// error. Successful application admission does not establish transaction/SPV validity.
+func (m *TopicManager) IdentifyAdmissibleOutputs(ctx context.Context, beef *transaction.Beef, txid *chainhash.Hash, _ []uint32, _ []byte) (overlay.AdmittanceInstructions, error) {
 	result := overlay.AdmittanceInstructions{OutputsToAdmit: []uint32{}, CoinsToRetain: []uint32{}}
 	if err := ctx.Err(); err != nil {
 		return result, err

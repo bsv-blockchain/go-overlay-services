@@ -275,6 +275,19 @@ type SubmitTransactionParams struct {
 	// Whitespace around each topic is ignored, empty entries are dropped, and duplicates are removed
 	// while preserving order. The header must yield at least one topic.
 	XTopics string `json:"x-topics"`
+
+	// XIncludesOffChainValues When this value is exactly `true`, the octet-stream body is framed as
+	// `VarInt(beefByteLength) || beefBytes || offChainValueBytes` using the
+	// Bitcoin varint encoding from the BSV SDK. Trailing bytes are opaque:
+	// they are not parsed as JSON and are not required to be UTF-8. They are
+	// passed unchanged to topic admission.
+	//
+	// When the header is absent, or any value other than `true`, the body is
+	// the raw BEEF and off-chain values are absent.
+	//
+	// A malformed frame (a varint that runs past the end of the body, or a
+	// beef length that does not fit in the remaining bytes) is HTTP 400.
+	XIncludesOffChainValues *string `json:"x-includes-off-chain-values,omitempty"`
 }
 
 // ArcIngestJSONRequestBody defines body for ArcIngest for application/json ContentType.
@@ -697,6 +710,19 @@ func (siw *ServerInterfaceWrapper) SubmitTransaction(c *fiber.Ctx) error {
 
 	} else {
 		return fiber.NewError(fiber.StatusBadRequest, "The submitted request does not include required header: x-topics.")
+	}
+
+	// ------------- Optional header parameter "x-includes-off-chain-values" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("x-includes-off-chain-values")]; found {
+		var XIncludesOffChainValues string
+
+		err = runtime.BindStyledParameterWithOptions("simple", "x-includes-off-chain-values", valueList[0], &XIncludesOffChainValues, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false})
+		if err != nil {
+			return fiber.NewError(fiber.StatusBadRequest, "One or more topics are in an invalid format. Empty string values are not allowed.")
+		}
+
+		params.XIncludesOffChainValues = &XIncludesOffChainValues
+
 	}
 
 	for _, m := range siw.handlerMiddleware {

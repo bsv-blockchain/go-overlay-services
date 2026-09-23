@@ -26,7 +26,7 @@ func TestProjectOutputExactEnvelopePropertyNames(t *testing.T) {
 	for _, fixture := range fixtures.Cases {
 		t.Run(fixture.Name, func(t *testing.T) {
 			beef, txid := readTopicFixture(t, fixture)
-			result, topicErr := NewTopicManager().IdentifyAdmissibleOutputs(t.Context(), beef, txid, nil)
+			result, topicErr := NewTopicManager().IdentifyAdmissibleOutputs(t.Context(), beef, txid, nil, nil)
 			require.NoError(t, topicErr)
 			require.Equal(t, fixture.OutputsToAdmit, result.OutputsToAdmit)
 			record, projectionErr := ProjectOutput(t.Context(), transaction.Outpoint{Txid: *txid}, beef.FindTransactionByHash(txid).Outputs[0].LockingScript, DefaultAdmissionPolicy())
@@ -54,7 +54,7 @@ func TestProjectOutputTSPropertyEnumeration(t *testing.T) {
 	// This fixture is an actual unconfirmed signed spend with a confirmed
 	// ancestor. Topic admission here still does not claim graph verification.
 	require.Nil(t, tx.MerklePath)
-	result, err := NewTopicManager().IdentifyAdmissibleOutputs(t.Context(), beef, txid, nil)
+	result, err := NewTopicManager().IdentifyAdmissibleOutputs(t.Context(), beef, txid, nil, nil)
 	require.NoError(t, err)
 	require.Equal(t, fixture.OutputsToAdmit, result.OutputsToAdmit)
 	record, err := ProjectOutput(t.Context(), transaction.Outpoint{Txid: *txid}, tx.Outputs[0].LockingScript, DefaultAdmissionPolicy())
