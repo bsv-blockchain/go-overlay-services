@@ -34,7 +34,7 @@ func TestSubmitTransactionService_InvalidCase_ContextCancellation(t *testing.T) 
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 	defer cancel()
 
-	steak, err := service.SubmitTransaction(ctx, topics, txBytes...)
+	steak, err := service.SubmitTransaction(ctx, topics, txBytes, nil)
 
 	// then:
 	var actualErr app.Error
@@ -87,7 +87,7 @@ func TestSubmitTransactionService_InvalidCases(t *testing.T) {
 			service := app.NewSubmitTransactionService(mock)
 
 			// when:
-			steak, err := service.SubmitTransaction(context.Background(), tc.topics, tc.txBytes...)
+			steak, err := service.SubmitTransaction(context.Background(), tc.topics, tc.txBytes, nil)
 
 			// then:
 			var actualErr app.Error
@@ -119,10 +119,31 @@ func TestSubmitTransactionService_ValidCase(t *testing.T) {
 	service := app.NewSubmitTransactionService(mock)
 
 	// when:
-	actualSTEAK, err := service.SubmitTransaction(context.Background(), topics)
+	actualSTEAK, err := service.SubmitTransaction(context.Background(), topics, nil, nil)
 
 	// then:
 	require.NoError(t, err)
 	require.Equal(t, expectations.STEAK, actualSTEAK)
+	mock.AssertCalled()
+}
+
+func TestSubmitTransactionService_ForwardsOffChainValues(t *testing.T) {
+	topics := app.TransactionTopics{"topic1", "topic2"}
+	beef := []byte("beef-bytes")
+	offChain := []byte{0x00, 0xff, 0x01}
+	expectations := testabilities.SubmitTransactionProviderMockExpectations{
+		SubmitCall: true,
+		STEAK:      &overlay.Steak{},
+	}
+	mock := testabilities.NewSubmitTransactionProviderMock(t, expectations)
+	service := app.NewSubmitTransactionService(mock)
+
+	_, err := service.SubmitTransaction(context.Background(), topics, beef, offChain)
+
+	require.NoError(t, err)
+	called := mock.CalledTaggedBEEF()
+	require.Equal(t, beef, called.Beef)
+	require.Equal(t, offChain, called.OffChainValues)
+	require.Equal(t, []string(topics), called.Topics)
 	mock.AssertCalled()
 }

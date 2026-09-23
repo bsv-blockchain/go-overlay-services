@@ -26,7 +26,7 @@ func TestEngine_Submit_Success(t *testing.T) {
 	sut := engine.NewEngine(&engine.Config{
 		Managers: map[string]engine.TopicManager{
 			testTopic: fakeManager{
-				identifyAdmissibleOutputsFunc: func(_ context.Context, _ *transaction.Beef, _ *chainhash.Hash, _ []uint32) (overlay.AdmittanceInstructions, error) {
+				identifyAdmissibleOutputsFunc: func(_ context.Context, _ *transaction.Beef, _ *chainhash.Hash, _ []uint32, _ []byte) (overlay.AdmittanceInstructions, error) {
 					return overlay.AdmittanceInstructions{
 						OutputsToAdmit: []uint32{0},
 					}, nil
@@ -89,7 +89,7 @@ func TestEngine_Submit_InvalidBeef_ShouldReturnError(t *testing.T) {
 	sut := engine.NewEngine(&engine.Config{
 		Managers: map[string]engine.TopicManager{
 			testTopic: fakeManager{
-				identifyAdmissibleOutputsFunc: func(_ context.Context, _ *transaction.Beef, _ *chainhash.Hash, _ []uint32) (overlay.AdmittanceInstructions, error) {
+				identifyAdmissibleOutputsFunc: func(_ context.Context, _ *transaction.Beef, _ *chainhash.Hash, _ []uint32, _ []byte) (overlay.AdmittanceInstructions, error) {
 					return overlay.AdmittanceInstructions{
 						OutputsToAdmit: []uint32{0},
 					}, nil
@@ -120,7 +120,7 @@ func TestEngine_Submit_SPVFail_ShouldReturnError(t *testing.T) {
 	sut := engine.NewEngine(&engine.Config{
 		Managers: map[string]engine.TopicManager{
 			testTopic: fakeManager{
-				identifyAdmissibleOutputsFunc: func(_ context.Context, _ *transaction.Beef, _ *chainhash.Hash, _ []uint32) (overlay.AdmittanceInstructions, error) {
+				identifyAdmissibleOutputsFunc: func(_ context.Context, _ *transaction.Beef, _ *chainhash.Hash, _ []uint32, _ []byte) (overlay.AdmittanceInstructions, error) {
 					return overlay.AdmittanceInstructions{
 						OutputsToAdmit: []uint32{0},
 					}, nil
@@ -222,7 +222,7 @@ func TestEngine_Submit_BroadcastFails_ShouldReturnError(t *testing.T) {
 	sut := engine.NewEngine(&engine.Config{
 		Managers: map[string]engine.TopicManager{
 			testTopic: fakeManager{
-				identifyAdmissibleOutputsFunc: func(_ context.Context, _ *transaction.Beef, _ *chainhash.Hash, _ []uint32) (overlay.AdmittanceInstructions, error) {
+				identifyAdmissibleOutputsFunc: func(_ context.Context, _ *transaction.Beef, _ *chainhash.Hash, _ []uint32, _ []byte) (overlay.AdmittanceInstructions, error) {
 					return overlay.AdmittanceInstructions{
 						OutputsToAdmit: []uint32{0},
 					}, nil
@@ -284,7 +284,7 @@ func TestEngine_Submit_OutputInsertFails_ShouldReturnError(t *testing.T) {
 	sut := engine.NewEngine(&engine.Config{
 		Managers: map[string]engine.TopicManager{
 			testTopic: fakeManager{
-				identifyAdmissibleOutputsFunc: func(_ context.Context, _ *transaction.Beef, _ *chainhash.Hash, _ []uint32) (overlay.AdmittanceInstructions, error) {
+				identifyAdmissibleOutputsFunc: func(_ context.Context, _ *transaction.Beef, _ *chainhash.Hash, _ []uint32, _ []byte) (overlay.AdmittanceInstructions, error) {
 					return overlay.AdmittanceInstructions{
 						OutputsToAdmit: []uint32{0},
 					}, nil
@@ -336,4 +336,77 @@ func TestEngine_Submit_OutputInsertFails_ShouldReturnError(t *testing.T) {
 	// then:
 	require.ErrorIs(t, err, expectedErr)
 	require.Nil(t, steak)
+}
+
+func TestEngine_Submit_PassesOffChainValuesToIdentifyAdmissibleOutputs(t *testing.T) {
+	opaque := []byte{0x00, 0xff, 0x01}
+	tests := []struct {
+		name     string
+		offChain []byte
+	}{
+		{name: "nil when TaggedBEEF has no off-chain values"},
+		{name: "exact bytes from TaggedBEEF.OffChainValues", offChain: opaque},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			var got []byte
+			called := false
+			sut := engine.NewEngine(&engine.Config{
+				Managers: map[string]engine.TopicManager{
+					testTopic: fakeManager{
+						identifyAdmissibleOutputsFunc: func(_ context.Context, _ *transaction.Beef, _ *chainhash.Hash, _ []uint32, offChainValues []byte) (overlay.AdmittanceInstructions, error) {
+							called = true
+							got = offChainValues
+							return overlay.AdmittanceInstructions{OutputsToAdmit: []uint32{0}}, nil
+						},
+					},
+				},
+				Storage: fakeStorage{
+					deleteOutputFunc: func(_ context.Context, _ *transaction.Outpoint, _ string) error {
+						return nil
+					},
+					findOutputFunc: func(_ context.Context, _ *transaction.Outpoint, _ *string, _ *bool, _ bool) (*engine.Output, error) {
+						return &engine.Output{Beef: emptyBeef}, nil
+					},
+					findOutputsFunc: func(_ context.Context, _ []*transaction.Outpoint, _ string, _ *bool, _ bool) ([]*engine.Output, error) {
+						return []*engine.Output{{Beef: emptyBeef}}, nil
+					},
+					doesAppliedTransactionExistFunc: func(_ context.Context, _ *overlay.AppliedTransaction) (bool, error) {
+						return false, nil
+					},
+					markUTXOsAsSpentFunc: func(_ context.Context, _ []*transaction.Outpoint, _ string, _ *chainhash.Hash) error {
+						return nil
+					},
+					insertOutputsFunc: func(_ context.Context, _ string, _ *chainhash.Hash, _ []uint32, _ []*transaction.Outpoint, _ *transaction.Beef, _ []*chainhash.Hash) error {
+						return nil
+					},
+					insertAppliedTransactionFunc: func(_ context.Context, _ *overlay.AppliedTransaction) error {
+						return nil
+					},
+				},
+				ChainTracker: fakeChainTracker{
+					isValidRootForHeight: func(_ context.Context, _ *chainhash.Hash, _ uint32) (bool, error) {
+						return true, nil
+					},
+				},
+			})
+
+			taggedBEEF := overlay.TaggedBEEF{
+				Topics:         []string{testTopic},
+				Beef:           createDummyBEEF(t),
+				OffChainValues: tc.offChain,
+			}
+
+			_, err := sut.Submit(context.Background(), taggedBEEF, engine.SubmitModeCurrent, nil)
+
+			require.NoError(t, err)
+			require.True(t, called)
+			if tc.offChain == nil {
+				require.Nil(t, got)
+				return
+			}
+			require.Equal(t, tc.offChain, got)
+		})
+	}
 }

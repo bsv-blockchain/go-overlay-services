@@ -630,7 +630,7 @@ func mustDecodeHex(t *testing.T, value string) []byte {
 
 type admitAllManager struct{}
 
-func (admitAllManager) IdentifyAdmissibleOutputs(_ context.Context, _ *transaction.Beef, _ *chainhash.Hash, _ []uint32) (overlay.AdmittanceInstructions, error) {
+func (admitAllManager) IdentifyAdmissibleOutputs(_ context.Context, _ *transaction.Beef, _ *chainhash.Hash, _ []uint32, _ []byte) (overlay.AdmittanceInstructions, error) {
 	return overlay.AdmittanceInstructions{OutputsToAdmit: []uint32{0}}, nil
 }
 
