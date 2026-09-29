@@ -3,7 +3,7 @@ module github.com/bsv-blockchain/go-overlay-services
 go 1.26.0
 
 require (
-	github.com/bsv-blockchain/go-sdk v1.5.2
+	github.com/bsv-blockchain/go-sdk v1.6.0
 	github.com/bsv-blockchain/universal-test-vectors v0.6.1
 	github.com/go-resty/resty/v2 v2.17.2
 	github.com/go-viper/mapstructure/v2 v2.5.0
@@ -32,7 +32,7 @@ require (
 	github.com/mattn/go-colorable v0.1.15 // indirect
 	github.com/mattn/go-isatty v0.0.24 // indirect
 	github.com/mattn/go-runewidth v0.0.29 // indirect
-	github.com/mrz1836/go-whatsonchain v1.1.0 // indirect
+	github.com/mrz1836/go-whatsonchain v1.3.0 // indirect
 	github.com/oapi-codegen/oapi-codegen/v2 v2.7.1 // indirect
 	github.com/oasdiff/yaml v0.1.1 // indirect
 	github.com/oasdiff/yaml3 v0.0.14 // indirect
