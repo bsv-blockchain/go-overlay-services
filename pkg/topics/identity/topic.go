@@ -4,10 +4,11 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/bsv-blockchain/go-overlay-services/pkg/core/engine"
 	"github.com/bsv-blockchain/go-sdk/chainhash"
 	"github.com/bsv-blockchain/go-sdk/overlay"
 	"github.com/bsv-blockchain/go-sdk/transaction"
+
+	"github.com/bsv-blockchain/go-overlay-services/pkg/core/engine"
 )
 
 // TopicManager implements identity application admission independently per output.

@@ -521,10 +521,7 @@ components:
           schema: {$ref: '#/components/schemas/BASMRawTransactions'}
     BASMErrorResponse:
       description: >-
-        Redacted BASM request failure. Actual route statuses are 400 (invalid
-        request), 413 (request too large), 404 (not found), 501 (unsupported),
-        503 (not ready), 500 (invalid provider data/internal failure), 504
-        (provider timeout), and 408 (request context timeout).
+        Redacted BASM request failure. Actual route statuses are 400 (invalid request), 413 (request too large), 404 (not found), 501 (unsupported), 503 (not ready), 500 (invalid provider data/internal failure), 504 (provider timeout), and 408 (request context timeout).
       content:
         application/json:
           schema: {$ref: '#/components/schemas/BASMError'}

@@ -417,11 +417,11 @@ func (e *Engine) validateTopicsAndGetManagers(topics []string) (map[string]Topic
 func (e *Engine) verifyTransaction(ctx context.Context, tx *transaction.Transaction, txid *chainhash.Hash) error {
 	valid, err := spv.Verify(ctx, tx, e.ChainTracker, nil)
 	if err != nil {
-		slog.Error("SPV verification failed in Submit", "txid", txid, "error", err)
+		slog.Error("SPV verification failed in Submit", "txid", txid.String(), "error", err)
 		return err
 	}
 	if !valid {
-		slog.Error("invalid transaction in Submit", "txid", txid, "error", ErrInvalidTransaction)
+		slog.Error("invalid transaction in Submit", "txid", txid.String(), "error", ErrInvalidTransaction)
 		return ErrInvalidTransaction
 	}
 	return nil
@@ -455,7 +455,7 @@ func (e *Engine) identifyAdmissibleOutputsPerTopic(
 		if admission == nil {
 			exists, err := e.Storage.DoesAppliedTransactionExist(ctx, &overlay.AppliedTransaction{Txid: p.Txid, Topic: t})
 			if err != nil {
-				slog.Error("failed to check if transaction exists", "txid", p.Txid, "topic", t, "error", err)
+				slog.Error("failed to check if transaction exists", "txid", p.Txid.String(), "topic", t, "error", err)
 				return err
 			}
 			if exists {
@@ -543,7 +543,7 @@ func (e *Engine) markTopicUTXOsSpent(ctx context.Context, inputs map[uint32]*Out
 		topicInpoints = append(topicInpoints, &output.Outpoint)
 	}
 	if err := e.Storage.MarkUTXOsAsSpent(ctx, topicInpoints, topic, txid); err != nil {
-		slog.Error("failed to mark UTXOs as spent", "topic", topic, "txid", txid, "error", err)
+		slog.Error("failed to mark UTXOs as spent", "topic", topic, "txid", txid.String(), "error", err)
 		return err
 	}
 	return nil
@@ -563,7 +563,7 @@ func (e *Engine) notifySpentOutputs(ctx context.Context, inputs map[uint32]*Outp
 				SequenceNumber:     tx.Inputs[vin].SequenceNumber,
 				SpendingAtomicBEEF: atomicBeef,
 			}); err != nil {
-				slog.Error("failed to notify lookup service about spent output", "topic", topic, "txid", txid, "error", err)
+				slog.Error("failed to notify lookup service about spent output", "topic", topic, "txid", txid.String(), "error", err)
 				return err
 			}
 		}
@@ -577,7 +577,7 @@ func (e *Engine) broadcastIfNeeded(tx *transaction.Transaction, txid *chainhash.
 		return nil
 	}
 	if _, failure := e.Broadcaster.Broadcast(tx); failure != nil {
-		slog.Error("failed to broadcast transaction", "txid", txid, "mode", string(mode), "error", failure)
+		slog.Error("failed to broadcast transaction", "txid", txid.String(), "mode", string(mode), "error", failure)
 		return failure
 	}
 	return nil
@@ -624,7 +624,7 @@ func (e *Engine) commitTopicOutputs(ctx context.Context, topic string, p *submit
 	}
 
 	if err := e.Storage.InsertAppliedTransaction(ctx, &overlay.AppliedTransaction{Txid: p.Txid, Topic: topic}); err != nil {
-		slog.Error("failed to insert applied transaction", "topic", topic, "txid", p.Txid, "error", err)
+		slog.Error("failed to insert applied transaction", "topic", topic, "txid", p.Txid.String(), "error", err)
 		return err
 	}
 	return nil
@@ -722,7 +722,7 @@ func (e *Engine) propagateToNetwork(ctx context.Context, tx *transaction.Transac
 	if broadcaster, err := topic.NewBroadcaster(relevantTopics, broadcasterCfg); err != nil {
 		slog.Error("failed to create broadcaster for propagation", "topics", relevantTopics, "error", err)
 	} else if _, failure := broadcaster.BroadcastCtx(ctx, tx); failure != nil {
-		slog.Error("failed to propagate transaction to other nodes", "txid", txid, "error", failure)
+		slog.Error("failed to propagate transaction to other nodes", "txid", txid.String(), "error", failure)
 	}
 }
 
@@ -1516,7 +1516,7 @@ func (e *Engine) HandleNewMerkleProof(ctx context.Context, txid *chainhash.Hash,
 
 	outputs, err := e.Storage.FindOutputsForTransaction(ctx, txid, true)
 	if err != nil {
-		slog.Error("failed to find outputs for transaction in HandleNewMerkleProof", "txid", txid, "error", err)
+		slog.Error("failed to find outputs for transaction in HandleNewMerkleProof", "txid", txidString(txid), "error", err)
 		return err
 	}
 	if len(outputs) == 0 {
@@ -1526,7 +1526,7 @@ func (e *Engine) HandleNewMerkleProof(ctx context.Context, txid *chainhash.Hash,
 	blockIdx := findBlockIdx(proof, *txid)
 	if blockIdx == nil {
 		err := fmt.Errorf("not found in proof: %s", txid) //nolint:err113 // dynamic error needed for context
-		slog.Error("transaction not found in merkle proof", "txid", txid, "error", err)
+		slog.Error("transaction not found in merkle proof", "txid", txid.String(), "error", err)
 		return err
 	}
 
@@ -1544,7 +1544,7 @@ func (e *Engine) HandleNewMerkleProof(ctx context.Context, txid *chainhash.Hash,
 	lookupServices := e.getLookupServicesSnapshot()
 	for _, l := range lookupServices {
 		if err := l.OutputBlockHeightUpdated(ctx, txid, proof.BlockHeight, *blockIdx); err != nil {
-			slog.Error("failed to notify lookup service about block height update", "txid", txid, "blockHeight", proof.BlockHeight, "error", err)
+			slog.Error("failed to notify lookup service about block height update", "txid", txid.String(), "blockHeight", proof.BlockHeight, "error", err)
 			return err
 		}
 	}
@@ -1555,19 +1555,28 @@ func (e *Engine) HandleNewMerkleProof(ctx context.Context, txid *chainhash.Hash,
 func (e *Engine) validateMerkleProof(ctx context.Context, txid *chainhash.Hash, proof *transaction.MerklePath) error {
 	merkleRoot, err := proof.ComputeRoot(txid)
 	if err != nil {
-		slog.Error("failed to compute merkle root from proof", "txid", txid, "error", err)
+		slog.Error("failed to compute merkle root from proof", "txid", txidString(txid), "error", err)
 		return err
 	}
 	valid, err := e.ChainTracker.IsValidRootForHeight(ctx, merkleRoot, proof.BlockHeight)
 	if err != nil {
-		slog.Error("error validating merkle root for height", "txid", txid, "blockHeight", proof.BlockHeight, "error", err)
+		slog.Error("error validating merkle root for height", "txid", txidString(txid), "blockHeight", proof.BlockHeight, "error", err)
 		return err
 	}
 	if !valid {
-		slog.Error("merkle proof validation failed", "txid", txid, "blockHeight", proof.BlockHeight)
+		slog.Error("merkle proof validation failed", "txid", txidString(txid), "blockHeight", proof.BlockHeight)
 		return fmt.Errorf("%w: transaction %s at block height %d", ErrInvalidMerkleProof, txid, proof.BlockHeight)
 	}
 	return nil
+}
+
+// txidString returns the display form of txid for logging, tolerating nil
+// (MerklePath.ComputeRoot accepts a nil txid, so callers may pass one).
+func txidString(txid *chainhash.Hash) string {
+	if txid == nil {
+		return "<nil>"
+	}
+	return txid.String()
 }
 
 // findBlockIdx finds the block index for a transaction in a merkle proof path.

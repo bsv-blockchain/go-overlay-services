@@ -184,7 +184,7 @@ func (g *GASP) Sync(ctx context.Context, _ string, limit uint32) error {
 			}()
 
 			if err := g.ProcessUTXOToCompletion(processingCtx, outpoint, nil, &sync.Map{}); err != nil {
-				g.logger.Error("error processing UTXO", "outpoint", outpoint, "error", err)
+				g.logger.Error("error processing UTXO", "outpoint", outpoint.String(), "error", err)
 				return fmt.Errorf("error processing UTXO %s: %w", outpoint, err)
 			}
 			sharedOutpoints.Store(*outpoint, struct{}{})
