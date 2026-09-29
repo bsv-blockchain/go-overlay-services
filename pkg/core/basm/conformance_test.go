@@ -9,9 +9,10 @@ import (
 	"slices"
 	"testing"
 
-	"github.com/bsv-blockchain/go-overlay-services/pkg/core/basm"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/bsv-blockchain/go-overlay-services/pkg/core/basm"
 )
 
 type conformanceVectors struct {

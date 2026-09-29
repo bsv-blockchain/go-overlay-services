@@ -45,7 +45,7 @@ func (e *Engine) submitWithAdmission(ctx context.Context, p *submitParsedBeefPar
 	}
 	result, err := admission.CommitAdmission(ctx, plan)
 	if err != nil {
-		slog.Error("admission commit failed", "txid", p.Txid, "error", err)
+		slog.Error("admission commit failed", "txid", p.Txid.String(), "error", err)
 		return nil, err
 	}
 	switch result.State {
