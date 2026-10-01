@@ -19,6 +19,9 @@ type SubmitTransactionHandler struct {
 // Handle processes an HTTP request to submit a transaction.
 // It expects the `x-topics` header to be present and valid; see ParseTopicsHeader
 // for the accepted encodings (JSON array of strings or comma-separated list).
+// When `x-includes-off-chain-values` is exactly `true`, the body is a Bitcoin
+// varint frame and the trailing bytes are forwarded as off-chain values.
+// Otherwise the body is the raw BEEF and off-chain values are nil.
 // On success, it returns HTTP 200 OK with a STEAK response (openapi.SubmitTransactionResponse).
 // If an error occurs during transaction submission, it returns the corresponding application error.
 func (s *SubmitTransactionHandler) Handle(c *fiber.Ctx, params openapi.SubmitTransactionParams) error {
@@ -27,7 +30,15 @@ func (s *SubmitTransactionHandler) Handle(c *fiber.Ctx, params openapi.SubmitTra
 		return err
 	}
 
-	steak, err := s.service.SubmitTransaction(c.UserContext(), topics, c.Body()...)
+	beef, offChainValues, err := splitSubmitBody(
+		c.Body(),
+		includesOffChainValues(c.Get(XIncludesOffChainValuesHeader)),
+	)
+	if err != nil {
+		return err
+	}
+
+	steak, err := s.service.SubmitTransaction(c.UserContext(), topics, beef, offChainValues)
 	if err != nil {
 		return err
 	}

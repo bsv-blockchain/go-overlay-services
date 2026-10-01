@@ -9,7 +9,10 @@ components:
               Transaction:
                 type: string
                 format: binary
-                description: 'Serialized transaction data (e.g., a binary format such as Protobuf or other)'
+                description: |
+                  Raw BEEF bytes, unless x-includes-off-chain-values is exactly true.
+                  In that case the body is a Bitcoin varint beef length, the BEEF bytes,
+                  and opaque trailing off-chain value bytes.
             required:
               - Transaction
 

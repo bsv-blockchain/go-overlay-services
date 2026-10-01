@@ -137,6 +137,24 @@ paths:
             type: string
             example: tm_ship,tm_slap
           required: true
+        - in: header
+          name: x-includes-off-chain-values
+          required: false
+          description: |
+            When this value is exactly `true`, the octet-stream body is framed as
+            `VarInt(beefByteLength) || beefBytes || offChainValueBytes` using the
+            Bitcoin varint encoding from the BSV SDK. Trailing bytes are opaque:
+            they are not parsed as JSON and are not required to be UTF-8. They are
+            passed unchanged to topic admission.
+
+            When the header is absent, or any value other than `true`, the body is
+            the raw BEEF and off-chain values are absent.
+
+            A malformed frame (a varint that runs past the end of the body, or a
+            beef length that does not fit in the remaining bytes) is HTTP 400.
+          schema:
+            type: string
+            example: "true"
       requestBody:
         required: true
         $ref: '../paths/non_admin/request-bodies.yaml#/components/requestBodies/SubmitTransactionBody'
