@@ -391,35 +391,25 @@ func createDummyBEEF(t *testing.T) []byte {
 }
 
 // createDummyValidTaggedBEEF creates a dummy valid tagged BEEF transaction for testing.
-// It creates a previous transaction and a current transaction, both with dummy locking scripts.
-// The previous transaction is used as an input for the current transaction.
+// The transaction spends a single input whose previous (source) transaction carries a merkle proof,
+// so it passes SPV verification with a chain tracker that accepts the merkle root.
+// An unmined previous transaction would be checked against consensus rules by spv.Verify.
 // It returns the tagged BEEF and the transaction ID of the previous transaction.
-// The tagged BEEF contains a list of topics and the serialized bytes of the BEEF transaction.
 func createDummyValidTaggedBEEF(t *testing.T) (overlay.TaggedBEEF, *chainhash.Hash) {
 	t.Helper()
-	prevTx := &transaction.Transaction{
-		Inputs:  []*transaction.TransactionInput{},
-		Outputs: []*transaction.TransactionOutput{{Satoshis: 1000, LockingScript: &script.Script{script.OpTRUE}}},
-	}
-	prevTxID := prevTx.TxID()
 
-	currentTx := &transaction.Transaction{
-		Inputs:  []*transaction.TransactionInput{{SourceTXID: prevTxID, SourceTxOutIndex: 0}},
-		Outputs: []*transaction.TransactionOutput{{Satoshis: 900, LockingScript: &script.Script{script.OpTRUE}}},
-	}
-	currentTxID := currentTx.TxID()
+	spec := testabilities.GivenTX().
+		WithInput(1000).
+		WithP2PKHOutput(999)
+	tx := spec.TX()
 
-	beef := &transaction.Beef{
-		Version: transaction.BEEF_V2,
-		Transactions: map[chainhash.Hash]*transaction.BeefTx{
-			*prevTxID:    {Transaction: prevTx},
-			*currentTxID: {Transaction: currentTx},
-		},
-	}
-	beefBytes, err := beef.AtomicBytes(currentTxID)
+	beef, err := transaction.NewBeefFromTransaction(tx)
 	require.NoError(t, err)
 
-	return overlay.TaggedBEEF{Topics: []string{testTopic}, Beef: beefBytes}, prevTxID
+	beefBytes, err := beef.AtomicBytes(tx.TxID())
+	require.NoError(t, err)
+
+	return overlay.TaggedBEEF{Topics: []string{testTopic}, Beef: beefBytes}, spec.InputSourceTX(0).TxID()
 }
 
 // fakeTxID returns a fixed valid chainhash.Hash for testing purposes.

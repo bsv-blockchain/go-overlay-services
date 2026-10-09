@@ -7,6 +7,7 @@ import (
 
 	"github.com/bsv-blockchain/go-sdk/chainhash"
 	"github.com/bsv-blockchain/go-sdk/overlay"
+	"github.com/bsv-blockchain/go-sdk/spv"
 	"github.com/bsv-blockchain/go-sdk/transaction"
 	"github.com/stretchr/testify/require"
 
@@ -153,8 +154,7 @@ func TestEngine_Submit_SPVFail_ShouldReturnError(t *testing.T) {
 	steak, err := sut.Submit(ctx, taggedBEEF, engine.SubmitModeCurrent, nil)
 
 	// then:
-	require.Error(t, err)
-	require.Equal(t, "missing source transaction: input 0", err.Error()) // temp fix for SPV failure Submit need to be fixed by wrapping the error to use ErrorIs
+	require.ErrorIs(t, err, spv.ErrMissingSourceTransaction)
 	require.Nil(t, steak)
 }
 
@@ -327,7 +327,11 @@ func TestEngine_Submit_OutputInsertFails_ShouldReturnError(t *testing.T) {
 				return nil
 			},
 		},
-		ChainTracker: fakeChainTracker{},
+		ChainTracker: fakeChainTracker{
+			isValidRootForHeight: func(_ context.Context, _ *chainhash.Hash, _ uint32) (bool, error) {
+				return true, nil
+			},
+		},
 	})
 
 	// when:
