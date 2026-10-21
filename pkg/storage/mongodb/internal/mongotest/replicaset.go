@@ -429,10 +429,16 @@ func (r *ReplicaSet) stopForCleanupLocked(ctx context.Context, member *member) e
 	waitCtx, waitCancel := context.WithTimeout(ctx, shutdownTimeout)
 	defer waitCancel()
 	select {
-	case <-member.wait:
+	case waitErr := <-member.wait:
 		member.cmd = nil
 		member.wait = nil
-		return nil // Forced termination is an expected cleanup outcome.
+		// Forced termination is an expected cleanup outcome, so an exit status
+		// is not a failure; any other error means Wait itself failed.
+		var exitErr *exec.ExitError
+		if waitErr != nil && !errors.As(waitErr, &exitErr) {
+			return fmt.Errorf("killed mongod at %s: %w", member.address, waitErr)
+		}
+		return nil
 	case <-waitCtx.Done():
 		return fmt.Errorf("wait for killed mongod at %s: %w", member.address, waitCtx.Err())
 	}

@@ -8,7 +8,7 @@ import (
 	"github.com/gofiber/fiber/v2/middleware/idempotency"
 	"github.com/gofiber/fiber/v2/middleware/logger"
 	"github.com/gofiber/fiber/v2/middleware/pprof"
-	"github.com/gofiber/fiber/v2/middleware/recover"
+	fiberrecover "github.com/gofiber/fiber/v2/middleware/recover"
 	"github.com/gofiber/fiber/v2/middleware/requestid"
 )
 
@@ -28,7 +28,7 @@ func BasicMiddlewareGroup(cfg BasicMiddlewareGroupConfig) []fiber.Handler {
 		requestid.New(),
 		idempotency.New(),
 		cors.New(),
-		recover.New(recover.Config{EnableStackTrace: cfg.EnableStackTrace}),
+		fiberrecover.New(fiberrecover.Config{EnableStackTrace: cfg.EnableStackTrace}),
 	}
 
 	// Only include logger if explicitly requested
