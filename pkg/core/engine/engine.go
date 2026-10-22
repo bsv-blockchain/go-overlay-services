@@ -469,7 +469,7 @@ func (e *Engine) identifyAdmissibleOutputsPerTopic(
 			return err
 		}
 		topicBeef := p.Beef.Clone()
-		admit, err := managers[t].IdentifyAdmissibleOutputs(ctx, topicBeef, p.Txid, previousCoins)
+		admit, err := managers[t].IdentifyAdmissibleOutputs(ctx, topicBeef, p.Txid, previousCoins, p.OffChainValues)
 		if err != nil {
 			slog.Error("failed to identify admissible outputs", "txid", p.Txid.String(), "topic", t, "mode", string(p.Mode), "error", err)
 			return err

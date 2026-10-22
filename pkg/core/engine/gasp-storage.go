@@ -256,7 +256,8 @@ func (s *OverlayGASPStorage) IdentifyAdmissibleOutputs(ctx context.Context, beef
 	if !ok {
 		return overlay.AdmittanceInstructions{}, fmt.Errorf("%w (identify admissible outputs): %s", ErrNoManagerForTopic, s.Topic)
 	}
-	return manager.IdentifyAdmissibleOutputs(ctx, beef, txid, previousCoins)
+	// GASP graphs do not retain the original submit's off-chain bytes.
+	return manager.IdentifyAdmissibleOutputs(ctx, beef, txid, previousCoins, nil)
 }
 
 // IdentifyNeededInputs delegates to the topic manager to determine which inputs are needed.
@@ -481,6 +482,7 @@ func (s *OverlayGASPStorage) submitBeef(ctx context.Context, beef []byte) error 
 		overlay.TaggedBEEF{
 			Topics: []string{s.Topic},
 			Beef:   beef,
+			// Historical submits do not have the original off-chain bytes.
 		},
 		SubmitModeHistorical,
 		nil,
