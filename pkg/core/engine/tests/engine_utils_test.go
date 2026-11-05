@@ -157,15 +157,15 @@ func (f fakeStorage) LoadAncillaryBeef(_ context.Context, _ *engine.Output) erro
 }
 
 type fakeManager struct {
-	identifyAdmissibleOutputsFunc func(ctx context.Context, beef *transaction.Beef, txid *chainhash.Hash, previousCoins []uint32) (overlay.AdmittanceInstructions, error)
+	identifyAdmissibleOutputsFunc func(ctx context.Context, beef *transaction.Beef, txid *chainhash.Hash, previousCoins []uint32, offChainValues []byte) (overlay.AdmittanceInstructions, error)
 	identifyNeededInputsFunc      func(ctx context.Context, beef *transaction.Beef, txid *chainhash.Hash) ([]*transaction.Outpoint, error)
 	getMetaData                   func() *overlay.MetaData
 	getDocumentation              func() string
 }
 
-func (f fakeManager) IdentifyAdmissibleOutputs(ctx context.Context, beef *transaction.Beef, txid *chainhash.Hash, previousCoins []uint32) (overlay.AdmittanceInstructions, error) {
+func (f fakeManager) IdentifyAdmissibleOutputs(ctx context.Context, beef *transaction.Beef, txid *chainhash.Hash, previousCoins []uint32, offChainValues []byte) (overlay.AdmittanceInstructions, error) {
 	if f.identifyAdmissibleOutputsFunc != nil {
-		return f.identifyAdmissibleOutputsFunc(ctx, beef, txid, previousCoins)
+		return f.identifyAdmissibleOutputsFunc(ctx, beef, txid, previousCoins, offChainValues)
 	}
 	panic("func not defined")
 }
@@ -354,7 +354,7 @@ func (f fakeAdvertiser) ParseAdvertisement(script *script.Script) (*advertiser.A
 
 type fakeTopicManager struct{}
 
-func (fakeTopicManager) IdentifyAdmissibleOutputs(_ context.Context, _ *transaction.Beef, _ *chainhash.Hash, _ []uint32) (overlay.AdmittanceInstructions, error) {
+func (fakeTopicManager) IdentifyAdmissibleOutputs(_ context.Context, _ *transaction.Beef, _ *chainhash.Hash, _ []uint32, _ []byte) (overlay.AdmittanceInstructions, error) {
 	return overlay.AdmittanceInstructions{}, nil
 }
 

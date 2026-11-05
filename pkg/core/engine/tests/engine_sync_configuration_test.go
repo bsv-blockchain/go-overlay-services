@@ -320,7 +320,7 @@ func TestEngine_SyncConfiguration_TypeScriptParity(t *testing.T) {
 // Mock topic manager for testing
 type mockTopicManager struct{}
 
-func (m *mockTopicManager) IdentifyAdmissibleOutputs(_ context.Context, _ *transaction.Beef, _ *chainhash.Hash, _ []uint32) (overlay.AdmittanceInstructions, error) {
+func (m *mockTopicManager) IdentifyAdmissibleOutputs(_ context.Context, _ *transaction.Beef, _ *chainhash.Hash, _ []uint32, _ []byte) (overlay.AdmittanceInstructions, error) {
 	return overlay.AdmittanceInstructions{}, nil
 }
 

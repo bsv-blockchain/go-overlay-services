@@ -96,6 +96,14 @@ func (s *SubmitTransactionProviderMock) AssertCalled() {
 	require.Equal(s.t, s.expectations.SubmitCall, called, "Discrepancy between expected and actual Submit call")
 }
 
+// CalledTaggedBEEF returns the TaggedBEEF argument from the most recent Submit call.
+func (s *SubmitTransactionProviderMock) CalledTaggedBEEF() overlay.TaggedBEEF {
+	s.t.Helper()
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.calledTaggedBEEF
+}
+
 // AssertCalledWithTopics verifies that Submit was called with exactly the given topics, in order.
 func (s *SubmitTransactionProviderMock) AssertCalledWithTopics(expected []string) {
 	s.t.Helper()

@@ -22,17 +22,23 @@ type SubmitTransactionService struct {
 }
 
 // SubmitTransaction submits a transaction to the configured provider.
+// beef is the raw BEEF payload. offChainValues is nil when the submit had no
+// off-chain values; otherwise it is the opaque trailing bytes, which may be empty.
 // It validates the provided topics, sends the transaction, and waits for a response (STEAK).
 // Returns a non-nil *overlay.Steak on success, or an error if topics are missing, invalid,
 // the provider fails, or a timeout occurs.
-func (s *SubmitTransactionService) SubmitTransaction(ctx context.Context, topics TransactionTopics, txBytes ...byte) (*overlay.Steak, error) {
+func (s *SubmitTransactionService) SubmitTransaction(ctx context.Context, topics TransactionTopics, beef, offChainValues []byte) (*overlay.Steak, error) {
 	err := topics.Verify()
 	if err != nil {
 		return nil, err
 	}
 
 	ch := make(chan *overlay.Steak, 1)
-	_, err = s.provider.Submit(ctx, overlay.TaggedBEEF{Beef: txBytes, Topics: topics}, engine.SubmitModeCurrent, func(steak *overlay.Steak) {
+	_, err = s.provider.Submit(ctx, overlay.TaggedBEEF{
+		Beef:           beef,
+		Topics:         topics,
+		OffChainValues: offChainValues,
+	}, engine.SubmitModeCurrent, func(steak *overlay.Steak) {
 		ch <- steak
 	})
 	if err != nil {

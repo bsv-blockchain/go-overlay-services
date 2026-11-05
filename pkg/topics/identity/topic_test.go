@@ -65,7 +65,7 @@ func TestTopicManagerTSFixtures(t *testing.T) {
 		t.Run(fixture.Name, func(t *testing.T) {
 			beef, txid := readTopicFixture(t, fixture)
 			manager := NewTopicManager()
-			result, err := manager.IdentifyAdmissibleOutputs(t.Context(), beef, txid, []uint32{0, 5})
+			result, err := manager.IdentifyAdmissibleOutputs(t.Context(), beef, txid, []uint32{0, 5}, nil)
 			require.NoError(t, err)
 			expected := fixture.OutputsToAdmit
 			if fixture.Name == "mixed-valid-and-malformed-outputs" {
@@ -78,7 +78,7 @@ func TestTopicManagerTSFixtures(t *testing.T) {
 			require.Equal(t, expected, result.OutputsToAdmit)
 			require.Empty(t, result.CoinsToRetain)
 			// Replay cannot alter admission decisions or mutate the BEEF.
-			again, err := manager.IdentifyAdmissibleOutputs(t.Context(), beef, txid, nil)
+			again, err := manager.IdentifyAdmissibleOutputs(t.Context(), beef, txid, nil, nil)
 			require.NoError(t, err)
 			require.Equal(t, result, again)
 			require.Equal(t, fixture.Txid, beef.FindTransactionByHash(txid).TxID().String())
@@ -143,30 +143,30 @@ func TestTopicManagerRejectsMalformedSelectionAndBudgets(t *testing.T) {
 		{name: "txid only", beef: &transaction.Beef{Transactions: map[chainhash.Hash]*transaction.BeefTx{*txid: {DataFormat: transaction.TxIDOnly}}}, txid: txid},
 	} {
 		t.Run(test.name, func(t *testing.T) {
-			result, err := manager.IdentifyAdmissibleOutputs(t.Context(), test.beef, test.txid, nil)
+			result, err := manager.IdentifyAdmissibleOutputs(t.Context(), test.beef, test.txid, nil, nil)
 			require.ErrorIs(t, err, ErrInvalidTransaction)
 			require.Empty(t, result.OutputsToAdmit)
 		})
 	}
 	wrongID := chainhash.HashH([]byte("wrong map identity"))
 	beef.Transactions[wrongID] = beef.Transactions[*txid]
-	_, err := manager.IdentifyAdmissibleOutputs(t.Context(), beef, &wrongID, nil)
+	_, err := manager.IdentifyAdmissibleOutputs(t.Context(), beef, &wrongID, nil, nil)
 	require.ErrorIs(t, err, ErrInvalidTransaction)
 	ctx, cancel := context.WithCancel(t.Context())
 	cancel()
-	_, err = manager.IdentifyAdmissibleOutputs(ctx, beef, txid, nil)
+	_, err = manager.IdentifyAdmissibleOutputs(ctx, beef, txid, nil, nil)
 	require.ErrorIs(t, err, context.Canceled)
 	policy := DefaultAdmissionPolicy()
 	policy.MaxScriptBytes = 1
 	bounded, err := NewTopicManagerWithPolicy(policy)
 	require.NoError(t, err)
-	result, err := bounded.IdentifyAdmissibleOutputs(t.Context(), beef, txid, nil)
+	result, err := bounded.IdentifyAdmissibleOutputs(t.Context(), beef, txid, nil, nil)
 	require.NoError(t, err)
 	require.Empty(t, result.OutputsToAdmit)
 	policy.MaxTotalScriptBytes = 1
 	bounded, err = NewTopicManagerWithPolicy(policy)
 	require.NoError(t, err)
-	_, err = bounded.IdentifyAdmissibleOutputs(t.Context(), beef, txid, nil)
+	_, err = bounded.IdentifyAdmissibleOutputs(t.Context(), beef, txid, nil, nil)
 	require.ErrorIs(t, err, ErrAdmissionBudget)
 	_, err = NewTopicManagerWithPolicy(AdmissionPolicy{})
 	require.ErrorIs(t, err, ErrInvalidPolicy)
