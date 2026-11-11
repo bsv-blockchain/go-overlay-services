@@ -3,6 +3,8 @@ package engine_test
 import (
 	"context"
 	"errors"
+	"fmt"
+	"math/bits"
 	"testing"
 
 	"github.com/bsv-blockchain/go-sdk/chainhash"
@@ -39,15 +41,7 @@ func TestEngine_HandleNewMerkleProof(t *testing.T) {
 		require.NoError(t, err)
 
 		// Create merkle path
-		merklePath := &transaction.MerklePath{
-			BlockHeight: 814435,
-			Path: [][]*transaction.PathElement{{
-				{
-					Hash:   txid,
-					Offset: 123,
-				},
-			}},
-		}
+		merklePath := newMerklePathForTxAt(814435, txid, 123)
 
 		// Create output
 		output := &engine.Output{
@@ -114,15 +108,7 @@ func TestEngine_HandleNewMerkleProof(t *testing.T) {
 
 		// Create merkle path without the transaction
 		differentTxid := &chainhash.Hash{1, 2, 3}
-		merklePath := &transaction.MerklePath{
-			BlockHeight: 814435,
-			Path: [][]*transaction.PathElement{{
-				{
-					Hash:   differentTxid, // Different transaction ID
-					Offset: 123,
-				},
-			}},
-		}
+		merklePath := newMerklePathForTxAt(814435, differentTxid, 123)
 
 		output := &engine.Output{
 			Outpoint: transaction.Outpoint{
@@ -150,8 +136,9 @@ func TestEngine_HandleNewMerkleProof(t *testing.T) {
 		err := sut.HandleNewMerkleProof(ctx, txid, merklePath)
 
 		// then
-		// The proof's single leaf holds a different txid, so validation fails while
-		// computing the merkle root (the go-sdk reports the missing txid directly).
+		// The proof's leaves hold a different txid (and its sibling), so validation
+		// fails while computing the merkle root (the go-sdk reports the missing txid
+		// directly).
 		require.Error(t, err)
 		require.Contains(t, err.Error(), "does not contain the txid")
 	})
@@ -160,15 +147,7 @@ func TestEngine_HandleNewMerkleProof(t *testing.T) {
 		// given
 		ctx := context.Background()
 		txid := &chainhash.Hash{1, 2, 3}
-		merklePath := &transaction.MerklePath{
-			BlockHeight: 814435,
-			Path: [][]*transaction.PathElement{{
-				{
-					Hash:   txid,
-					Offset: 123,
-				},
-			}},
-		}
+		merklePath := newMerklePathForTxAt(814435, txid, 123)
 
 		mockStorage := &mockHandleMerkleProofStorage{
 			findOutputsForTransactionFunc: func(_ context.Context, _ *chainhash.Hash, _ bool) ([]*engine.Output, error) {
@@ -196,15 +175,7 @@ func TestEngine_HandleNewMerkleProof(t *testing.T) {
 		// given
 		ctx := context.Background()
 		txid := &chainhash.Hash{1, 2, 3}
-		merklePath := &transaction.MerklePath{
-			BlockHeight: 814435,
-			Path: [][]*transaction.PathElement{{
-				{
-					Hash:   txid,
-					Offset: 123,
-				},
-			}},
-		}
+		merklePath := newMerklePathForTxAt(814435, txid, 123)
 
 		mockStorage := &mockHandleMerkleProofStorage{
 			findOutputsForTransactionFunc: func(_ context.Context, _ *chainhash.Hash, _ bool) ([]*engine.Output, error) {
@@ -262,15 +233,7 @@ func TestEngine_HandleNewMerkleProof(t *testing.T) {
 		}
 
 		// Create merkle path for tx2
-		merklePath := &transaction.MerklePath{
-			BlockHeight: 814436,
-			Path: [][]*transaction.PathElement{{
-				{
-					Hash:   txid2,
-					Offset: 456,
-				},
-			}},
-		}
+		merklePath := newMerklePathForTxAt(814436, txid2, 456)
 
 		// Create outputs with consumedBy relationship
 		output1 := &engine.Output{
@@ -329,6 +292,26 @@ func TestEngine_HandleNewMerkleProof(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, 1, updateCount) // Should update the output
 	})
+}
+
+// newMerklePathForTxAt builds a structurally valid single-transaction merkle path
+// (BUMP) that places txid at the given block offset. Each level carries the
+// sibling needed to climb to the root, so the path computes a root and survives
+// the binary round-trip in the engine's BEEF rebuild. A lone leaf is only valid at
+// offset 0 (a coinbase-only block), so a non-zero offset needs these siblings.
+// Sibling hashes are deterministic placeholders: the tests' chain tracker accepts
+// any root.
+func newMerklePathForTxAt(blockHeight uint32, txid *chainhash.Hash, offset uint64) *transaction.MerklePath {
+	isTxid := true
+	treeHeight := max(bits.Len64(offset), 1)
+	path := make([][]*transaction.PathElement, treeHeight)
+	path[0] = []*transaction.PathElement{{Hash: txid, Offset: offset, Txid: &isTxid}}
+	for level := range treeHeight {
+		siblingOffset := (offset >> level) ^ 1
+		sibling := chainhash.DoubleHashH(fmt.Appendf(nil, "sibling-%d-%d", level, siblingOffset))
+		path[level] = append(path[level], &transaction.PathElement{Hash: &sibling, Offset: siblingOffset})
+	}
+	return transaction.NewMerklePath(blockHeight, path)
 }
 
 // Mock storage for HandleNewMerkleProof tests
