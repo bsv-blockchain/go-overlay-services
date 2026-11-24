@@ -107,6 +107,13 @@ type Engine struct {
 	BroadcastFacilitator    topic.Facilitator
 	LookupResolver          LookupResolverProvider
 	OnAdmission             func(txid *chainhash.Hash, steak *overlay.Steak, beef []byte)
+	// Verifier, when set, replaces the engine's own spv.Verify call in Submit.
+	// It must return nil only for a transaction it has verified in full: the
+	// merkle paths and the scripts of tx and of its unproven ancestors. A
+	// non-nil error rejects the submission and is returned to the caller.
+	// When nil, the engine verifies with spv.Verify against ChainTracker.
+	// Set it before the engine serves submissions.
+	Verifier func(ctx context.Context, tx *transaction.Transaction, txid *chainhash.Hash) error
 
 	// mu protects managers and lookupServices maps for concurrent access
 	mu sync.RWMutex
@@ -413,8 +420,12 @@ func (e *Engine) validateTopicsAndGetManagers(topics []string) (map[string]Topic
 	return managers, nil
 }
 
-// verifyTransaction performs SPV verification on the transaction.
+// verifyTransaction performs SPV verification on the transaction, with the
+// host's Verifier when one is set.
 func (e *Engine) verifyTransaction(ctx context.Context, tx *transaction.Transaction, txid *chainhash.Hash) error {
+	if e.Verifier != nil {
+		return e.Verifier(ctx, tx, txid)
+	}
 	valid, err := spv.Verify(ctx, tx, e.ChainTracker, nil)
 	if err != nil {
 		slog.Error("SPV verification failed in Submit", "txid", txid.String(), "error", err)
